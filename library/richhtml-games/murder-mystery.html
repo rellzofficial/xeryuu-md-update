@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Murder Mystery</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#070910;color:#fff}
+body{display:flex;align-items:center;justify-content:center;padding:8px}
+.app{width:min(410px,100%);background:linear-gradient(180deg,#111625,#090b12);border:1px solid #272d40;border-radius:26px;overflow:hidden;box-shadow:0 25px 80px #0009}
+.top{padding:15px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #202638}.logo{font-size:19px;font-weight:950}.level{font-weight:900;color:#c7b7ff}
+.game{padding:14px}.scene{background:#141927;border:1px solid #292f42;border-radius:18px;padding:14px;min-height:250px}.case{font-size:12px;color:#8f9ab4;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.title{font-size:22px;font-weight:950;margin:5px 0 7px}.story{font-size:13px;color:#b3bbcd;line-height:1.5}.clues{display:grid;gap:7px;margin-top:11px}.clue{background:#1b2130;border:1px solid #2b3449;border-radius:11px;padding:9px;font-size:12px;color:#d8ddeb}.suspects{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:11px}.suspect{background:#171c2b;border:1px solid #2c344a;color:#fff;border-radius:13px;padding:10px;text-align:left;min-height:70px;font-weight:900}.suspect span{display:block;font-size:11px;color:#8993aa;font-weight:600;margin-top:3px}.suspect.selected{border-color:#9b7cff;background:#24203a;box-shadow:0 0 0 1px #9b7cff55 inset}.suspect:active{transform:scale(.98)}
+.info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}.box{background:#141927;border:1px solid #252c40;border-radius:13px;padding:9px;text-align:center}.lab{font-size:10px;color:#7f89a4;font-weight:900}.val{font-size:17px;font-weight:950;margin-top:2px}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}button{border:1px solid #2c344a;background:#171c2c;color:#fff;border-radius:14px;padding:13px 8px;font-weight:950;touch-action:manipulation;user-select:none}button:active{transform:scale(.97);background:#242b40}.primary{background:linear-gradient(135deg,#665cff,#9758ec);border:0}.danger{background:#33202a;border-color:#55313e}.help{text-align:center;color:#7f89a4;font-size:11px;margin-top:9px}.overlay{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;padding:20px}.card{width:min(410px,100%);background:#111625;border:1px solid #2a3146;border-radius:25px;padding:28px;text-align:center;box-shadow:0 25px 90px #000}.emoji{font-size:60px}.card h1{font-size:29px;margin:8px 0}.card p{color:#9da6bc;line-height:1.55;margin:0 0 20px}.hide{display:none}.success{color:#7ee5a0}.fail{color:#ff8897}.progress{height:6px;background:#272e40;border-radius:99px;overflow:hidden;margin-top:9px}.progress i{display:block;height:100%;width:2%;background:#8e78ff;transition:width .2s}
+@media(max-width:350px){.suspects{grid-template-columns:1fr}.title{font-size:19px}}
+</style>
+</head>
+<body>
+<div class="app">
+ <div class="top"><div class="logo">🕵️ Murder Mystery</div><div class="level">Lv <span id="level">1</span>/50</div></div>
+ <div class="game">
+  <div class="scene">
+   <div class="case">Kasus <span id="caseNo">01</span></div>
+   <div class="title" id="title">Misteri di Rumah Tua</div>
+   <div class="story" id="story"></div>
+   <div class="clues" id="clues"></div>
+   <div class="suspects" id="suspects"></div>
+  </div>
+  <div class="info">
+   <div class="box"><div class="lab">CLUE</div><div class="val" id="clueCount">0/0</div></div>
+   <div class="box"><div class="lab">KESALAHAN</div><div class="val" id="mistakes">0/2</div></div>
+   <div class="box"><div class="lab">SKOR</div><div class="val" id="score">0</div></div>
+  </div>
+  <div class="progress"><i id="progress"></i></div>
+  <div class="controls">
+   <button class="primary" id="accuse">🔎 TUDUH TERSANGKA</button>
+   <button class="danger" id="reset">↻ ULANG LEVEL</button>
+  </div>
+  <div class="help">Baca semua petunjuk, pilih tersangka, lalu tekan tuduh.</div>
+ </div>
+</div>
+
+<div class="overlay" id="start">
+ <div class="card"><div class="emoji">🕵️</div><h1>Murder Mystery</h1><p>Taklukkan 50 kasus. Cari petunjuk, bandingkan alibi, lalu tentukan siapa tersangkanya.</p><button class="primary" style="width:100%" id="startBtn">MULAI PENYELIDIKAN</button></div>
+</div>
+<div class="overlay hide" id="result">
+ <div class="card"><div class="emoji" id="resultEmoji">🎉</div><h1 id="resultTitle">Kasus Terpecahkan!</h1><p id="resultText"></p><button class="primary" style="width:100%" id="nextBtn">KASUS BERIKUTNYA</button></div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const names=['Arga','Bima','Citra','Dimas','Elin','Fajar','Gita','Hana','Iqbal','Juno'];
+const places=['perpustakaan','ruang musik','dapur','teras belakang','ruang kerja','garasi','ruang tamu','loteng','taman','studio'];
+const motives=['ingin mengambil dokumen penting','mengejar sebuah rahasia lama','ingin mendapatkan kembali barang miliknya','takut rencananya terbongkar','berselisih soal sebuah kontrak','ingin menutupi kesalahan sebelumnya'];
+const baseCases=[
+ ['Misteri di Rumah Tua','Sebuah dokumen penting hilang setelah lampu rumah padam beberapa menit.'],
+ ['Jam yang Berhenti','Sebuah jam berhenti tepat saat kejadian, tetapi tidak ada tanda kerusakan.'],
+ ['Kunci Ruang Kerja','Kunci cadangan ditemukan di tempat yang seharusnya hanya diketahui dua orang.'],
+ ['Pesan Terakhir','Sebuah pesan singkat memberi petunjuk tentang seseorang yang berbohong.'],
+ ['Jejak di Taman','Sebuah jejak menunjukkan seseorang datang dari arah yang berbeda dari pengakuannya.']
+];
+let level=1,score=0,mistakes=0,selected=-1,current=null,running=false;
+function rng(n){return Math.floor(Math.random()*n)}
+function makeCase(lv){
+ const n=lv<=5?4:lv<=15?5:lv<=30?6:lv<=45?7:8;
+ let culprit=rng(n), pool=[];
+ while(pool.length<n) {let x=rng(names.length);if(!pool.includes(x))pool.push(x)}
+ const suspects=pool.map((idx,i)=>({name:names[idx],role:['Pemilik','Teman','Pegawai','Tamu','Tetangga','Rekan','Penjaga','Teknisi'][i],truth:i===culprit}));
+ const place=places[(lv-1)%places.length], motive=motives[(lv-1)%motives.length];
+ const cluePool=[
+  `Rekaman menunjukkan seseorang masuk dari arah ${place}.`,
+  `Salah satu tersangka mengaku berada di tempat lain pada waktu yang sama.`,
+  `Ada catatan kecil yang menyebut alasan: ${motive}.`,
+  `Saksi mendengar langkah kaki sebelum listrik kembali menyala.`,
+  `Sebuah benda dipindahkan tanpa ada yang mengaku memindahkannya.`,
+  `Waktu pada catatan saksi berbeda beberapa menit dari cerita salah satu tersangka.`,
+  `Petunjuk lokasi tidak cocok dengan alibi salah satu tersangka.`,
+  `Satu alibi terdengar meyakinkan, tetapi bertentangan dengan bukti waktu.`
+ ];
+ let clues=[]; const count=Math.min(3+Math.floor((lv-1)/8),6);
+ // Guaranteed decisive clue: references culprit's index without explicitly naming them until player chooses.
+ clues.push(`Alibi orang yang datang paling akhir bertentangan dengan catatan waktu.`);
+ while(clues.length<count){let c=cluePool[rng(cluePool.length)];if(!clues.includes(c))clues.push(c)}
+ // To make the puzzle deterministic and solvable, the decisive clue identifies a unique suspect by a coded detail.
+ const code=(culprit+3)%10;
+ clues[0]=`Petunjuk utama: kode pada catatan cocok dengan angka ${code}. Hanya satu tersangka memiliki nomor lencana ${code}.`;
+ suspects.forEach((s,i)=>s.badge=(i===culprit?code:(i+1+code)%10));
+ return {title:baseCases[(lv-1)%baseCases.length][0]+(lv>5?' — Kasus '+lv:''),story:baseCases[(lv-1)%baseCases.length][1],clues,suspects,culprit};
+}
+function render(){
+ $('level').textContent=level;$('caseNo').textContent=String(level).padStart(2,'0');
+ $('title').textContent=current.title;$('story').textContent=current.story;
+ $('clues').innerHTML=current.clues.map((x,i)=>`<div class="clue">🔍 ${x}</div>`).join('');
+ $('suspects').innerHTML=current.suspects.map((s,i)=>`<button class="suspect ${selected===i?'selected':''}" data-i="${i}">👤 ${s.name}<span>${s.role} • Lencana #${s.badge}</span></button>`).join('');
+ document.querySelectorAll('.suspect').forEach(b=>b.onclick=()=>{selected=Number(b.dataset.i);render()});
+ $('clueCount').textContent=current.clues.length+'/'+current.clues.length;
+ $('mistakes').textContent=mistakes+'/2';$('score').textContent=score;
+ $('progress').style.width=(level/50*100)+'%';
+}
+function newLevel(){current=makeCase(level);mistakes=0;selected=-1;render()}
+function start(){level=1;score=0;running=true;$('start').classList.add('hide');$('result').classList.add('hide');newLevel()}
+function accuse(){
+ if(!running)return;
+ if(selected<0)return showResult(false,'Belum memilih tersangka.','Pilih salah satu tersangka terlebih dahulu.');
+ if(current.suspects[selected].truth){
+  score+=100+Math.max(0,2-mistakes)*25;
+  if(level>=50){running=false;showResult(true,'🏆 50 KASUS SELESAI!','Kamu berhasil menyelesaikan seluruh kasus Murder Mystery dengan skor '+score+'.');$('nextBtn').textContent='MAIN LAGI';$('nextBtn').onclick=start;return}
+  showResult(true,'🎉 Kasus Terpecahkan!',`Tersangka yang kamu pilih benar. +${100+Math.max(0,2-mistakes)*25} poin.`);
+ }else{
+  mistakes++;
+  if(mistakes>=2){running=false;showResult(false,'❌ Penyidikan Gagal',`Dua tuduhanmu salah. Jawaban sebenarnya adalah ${current.suspects[current.suspects.findIndex(s=>s.truth)].name}.`);$('nextBtn').textContent='ULANG LEVEL';$('nextBtn').onclick=()=>{running=true;$('result').classList.add('hide');newLevel()};}
+  else {showResult(false,'Belum tepat','Petunjuk belum cocok. Kamu masih punya satu kesempatan.');$('nextBtn').textContent='LANJUTKAN';$('nextBtn').onclick=()=>{$('result').classList.add('hide');render()};}
+ }
+}
+function showResult(ok,title,text){$('resultEmoji').textContent=ok?'🎉':'🕵️';$('resultTitle').className=ok?'success':'fail';$('resultTitle').textContent=title;$('resultText').textContent=text;$('result').classList.remove('hide');$('nextBtn').onclick=()=>{if(ok){level++;$('result').classList.add('hide');newLevel()}else{$('result').classList.add('hide');render()}};$('nextBtn').textContent=ok?'KASUS BERIKUTNYA':'LANJUTKAN'}
+$('startBtn').onclick=start;$('accuse').onclick=accuse;$('reset').onclick=()=>{if(running)newLevel()};
+current=makeCase(1);render();
+</script>
+</body>
+</html>
