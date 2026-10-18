@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Xeryuu Aim Shooter</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080c15;color:#fff;font-family:Arial,sans-serif;display:flex;justify-content:center;min-height:100vh}
+.app{width:min(410px,100%);padding:8px}.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+h1{font-size:21px;margin:0}.muted{color:#9ba8c5;font-size:12px}
+.menu,.game{background:#111827;border:1px solid #293755;border-radius:18px;padding:14px}.menu{text-align:center}
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.mode{background:#18233b;border:1px solid #334568;border-radius:14px;color:#fff;padding:16px 10px;cursor:pointer;text-align:left}.mode:hover{border-color:#7895ff;transform:translateY(-2px)}.mode b{display:block;font-size:16px;margin-bottom:5px}.mode small{color:#aab6d0;line-height:1.4}
+.game{display:none}.hud{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:9px}.stat{background:#0c1425;border:1px solid #253653;border-radius:10px;padding:8px;text-align:center;font-size:11px}.stat b{display:block;font-size:17px;margin-top:2px}
+.arena{position:relative;height:410px;overflow:hidden;border-radius:15px;border:1px solid #2b3b5c;background:radial-gradient(circle at 50% 45%,#1c2940,#0a101c 70%);cursor:crosshair;touch-action:none}
+.grid{position:absolute;inset:0;background-image:linear-gradient(#ffffff07 1px,transparent 1px),linear-gradient(90deg,#ffffff07 1px,transparent 1px);background-size:45px 45px;pointer-events:none}
+.target{position:absolute;width:58px;height:58px;border-radius:50%;transform:translate(-50%,-50%);border:3px solid #fff;box-shadow:0 0 0 5px #e44b5a55,0 0 24px #e44b5a99;display:none;cursor:crosshair;z-index:3}.target:before{content:"";position:absolute;inset:11px;border:3px solid #fff;border-radius:50%}.target:after{content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;transform:translate(-50%,-50%);background:#fff;border-radius:50%}
+#flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:5}.combo{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-weight:bold;font-size:20px;text-shadow:0 2px 8px #000;z-index:4}
+.bottom{display:flex;gap:8px;align-items:center;margin-top:9px}.progress{height:9px;background:#242d40;border-radius:20px;overflow:hidden;flex:1}.progress i{display:block;height:100%;width:0;background:#5f83ff}.btn{border:0;border-radius:10px;padding:10px 14px;background:#526eff;color:white;font-weight:bold;cursor:pointer}.secondary{background:#253452}
+.overlay{position:fixed;inset:0;background:#000c;display:none;place-items:center;padding:18px}.modal{width:min(400px,100%);background:#121b2e;border:1px solid #3a4b70;border-radius:18px;padding:20px;text-align:center}.modal h2{margin:5px}.big{font-size:36px;font-weight:bold}.stars{font-size:25px;margin:8px}
+@media(max-width:600px){.modes{grid-template-columns:1fr}.arena{height:min(58vh,410px);min-height:320px.hud{grid-template-columns:repeat(2,1fr)}.target{width:52px;height:52px}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="top"><h1>🎯 Xeryuu Aim Shooter</h1><span class="muted">Precision Training</span></div>
+
+<div id="menu" class="menu">
+<h2>Pilih Tingkat Kesulitan</h2>
+<p class="muted">Bidik target secepat dan setepat mungkin. Target mengecil dan bergerak lebih cepat pada level tinggi.</p>
+<div class="modes">
+<button class="mode" data-mode="easy"><b>🟢 Mudah</b><small>Target besar<br>Gerakan lambat<br>30 detik • 15 target</small></button>
+<button class="mode" data-mode="normal"><b>🟡 Normal</b><small>Target sedang<br>Gerakan menengah<br>30 detik • 20 target</small></button>
+<button class="mode" data-mode="hard"><b>🔴 Sulit</b><small>Target kecil<br>Gerakan cepat + berpindah<br>30 detik • 25 target</small></button>
+</div>
+</div>
+
+<div id="game" class="game">
+<div class="hud">
+<div class="stat">🎯 SCORE<b id="score">0</b></div>
+<div class="stat">⚡ COMBO<b id="combo">0</b></div>
+<div class="stat">🎯 HIT RATE<b id="accuracy">100%</b></div>
+<div class="stat">⏱️ TIME<b id="time">30.0</b></div>
+</div>
+<div class="arena" id="arena"><div class="grid"></div><div class="combo" id="comboText"></div><div id="target" class="target"></div><div id="flash"></div></div>
+<div class="bottom"><div class="progress"><i id="progress"></i></div><button class="btn secondary" id="quit">Keluar</button></div>
+</div>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal">
+<h2 id="resultTitle">Selesai</h2><div class="stars" id="stars"></div><div class="big" id="finalScore">0</div>
+<p id="resultText"></p><button class="btn" id="again">Main Lagi</button>
+</div></div>
+
+<script>
+const cfg={
+ easy:{name:"Mudah",size:72,speed:70,moveEvery:900,max:15,time:30},
+ normal:{name:"Normal",size:56,speed:135,moveEvery:600,max:20,time:30},
+ hard:{name:"Sulit",size:42,speed:220,moveEvery:360,max:25,time:30}
+};
+let state=null,raf=0,last=0;
+
+const $=id=>document.getElementById(id);
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function start(mode){
+ cancelAnimationFrame(raf);let c=cfg[mode];
+ state={mode,c,score:0,hits:0,shots:0,combo:0,bestCombo:0,time:c.time,spawned:0,x:0,y:0,vx:0,vy:0,nextMove:0,running:true,lastHit:0};
+ $("menu").style.display="none";$("game").style.display="block";$("overlay").style.display="none";
+ spawn(true);updateHUD();last=performance.now();raf=requestAnimationFrame(loop);
+}
+function spawn(first=false){
+ if(!state.running)return;
+ const a=$("arena"),c=state.c,pad=c.size/2+5;
+ const w=a.clientWidth,h=a.clientHeight;
+ state.x=pad+Math.random()*Math.max(1,w-pad*2);state.y=pad+Math.random()*Math.max(1,h-pad*2);
+ const angle=Math.random()*Math.PI*2,s=c.speed*(.75+Math.random()*.5);
+ state.vx=Math.cos(angle)*s;state.vy=Math.sin(angle)*s;
+ state.nextMove=performance.now()+c.moveEvery*(.7+Math.random()*.5);
+ state.spawned++;
+ const t=$("target");t.style.width=c.size+"px";t.style.height=c.size+"px";t.style.display="block";
+ t.style.left=state.x+"px";t.style.top=state.y+"px";
+}
+function loop(now){
+ if(!state||!state.running)return;
+ const dt=Math.min(.035,(now-last)/1000);last=now;state.time-=dt;
+ const c=state.c,a=$("arena");
+ state.x+=state.vx*dt;state.y+=state.vy*dt;
+ const r=c.size/2;
+ if(state.x<r||state.x>a.clientWidth-r){state.vx*=-1;state.x=clamp(state.x,r,a.clientWidth-r)}
+ if(state.y<r||state.y>a.clientHeight-r){state.vy*=-1;state.y=clamp(state.y,r,a.clientHeight-r)}
+ if(now>state.nextMove&&!firstLevelEasy()){spawn()}
+ $("target").style.left=state.x+"px";$("target").style.top=state.y+"px";
+ if(state.time<=0||state.spawned>=c.max&&state.hits>=c.max){finish();return}
+ updateHUD();raf=requestAnimationFrame(loop);
+}
+function firstLevelEasy(){return false}
+function shoot(e){
+ if(!state||!state.running)return;
+ state.shots++;
+ const rect=$("arena").getBoundingClientRect();
+ const x=e.clientX-rect.left,y=e.clientY-rect.top;
+ const r=state.c.size/2;
+ if(Math.hypot(x-state.x,y-state.y)<=r){
+  state.hits++;state.combo++;state.bestCombo=Math.max(state.bestCombo,state.combo);
+  state.score+=100+Math.min(200,state.combo*15);
+  $("comboText").textContent=state.combo>=2?"🔥 COMBO x"+state.combo:"";
+  $("flash").style.opacity=".12";setTimeout(()=>$("flash").style.opacity="0",45);
+  if(state.hits>=state.c.max){finish();return}
+  spawn();
+ }else{
+  state.combo=0;$("comboText").textContent="";state.score=Math.max(0,state.score-10);
+ }
+ updateHUD();
+}
+function updateHUD(){
+ if(!state)return;
+ $("score").textContent=state.score;$("combo").textContent=state.combo;
+ $("accuracy").textContent=(state.shots?Math.round(state.hits/state.shots*100):100)+"%";
+ $("time").textContent=Math.max(0,state.time).toFixed(1);
+ $("progress").style.width=(state.hits/state.c.max*100)+"%";
+}
+function finish(){
+ if(!state||!state.running)return;state.running=false;cancelAnimationFrame(raf);$("target").style.display="none";
+ const acc=state.shots?state.hits/state.shots:0;
+ let stars=acc>=.9&&state.hits>=Math.ceil(state.c.max*.8)?3:acc>=.7?2:1;
+ $("resultTitle").textContent="🎯 "+state.c.name+" Selesai";
+ $("stars").textContent="⭐".repeat(stars)+"☆".repeat(3-stars);
+ $("finalScore").textContent=state.score+" pts";
+ $("resultText").textContent=`Hit ${state.hits}/${state.c.max} • Akurasi ${Math.round(acc*100)}% • Combo terbaik x${state.bestCombo}`;
+ $("overlay").style.display="grid";
+}
+$("arena").addEventListener("pointerdown",shoot);
+document.querySelectorAll(".mode").forEach(b=>b.addEventListener("click",()=>start(b.dataset.mode)));
+$("again").addEventListener("click",()=>start(state.mode));
+$("quit").addEventListener("click",()=>{if(state){state.running=false;cancelAnimationFrame(raf)}$("target").style.display="none";$("game").style.display="none";$("menu").style.display="block";$("overlay").style.display="none"});
+</script>
+</body>
+</html>
