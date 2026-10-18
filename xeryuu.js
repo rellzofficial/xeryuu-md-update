@@ -50,6 +50,24 @@ const DB_FILE = projectPath('library', 'database', 'database.json');
 const util = require('util');
 const jimp = require('jimp');
 const axios = require('axios');
+
+// API credentials must stay in local configuration, never in this distributable source.
+let xeryuuLocalAuth = {};
+try {
+    xeryuuLocalAuth = require('./authen.js') || {};
+} catch {}
+const xeryuuPrivateApiKeys = xeryuuLocalAuth.apiKeys && typeof xeryuuLocalAuth.apiKeys === 'object'
+    ? xeryuuLocalAuth.apiKeys
+    : {};
+function getXeryuuPrivateKey(name, envName, globalNames = []) {
+    const candidates = [
+        process.env[envName],
+        ...globalNames.map(key => global[key]),
+        xeryuuPrivateApiKeys[name]
+    ];
+    const found = candidates.find(value => typeof value === 'string' && value.trim());
+    return found ? String(found).trim() : '';
+}
 const chalk = require('chalk');
 const yts = require('yt-search');
 const ytdl = require('@vreden/youtube_scraper');
@@ -26111,6 +26129,8 @@ break
 case 'gpt': {
     try {
         if (!text) return Reply('gpt versi -3 apa yg kamu cari')
+        const aiProxyToken = getXeryuuPrivateKey('aiProxyBearer', 'XERYUU_AI_PROXY_TOKEN', ['aiProxyToken']);
+        if (!aiProxyToken) return Reply('⚙️ API GPT belum dikonfigurasi. Isi XERYUU_AI_PROXY_TOKEN atau apiKeys.aiProxyBearer di authen.js lokal.');
         
         
         let { data } = await axios.post(
@@ -26128,7 +26148,7 @@ case 'gpt': {
                     'User-Agent': 'okhttp/3.14.9',
                     'Connection': 'Keep-Alive',
                     'Accept-Encoding': 'gzip',
-                    'Authorization': 'Bearer sk-proj-6WaGz0cNPN5ILBClacpFhlW-7UOnknRtuEoPoV0rgMM7y50hvnZsMjrApOFN8r9vnIa-IOwTwvT3BlbkFJA93BY4mqTbjUGMQC_rkb5YJNcIsYnfjvFMxjVKU0bsEDNCciyzCCI4GuhNAwp',
+                    'Authorization': `Bearer ${aiProxyToken}`,
                     'Content-Type': 'application/json'
                 }
             }
@@ -27031,6 +27051,8 @@ break
 case 'kontol': {
     try {
         if (!text) return Reply('Nn?')
+        const aiProxyToken = getXeryuuPrivateKey('aiProxyBearer', 'XERYUU_AI_PROXY_TOKEN', ['aiProxyToken']);
+        if (!aiProxyToken) return Reply('⚙️ API GPT belum dikonfigurasi. Isi XERYUU_AI_PROXY_TOKEN atau apiKeys.aiProxyBearer di authen.js lokal.');
         
         
         let { data } = await axios.post(
@@ -27048,7 +27070,7 @@ case 'kontol': {
                     'User-Agent': 'okhttp/3.14.9',
                     'Connection': 'Keep-Alive',
                     'Accept-Encoding': 'gzip',
-                    'Authorization': 'Bearer sk-proj-6WaGz0cNPN5ILBClacpFhlW-7UOnknRtuEoPoV0rgMM7y50hvnZsMjrApOFN8r9vnIa-IOwTwvT3BlbkFJA93BY4mqTbjUGMQC_rkb5YJNcIsYnfjvFMxjVKU0bsEDNCciyzCCI4GuhNAwp',
+                    'Authorization': `Bearer ${aiProxyToken}`,
                     'Content-Type': 'application/json'
                 }
             }
@@ -27228,8 +27250,9 @@ case 'ah': {
 break
 case 'google': {
               if (!text) return Reply(`Contoh: ${cmd} lyrra`)
-              const apiKey = 'AIzaSyAajE2Y-Kgl8bjPyFvHQ-PgRUSMWgBEsSk'
-              const cx = 'e5c2be9c3f94c4bbb'
+              const apiKey = getXeryuuPrivateKey('googleCustomSearchApiKey', 'GOOGLE_CUSTOM_SEARCH_API_KEY', ['googleCustomSearchApiKey', 'googleApiKey'])
+              const cx = getXeryuuPrivateKey('googleCustomSearchCx', 'GOOGLE_CUSTOM_SEARCH_CX', ['googleCustomSearchCx', 'googleSearchCx'])
+              if (!apiKey || !cx) return Reply('⚙️ Google Search belum dikonfigurasi. Isi GOOGLE_CUSTOM_SEARCH_API_KEY dan GOOGLE_CUSTOM_SEARCH_CX atau apiKeys di authen.js lokal.');
               const query = text
               const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&key=${apiKey}&cx=${cx}`
               fetch(url).then(response => response.json()).then(data => {
@@ -29927,7 +29950,9 @@ case "emojimix": {
 if (!text) return Reply(example('😀|😍'))
 if (!text.split("|")) return Reply(example('😀|??'))
 let [e1, e2] = text.split("|")
-let brat = `https://tenor.googleapis.com/v2/featured?key=AIzaSyAyimkuYQYF_FXVALexPuGQctUWRURdCYQ&contentfilter=high&media_filter=png_transparent&component=proactive&collection=emoji_kitchen_v5&q=${encodeURIComponent(e1)}&emoji2=${encodeURIComponent(e2)}`
+const tenorApiKey = getXeryuuPrivateKey('tenorApiKey', 'TENOR_API_KEY', ['tenorApiKey']);
+if (!tenorApiKey) return Reply('⚙️ API Emoji Kitchen belum dikonfigurasi. Isi TENOR_API_KEY atau apiKeys.tenorApiKey di authen.js lokal.');
+let brat = `https://tenor.googleapis.com/v2/featured?key=${encodeURIComponent(tenorApiKey)}&contentfilter=high&media_filter=png_transparent&component=proactive&collection=emoji_kitchen_v5&q=${encodeURIComponent(e1)}&emoji2=${encodeURIComponent(e2)}`
 let videoBuffer = await getBuffer(brat)
 try {
 await conn.sendAsSticker(m.chat, videoBuffer, m, {packname: global.packname})
@@ -30644,7 +30669,8 @@ case 'youtube': {
 
  const subcmd = text.split(' ')[0].toLowerCase();
  const query = text.replace(subcmd, '').trim();
- const apikey = 'AIzaSyBI6P58kEwxWywxh_UeCUpQC7_T5xwieTg';
+ const apikey = getXeryuuPrivateKey('youtubeApiKey', 'YOUTUBE_API_KEY', ['youtubeApiKey', 'googleApiKey']);
+  if (!apikey) return Reply('⚙️ YouTube Data API belum dikonfigurasi. Isi YOUTUBE_API_KEY atau apiKeys.youtubeApiKey di authen.js lokal.');
 
  if (!['search', 'channel', 'latest', 'stat'].includes(subcmd))
  return Reply('Subfitur tidak dikenal. Gunakan salah satu: search, channel, latest, stat');
