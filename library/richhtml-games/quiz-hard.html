@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Xeryuu Quiz</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#090b14;color:#fff}
+body{display:flex;align-items:center;justify-content:center;padding:8px}
+.app{width:min(410px,100%);min-height:0;border:1px solid #252a3d;border-radius:28px;background:linear-gradient(180deg,#111526,#0b0e18);box-shadow:0 20px 70px #0008;overflow:hidden;position:relative}
+.top{padding:24px 22px 10px;display:flex;justify-content:space-between;align-items:center}
+.logo{font-weight:900;font-size:21px;letter-spacing:.3px}
+.badge{padding:7px 11px;border-radius:999px;background:#1b2134;color:#aeb8ff;font-size:12px;font-weight:800}
+.content{padding:18px 22px 28px}
+.screen{text-align:center;padding:55px 12px 30px}
+.icon{font-size:64px;margin-bottom:16px}
+h1{font-size:34px;line-height:1.05;margin:0 0 12px}
+p{color:#9da5bc;line-height:1.55;margin:0 0 25px}
+.btn{width:100%;border:0;border-radius:16px;padding:16px 18px;font-size:16px;font-weight:900;color:#fff;background:linear-gradient(135deg,#6c63ff,#8b5cf6);cursor:pointer;box-shadow:0 9px 25px #6c63ff33}
+.btn:active{transform:scale(.985)}
+.progress{height:7px;background:#202538;border-radius:99px;overflow:hidden;margin:8px 0 22px}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#6c63ff,#b36cff);transition:.3s}
+.meta{display:flex;justify-content:space-between;color:#8992ab;font-size:13px;font-weight:800;margin-bottom:18px}
+.question{text-align:left;font-size:25px;line-height:1.2;margin:0 0 20px}
+.answers{display:grid;gap:11px}
+.answer{background:#151a2a;border:1px solid #292f45;color:#e9ecf5;border-radius:15px;padding:15px;text-align:left;font-size:15px;font-weight:750;cursor:pointer;transition:.15s}
+.answer:hover{border-color:#6068a0}
+.answer.correct{background:#123522;border-color:#38d996;color:#8ff0c7}
+.answer.wrong{background:#3a1820;border-color:#ff657c;color:#ffabb8}
+.answer.lock{pointer-events:none}
+.feedback{min-height:48px;padding-top:16px;font-weight:800}
+.score{font-size:54px;font-weight:950;margin:12px 0}
+.small{font-size:13px;color:#7f89a4}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="logo">⚡ Xeryuu Quiz</div>
+    <div class="badge" id="scoreBadge">0 POIN</div>
+  </div>
+  <div class="content">
+    <section id="start" class="screen">
+      <div class="icon">🧠</div>
+      <h1>Quiz Kilat</h1>
+      <p>15 pertanyaan sulit dipilih secara acak dari bank soal. Ada soal matematika, sains, teknologi, logika, dan konsep.</p>
+      <button class="btn" onclick="startQuiz()">MULAI QUIZ</button>
+    </section>
+
+    <section id="quiz" class="hide">
+      <div class="progress"><i id="bar"></i></div>
+      <div class="meta"><span id="count">SOAL 1 / 5</span><span id="liveScore">0 POIN</span></div>
+      <h2 class="question" id="question"></h2>
+      <div class="answers" id="answers"></div>
+      <div class="feedback" id="feedback"></div>
+    </section>
+
+    <section id="result" class="screen hide">
+      <div class="icon" id="resultIcon">🏆</div>
+      <div class="small">SKOR AKHIR</div>
+      <div class="score" id="finalScore">0 / 1500</div>
+      <p id="resultText"></p>
+      <button class="btn" onclick="startQuiz()">MAIN LAGI</button>
+    </section>
+  </div>
+</div>
+
+<script>
+const questions=[{"q":"Dalam mekanika kuantum, prinsip ketidakpastian Heisenberg menyatakan bahwa...","a":["Energi selalu kekal dalam sistem kuantum","Posisi dan momentum tidak dapat diketahui secara bersamaan dengan ketelitian tak terbatas","Semua partikel bergerak dalam lintasan elips","Massa partikel selalu berubah saat diamati"],"c":1},{"q":"Jika f(x)=x²−6x+11, nilai minimum f(x) adalah...","a":["1","2","3","5"],"c":1},{"q":"Manakah yang merupakan konsekuensi langsung dari Teorema Noether?","a":["Setiap gaya memiliki pasangan gaya yang sama besar","Simetri kontinu berkaitan dengan hukum kekekalan","Semua sistem fisik bersifat reversibel","Energi kinetik selalu konstan"],"c":1},{"q":"Dalam genetika, crossing-over pada meiosis terutama terjadi pada tahap...","a":["Profase I","Metafase I","Anafase II","Telofase II"],"c":0},{"q":"Bilangan oksidasi sulfur dalam ion sulfat SO₄²⁻ adalah...","a":["+2","+4","+6","+8"],"c":2},{"q":"Jika matriks A berukuran 2×2 memiliki determinan 3, maka determinan 2A adalah...","a":["3","6","9","12"],"c":2},{"q":"Manakah yang paling tepat menggambarkan entropi dalam termodinamika statistik?","a":["Ukuran jumlah keadaan mikro yang konsisten dengan keadaan makro","Ukuran energi total sistem","Jumlah partikel yang tidak bergerak","Tekanan maksimum suatu gas"],"c":0},{"q":"Dalam jaringan komputer, protokol yang menyediakan pengiriman data andal dan berurutan adalah...","a":["UDP","IP","TCP","ARP"],"c":2},{"q":"Apa hasil dari integral ∫₀¹ 3x² dx?","a":["1/3","1","3","9"],"c":1},{"q":"Dalam relativitas khusus, faktor Lorentz γ meningkat ketika...","a":["Kecepatan benda mendekati kecepatan cahaya","Massa benda menjadi nol","Suhu benda turun","Gravitasi menjadi nol"],"c":0},{"q":"Bahasa formal yang dapat dikenali oleh finite automaton deterministik adalah...","a":["Bahasa reguler","Semua bahasa bebas konteks","Semua bahasa Turing-complete","Bahasa yang tidak dapat diputuskan"],"c":0},{"q":"Jika sebuah graf terhubung memiliki n simpul dan n−1 sisi, graf tersebut pasti merupakan...","a":["Graf lengkap","Pohon","Graf bipartit lengkap","Siklus"],"c":1},{"q":"Dalam analisis algoritma, kompleksitas pencarian biner pada array terurut adalah...","a":["O(1)","O(log n)","O(n)","O(n log n)"],"c":1},{"q":"Protein terutama tersusun dari rantai...","a":["Nukleotida","Monosakarida","Asam amino","Asam lemak"],"c":2},{"q":"Jika pH suatu larutan turun dari 5 menjadi 3, konsentrasi ion H⁺ berubah menjadi...","a":["2 kali lebih besar","10 kali lebih besar","100 kali lebih besar","1000 kali lebih kecil"],"c":2},{"q":"Dalam teori bilangan, bilangan prima terbesar yang membagi 2¹⁰−1 adalah...","a":["3","5","7","11"],"c":2},{"q":"Transformasi Fourier terutama digunakan untuk mengubah sinyal dari domain...","a":["Waktu ke frekuensi","Massa ke energi","Ruang ke suhu","Warna ke cahaya"],"c":0},{"q":"Manakah pernyataan yang benar tentang lubang hitam menurut relativitas umum?","a":["Cahaya dapat keluar dari dalam event horizon","Event horizon adalah batas kausal yang tidak dapat dilalui keluar oleh sinyal","Semua lubang hitam harus memiliki massa yang sama","Lubang hitam tidak memiliki gravitasi"],"c":1},{"q":"Dalam SQL, perintah yang digunakan untuk menggabungkan baris dari dua tabel berdasarkan kondisi terkait adalah...","a":["MERGE","JOIN","GROUP","UNION ALL"],"c":1},{"q":"Jika peluang suatu kejadian adalah 0,2 dan dilakukan 3 percobaan independen, peluang kejadian tersebut muncul tepat sekali adalah...","a":["0,096","0,384","0,488","0,512"],"c":1},{"q":"Apa yang dimaksud dengan overfitting dalam machine learning?","a":["Model terlalu sederhana sehingga gagal belajar","Model sangat cocok dengan data latihan tetapi buruk pada data baru","Model tidak memiliki parameter","Model hanya bisa digunakan untuk klasifikasi"],"c":1},{"q":"Dalam kriptografi kunci publik, pasangan yang benar adalah...","a":["AES menggunakan kunci publik dan privat","RSA menggunakan pasangan kunci publik dan privat","SHA-256 menggunakan dua kunci rahasia","Base64 merupakan algoritma enkripsi"],"c":1},{"q":"Jika deret geometri memiliki suku pertama 3 dan rasio 2, jumlah 5 suku pertamanya adalah...","a":["45","63","93","96"],"c":1},{"q":"Dalam biologi sel, organel yang paling terkait dengan fosforilasi oksidatif adalah...","a":["Ribosom","Lisosom","Mitokondria","Badan Golgi"],"c":2},{"q":"Apa yang terjadi pada resistansi total dua resistor identik jika disusun paralel dibandingkan satu resistor saja?","a":["Menjadi dua kali lipat","Tetap sama","Menjadi setengahnya","Menjadi empat kali lipat"],"c":2},{"q":"Manakah yang merupakan contoh inferensi Bayes?","a":["Memperbarui probabilitas hipotesis setelah memperoleh bukti baru","Mengurutkan angka secara ascending","Menghitung luas lingkaran","Mengubah basis bilangan"],"c":0},{"q":"Dalam struktur data heap maksimum, elemen terbesar berada pada...","a":["Daun paling kiri","Akar","Daun paling kanan","Indeks acak"],"c":1},{"q":"Jika log₂(x)=7, maka x adalah...","a":["14","49","64","128"],"c":3},{"q":"Dalam kimia organik, gugus fungsi −COOH disebut...","a":["Hidroksil","Karbonil","Karboksil","Amino"],"c":2},{"q":"Prinsip Pauli menyatakan bahwa...","a":["Dua fermion identik tidak dapat memiliki keadaan kuantum yang sama sepenuhnya","Energi selalu berbanding lurus dengan massa","Semua atom harus memiliki jumlah neutron sama","Elektron selalu berada pada lintasan klasik"],"c":0},{"q":"Jika suatu fungsi memiliki turunan pertama nol pada titik x₀, apakah x₀ pasti merupakan titik minimum?","a":["Ya, selalu","Tidak, bisa minimum, maksimum, atau titik stasioner lain","Ya, jika fungsi kontinu","Tidak, karena turunan tidak pernah menentukan ekstrem"],"c":1},{"q":"Dalam teori graf, derajat total semua simpul suatu graf tak berarah sama dengan...","a":["Jumlah sisi","Dua kali jumlah sisi","Jumlah simpul","Kuadrat jumlah sisi"],"c":1},{"q":"Manakah yang paling tepat mengenai cache CPU?","a":["Lebih lambat daripada penyimpanan eksternal","Digunakan untuk menyimpan data/instruksi yang sering diakses agar akses CPU lebih cepat","Hanya menyimpan file multimedia","Menggantikan seluruh RAM"],"c":1},{"q":"Dalam astronomi, redshift kosmologis terutama berkaitan dengan...","a":["Pemuaian alam semesta","Rotasi Bulan","Medan magnet Bumi","Pembakaran hidrogen di Matahari"],"c":0},{"q":"Jika sebuah hash kriptografis memiliki sifat collision resistance, artinya...","a":["Mustahil secara matematis menemukan input apa pun","Sulit menemukan dua input berbeda dengan hash yang sama","Hash dapat dibalik menjadi input dengan mudah","Hash selalu menghasilkan panjang berbeda"],"c":1},{"q":"Pada proses mitosis, kromatid saudara berpisah pada fase...","a":["Profase","Metafase","Anafase","Telofase"],"c":2},{"q":"Apa nilai lim x→0 (sin x)/x dalam satuan radian?","a":["0","1","∞","Tidak ada"],"c":1},{"q":"Dalam ekonomi, inflasi berarti...","a":["Penurunan umum tingkat harga","Kenaikan umum tingkat harga secara berkelanjutan","Kenaikan nilai mata uang secara otomatis","Penurunan jumlah uang beredar saja"],"c":1},{"q":"Manakah yang bukan merupakan tipe data primitif umum dalam JavaScript?","a":["boolean","string","number","array"],"c":3},{"q":"Dalam sistem operasi, deadlock terjadi ketika...","a":["CPU tidak memiliki instruksi","Proses saling menunggu sumber daya sehingga tidak dapat melanjutkan","RAM selalu kosong","Semua proses selesai bersamaan"],"c":1},{"q":"Jika 5 pekerja menyelesaikan pekerjaan dalam 12 hari dengan laju sama, secara ideal 10 pekerja memerlukan...","a":["3 hari","6 hari","12 hari","24 hari"],"c":1},{"q":"Dalam relativitas umum, gravitasi dipandang sebagai...","a":["Gaya listrik","Kelengkungan ruang-waktu akibat distribusi energi-momentum","Gesekan antar benda","Efek hanya dari medan magnet"],"c":1},{"q":"Apa nama proses ketika RNA digunakan sebagai cetakan untuk membuat protein?","a":["Replikasi","Transkripsi","Translasi","Mutasi"],"c":2},{"q":"Jika semua bilangan dalam sebuah dataset dikalikan 10, standar deviasinya menjadi...","a":["Tetap","10 kali lebih besar","100 kali lebih besar","Akar 10 kali lebih besar"],"c":1},{"q":"Dalam keamanan web, serangan XSS terutama mengeksploitasi...","a":["Injeksi script ke konten yang dijalankan browser pengguna","Kegagalan hard disk","Overheating CPU","Pemutusan kabel jaringan"],"c":0},{"q":"Bilangan kompleks i² bernilai...","a":["1","−1","i","−i"],"c":1},{"q":"Dalam machine learning, regularization digunakan terutama untuk...","a":["Memperbesar overfitting","Mengurangi kompleksitas model dan membantu generalisasi","Menghapus semua data latihan","Menjamin akurasi 100%"],"c":1},{"q":"Jika sebuah koin adil dilempar 4 kali, peluang muncul tepat 2 kepala adalah...","a":["1/8","3/8","1/2","5/8"],"c":1},{"q":"Apa fungsi utama ribosom?","a":["Sintesis protein","Produksi ATP","Penyimpanan DNA","Pencernaan sel"],"c":0},{"q":"Dalam fisika, momentum linear didefinisikan sebagai...","a":["p=mv","p=ma","p=m/v","p=v/m"],"c":0},{"q":"Manakah pernyataan yang tepat mengenai algoritma Dijkstra?","a":["Selalu membutuhkan graf tanpa bobot","Digunakan untuk shortest path dengan bobot sisi non-negatif","Hanya untuk graf pohon","Tidak dapat digunakan pada graf berarah"],"c":1},{"q":"Dalam teori informasi, satu bit dapat merepresentasikan berapa banyak keadaan biner?","a":["1","2","4","8"],"c":1},{"q":"Jika suatu matriks persegi memiliki determinan nol, maka matriks tersebut...","a":["Pasti identitas","Singular/tidak invertibel","Selalu diagonal","Memiliki invers unik"],"c":1}];
+let sessionQuestions=[];
+let idx=0,score=0,locked=false;
+
+function startQuiz(){
+ idx=0;score=0;locked=false;
+ sessionQuestions=[...questions].sort(()=>Math.random()-0.5).slice(0,15);
+ document.getElementById('start').classList.add('hide');
+ document.getElementById('result').classList.add('hide');
+ document.getElementById('quiz').classList.remove('hide');
+ document.getElementById('scoreBadge').textContent='0 POIN';
+ render();
+}
+function render(){
+ locked=false;
+ const x=sessionQuestions[idx];
+ document.getElementById('count').textContent=`SOAL ${idx+1} / ${sessionQuestions.length}`;
+ document.getElementById('liveScore').textContent=`${score} POIN`;
+ document.getElementById('bar').style.width=((idx/sessionQuestions.length)*100)+'%';
+ document.getElementById('question').textContent=x.q;
+ document.getElementById('feedback').textContent='';
+ const box=document.getElementById('answers'); box.innerHTML='';
+ x.a.forEach((answer,n)=>{
+   const b=document.createElement('button');
+   b.className='answer'; b.textContent=answer;
+   b.onclick=()=>choose(n,b);
+   box.appendChild(b);
+ });
+}
+function choose(n,button){
+ if(locked)return; locked=true;
+ const x=sessionQuestions[idx];
+ document.querySelectorAll('.answer').forEach(b=>b.classList.add('lock'));
+ if(n===x.c){
+   score+=100; button.classList.add('correct');
+   document.getElementById('feedback').textContent='✓ Benar! +100 poin';
+ }else{
+   button.classList.add('wrong');
+   document.querySelectorAll('.answer')[x.c].classList.add('correct');
+   document.getElementById('feedback').textContent='✕ Kurang tepat';
+ }
+ document.getElementById('scoreBadge').textContent=`${score} POIN`;
+ document.getElementById('liveScore').textContent=`${score} POIN`;
+ setTimeout(()=>{
+   idx++;
+   if(idx<sessionQuestions.length) render(); else finish();
+ },700);
+}
+function finish(){
+ document.getElementById('quiz').classList.add('hide');
+ document.getElementById('result').classList.remove('hide');
+ document.getElementById('finalScore').textContent=`${score} / ${sessionQuestions.length*100}`;
+ const t=score===500?'Sempurna! Semua jawaban benar.':score>=300?'Mantap! Tinggal sedikit lagi menuju sempurna.':'Coba lagi dan pecahkan skor kamu.';
+ document.getElementById('resultText').textContent=t;
+ document.getElementById('resultIcon').textContent=score===500?'🏆':score>=300?'🔥':'🎯';
+}
+</script>
+</body>
+</html>
