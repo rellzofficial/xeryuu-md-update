@@ -1,0 +1,402 @@
+[
+    {
+        "soal": "Aku memakai topi jerami dan ingin menjadi Raja Bajak Laut.",
+        "jawaban": "luffy"
+    },
+    {
+        "soal": "Aku ninja dari Konoha dan memiliki Rubah Ekor Sembilan.",
+        "jawaban": "naruto"
+    },
+    {
+        "soal": "Aku detektif kecil dengan tubuh yang mengecil.",
+        "jawaban": "conan"
+    },
+    {
+        "soal": "Aku penyihir muda dengan bekas luka berbentuk petir.",
+        "jawaban": "harry potter"
+    },
+    {
+        "soal": "Aku pahlawan Gotham yang memakai simbol kelelawar.",
+        "jawaban": "batman"
+    },
+    {
+        "soal": "Aku manusia baja dari planet Krypton.",
+        "jawaban": "superman"
+    },
+    {
+        "soal": "Aku memakai perisai berbentuk bintang.",
+        "jawaban": "captain america"
+    },
+    {
+        "soal": "Aku memiliki palu bernama Mjolnir.",
+        "jawaban": "thor"
+    },
+    {
+        "soal": "Aku miliarder yang membuat armor berteknologi tinggi.",
+        "jawaban": "iron man"
+    },
+    {
+        "soal": "Aku hobbit yang membawa One Ring.",
+        "jawaban": "frodo"
+    },
+    {
+        "soal": "Aku penyihir berjanggut dari Middle-earth.",
+        "jawaban": "gandalf"
+    },
+    {
+        "soal": "Aku pendekar pedang yang memakai tiga pedang.",
+        "jawaban": "zoro"
+    },
+    {
+        "soal": "Aku koki Topi Jerami yang bertarung dengan kaki.",
+        "jawaban": "sanji"
+    },
+    {
+        "soal": "Aku dokter kapal Topi Jerami dan berbentuk rusa.",
+        "jawaban": "chopper"
+    },
+    {
+        "soal": "Aku navigator Topi Jerami yang pandai membuat peta.",
+        "jawaban": "nami"
+    },
+    {
+        "soal": "Aku rival Naruto dari klan Uchiha.",
+        "jawaban": "sasuke"
+    },
+    {
+        "soal": "Aku guru Naruto yang memakai masker.",
+        "jawaban": "kakashi"
+    },
+    {
+        "soal": "Aku Hokage Ketujuh dari Konoha.",
+        "jawaban": "naruto"
+    },
+    {
+        "soal": "Aku raja bajak laut sebelum era Luffy.",
+        "jawaban": "gol d roger"
+    },
+    {
+        "soal": "Aku pemburu iblis dengan anting hanafuda.",
+        "jawaban": "tanjiro"
+    },
+    {
+        "soal": "Aku adik Tanjiro yang berubah menjadi iblis.",
+        "jawaban": "nezuko"
+    },
+    {
+        "soal": "Aku Hashira Air dalam Demon Slayer.",
+        "jawaban": "giyu tomioka"
+    },
+    {
+        "soal": "Aku penyihir berambut putih dari Jujutsu Kaisen.",
+        "jawaban": "gojo"
+    },
+    {
+        "soal": "Aku murid yang menjadi wadah Sukuna.",
+        "jawaban": "yuji itadori"
+    },
+    {
+        "soal": "Aku raja kutukan dalam Jujutsu Kaisen.",
+        "jawaban": "sukuna"
+    },
+    {
+        "soal": "Aku pengguna kekuatan One For All.",
+        "jawaban": "deku"
+    },
+    {
+        "soal": "Aku Saiyan yang terkenal dengan Kamehameha.",
+        "jawaban": "goku"
+    },
+    {
+        "soal": "Aku rival Goku dari ras Saiyan.",
+        "jawaban": "vegeta"
+    },
+    {
+        "soal": "Aku detektif terkenal yang tinggal di Baker Street.",
+        "jawaban": "sherlock holmes"
+    },
+    {
+        "soal": "Aku tokoh utama dalam Alice in Wonderland.",
+        "jawaban": "alice"
+    },
+    {
+        "soal": "Aku gadis dengan sepatu kaca.",
+        "jawaban": "cinderella"
+    },
+    {
+        "soal": "Aku putri yang rambutnya sangat panjang.",
+        "jawaban": "rapunzel"
+    },
+    {
+        "soal": "Aku ratu salju yang memiliki kekuatan es.",
+        "jawaban": "elsa"
+    },
+    {
+        "soal": "Aku saudari Elsa dalam Frozen.",
+        "jawaban": "anna"
+    },
+    {
+        "soal": "Aku boneka koboi dari Toy Story.",
+        "jawaban": "woody"
+    },
+    {
+        "soal": "Aku astronot mainan dari Toy Story.",
+        "jawaban": "buzz lightyear"
+    },
+    {
+        "soal": "Aku tikus koki dari Ratatouille.",
+        "jawaban": "remy"
+    },
+    {
+        "soal": "Aku ikan badut yang dicari ayahnya.",
+        "jawaban": "nemo"
+    },
+    {
+        "soal": "Aku ayah Nemo yang sangat khawatir.",
+        "jawaban": "marlin"
+    },
+    {
+        "soal": "Aku robot pembersih bumi yang jatuh cinta.",
+        "jawaban": "wall-e"
+    },
+    {
+        "soal": "Aku ogre hijau yang tinggal di rawa.",
+        "jawaban": "shrek"
+    },
+    {
+        "soal": "Aku sahabat Shrek yang banyak bicara.",
+        "jawaban": "donkey"
+    },
+    {
+        "soal": "Aku putri yang menjadi pasangan Shrek.",
+        "jawaban": "fiona"
+    },
+    {
+        "soal": "Aku karakter kuning yang tinggal di Bikini Bottom.",
+        "jawaban": "spongebob"
+    },
+    {
+        "soal": "Aku sahabat Spongebob yang berwarna merah muda.",
+        "jawaban": "patrick"
+    },
+    {
+        "soal": "Aku tetangga Spongebob yang suka bermain klarinet.",
+        "jawaban": "squidward"
+    },
+    {
+        "soal": "Aku pemilik restoran Krusty Krab.",
+        "jawaban": "mr krabs"
+    },
+    {
+        "soal": "Aku tikus terkenal dari Disney.",
+        "jawaban": "mickey mouse"
+    },
+    {
+        "soal": "Aku pasangan Mickey yang memakai pita besar.",
+        "jawaban": "minnie mouse"
+    },
+    {
+        "soal": "Aku bebek Disney yang sering marah.",
+        "jawaban": "donald duck"
+    },
+    {
+        "soal": "Aku superhero yang berubah hijau saat marah.",
+        "jawaban": "hulk"
+    },
+    {
+        "soal": "Aku pahlawan yang menggunakan web sebagai senjata.",
+        "jawaban": "spiderman"
+    },
+    {
+        "soal": "Aku putri Amazon yang menggunakan lasso.",
+        "jawaban": "wonder woman"
+    },
+    {
+        "soal": "Aku raja Wakanda dan memakai kostum hitam.",
+        "jawaban": "black panther"
+    },
+    {
+        "soal": "Aku penyihir yang menggunakan sihir merah.",
+        "jawaban": "scarlet witch"
+    },
+    {
+        "soal": "Aku ilmuwan yang dapat mengendalikan semut.",
+        "jawaban": "ant-man"
+    },
+    {
+        "soal": "Aku penjaga yang menggunakan busur dan panah.",
+        "jawaban": "hawkeye"
+    },
+    {
+        "soal": "Aku pemain bola Argentina yang terkenal dengan nomor 10.",
+        "jawaban": "lionel messi"
+    },
+    {
+        "soal": "Aku pemain sepak bola Portugal yang terkenal dengan CR7.",
+        "jawaban": "cristiano ronaldo"
+    },
+    {
+        "soal": "Aku legenda basket dengan julukan Air Jordan.",
+        "jawaban": "michael jordan"
+    },
+    {
+        "soal": "Aku petinju terkenal dengan julukan The Greatest.",
+        "jawaban": "muhammad ali"
+    },
+    {
+        "soal": "Aku ilmuwan yang mengembangkan teori relativitas.",
+        "jawaban": "albert einstein"
+    },
+    {
+        "soal": "Aku ilmuwan yang terkenal dengan hukum gravitasi.",
+        "jawaban": "isaac newton"
+    },
+    {
+        "soal": "Aku penemu yang terkenal dalam sejarah lampu listrik.",
+        "jawaban": "thomas edison"
+    },
+    {
+        "soal": "Aku proklamator dan presiden pertama Indonesia.",
+        "jawaban": "soekarno"
+    },
+    {
+        "soal": "Aku wakil proklamator Indonesia.",
+        "jawaban": "mohammad hatta"
+    },
+    {
+        "soal": "Aku pahlawan perempuan dari Jepara.",
+        "jawaban": "kartini"
+    },
+    {
+        "soal": "Aku pencipta lagu Indonesia Raya.",
+        "jawaban": "wr supratman"
+    },
+    {
+        "soal": "Aku Pokémon listrik berwarna kuning.",
+        "jawaban": "pikachu"
+    },
+    {
+        "soal": "Aku Pokémon yang terkenal dengan api di ekornya.",
+        "jawaban": "charmander"
+    },
+    {
+        "soal": "Aku Pokémon yang sering tidur dan sangat besar.",
+        "jawaban": "snorlax"
+    },
+    {
+        "soal": "Aku ninja dari Hidden Leaf yang memiliki Byakugan.",
+        "jawaban": "hinata"
+    },
+    {
+        "soal": "Aku pengguna Sharingan dan kakak Sasuke.",
+        "jawaban": "itachi"
+    },
+    {
+        "soal": "Aku sahabat Harry yang berambut merah.",
+        "jawaban": "ron weasley"
+    },
+    {
+        "soal": "Aku kepala sekolah Hogwarts.",
+        "jawaban": "albus dumbledore"
+    },
+    {
+        "soal": "Aku musuh utama Harry Potter.",
+        "jawaban": "voldemort"
+    },
+    {
+        "soal": "Aku sahabat Harry yang sangat pintar.",
+        "jawaban": "hermione"
+    },
+    {
+        "soal": "Aku kapten kapal Going Merry.",
+        "jawaban": "luffy"
+    },
+    {
+        "soal": "Aku ahli musik dalam Topi Jerami dan memiliki rambut afro.",
+        "jawaban": "brook"
+    },
+    {
+        "soal": "Aku cyborg pembuat kapal dalam Topi Jerami.",
+        "jawaban": "franky"
+    },
+    {
+        "soal": "Aku arkeolog Topi Jerami yang bisa menumbuhkan banyak tangan.",
+        "jawaban": "nico robin"
+    },
+    {
+        "soal": "Aku pemburu iblis dengan kekuatan petir.",
+        "jawaban": "zenitsu"
+    },
+    {
+        "soal": "Aku pemburu iblis yang memakai kepala babi hutan.",
+        "jawaban": "inosuke"
+    },
+    {
+        "soal": "Aku pemimpin Akatsuki dengan mata Rinnegan.",
+        "jawaban": "pain"
+    },
+    {
+        "soal": "Aku anggota Akatsuki yang memakai Sharingan.",
+        "jawaban": "itachi"
+    },
+    {
+        "soal": "Aku karakter yang dapat berubah menjadi Super Saiyan.",
+        "jawaban": "goku"
+    },
+    {
+        "soal": "Aku putri kerajaan Arendelle.",
+        "jawaban": "elsa"
+    },
+    {
+        "soal": "Aku kapten Avengers dengan perisai.",
+        "jawaban": "captain america"
+    },
+    {
+        "soal": "Aku pahlawan yang dapat berubah menjadi Ant-Man.",
+        "jawaban": "ant-man"
+    },
+    {
+        "soal": "Aku detektif Belgia dengan kumis terkenal.",
+        "jawaban": "hercule poirot"
+    },
+    {
+        "soal": "Aku karakter utama The Matrix.",
+        "jawaban": "neo"
+    },
+    {
+        "soal": "Aku pemburu monster berambut putih.",
+        "jawaban": "geralt"
+    },
+    {
+        "soal": "Aku karakter utama Assassin's Creed yang terkenal dengan tudung.",
+        "jawaban": "ezio"
+    },
+    {
+        "soal": "Aku petualang yang mencari harta karun dan sering membawa cambuk.",
+        "jawaban": "indiana jones"
+    },
+    {
+        "soal": "Aku agen rahasia dengan kode 007.",
+        "jawaban": "james bond"
+    },
+    {
+        "soal": "Aku detektif yang membawa revolver dan tinggal di Baker Street.",
+        "jawaban": "sherlock holmes"
+    },
+    {
+        "soal": "Aku tokoh utama Minecraft yang biasanya memakai baju biru.",
+        "jawaban": "steve"
+    },
+    {
+        "soal": "Aku karakter merah dari Angry Birds.",
+        "jawaban": "red"
+    },
+    {
+        "soal": "Aku monster pink yang suka makan dalam Kirby.",
+        "jawaban": "kirby"
+    },
+    {
+        "soal": "Aku tukang ledeng Italia yang memakai topi merah.",
+        "jawaban": "mario"
+    }
+]
