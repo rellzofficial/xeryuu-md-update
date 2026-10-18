@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Xeryuu Racing</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#070910;color:#fff}
+body{display:flex;align-items:center;justify-content:center;padding:8px}
+.app{width:min(410px,100%);background:linear-gradient(180deg,#111625,#090b12);border:1px solid #272d40;border-radius:26px;overflow:hidden;box-shadow:0 25px 80px #0009}
+.top{padding:15px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #202638}
+.logo{font-size:20px;font-weight:950}.score{font-weight:900;color:#aeb7ff}
+.game{padding:14px}
+canvas{display:block;width:100%;aspect-ratio:16/9;background:#151515;border:1px solid #292f42;border-radius:18px;touch-action:none}
+.info{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px}
+.box{background:#141927;border:1px solid #252c40;border-radius:13px;padding:9px;text-align:center}.lab{font-size:10px;color:#7f89a4;font-weight:900}.val{font-size:17px;font-weight:950;margin-top:2px}
+.bar{height:6px;background:#292f40;border-radius:99px;margin-top:5px;overflow:hidden}.bar i{display:block;height:100%;width:100%;background:#f4bd48}
+.controls{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:10px}
+button{border:1px solid #2c344a;background:#171c2c;color:#fff;border-radius:14px;padding:14px 8px;font-weight:950;touch-action:none;user-select:none}
+button:active{transform:scale(.97);background:#242b40}.nitro{background:linear-gradient(135deg,#574dff,#9b57e9);border:0}
+.help{text-align:center;color:#7f89a4;font-size:11px;margin-top:9px}
+.overlay{position:fixed;inset:0;background:#000b;display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:min(430px,100%);background:#111625;border:1px solid #2a3146;border-radius:25px;padding:28px;text-align:center;box-shadow:0 25px 90px #000}
+.card .emoji{font-size:64px}.card h1{font-size:31px;margin:8px 0}.card p{color:#9da6bc;line-height:1.55;margin:0 0 20px}.primary{width:100%;background:linear-gradient(135deg,#665cff,#9758ec);border:0;padding:16px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+ <div class="top"><div class="logo">🏎️ Xeryuu Racing</div><div class="score">🏆 <span id="score">0</span></div></div>
+ <div class="game">
+  <canvas id="road" width="960" height="540"></canvas>
+  <div class="info">
+   <div class="box"><div class="lab">SPEED</div><div class="val"><span id="speed">0</span> KM/H</div></div>
+   <div class="box"><div class="lab">DISTANCE</div><div class="val"><span id="dist">0</span> M</div></div>
+   <div class="box"><div class="lab">NITRO</div><div class="val"><span id="nitroTxt">100</span>%</div><div class="bar"><i id="nitroBar"></i></div></div>
+  </div>
+  <div class="controls">
+   <button id="left">◀ KIRI</button>
+   <button class="nitro" id="boost">🔥 NITRO</button>
+   <button id="right">KANAN ▶</button>
+  </div>
+  <div class="help">Keyboard: ← / → atau A / D • Tahan Nitro untuk akselerasi</div>
+ </div>
+</div>
+
+<div class="overlay" id="start">
+ <div class="card"><div class="emoji">🏎️</div><h1>Xeryuu Racing</h1>
+ <p>Hindari mobil lain, jaga kecepatan, dan gunakan nitro untuk mencetak skor setinggi mungkin.</p>
+ <button class="primary" onclick="startGame()">MULAI BALAP</button></div>
+</div>
+<div class="overlay hide" id="end">
+ <div class="card"><div class="emoji">🏁</div><h1>Race Over</h1>
+ <p id="endText"></p><button class="primary" onclick="startGame()">BALAP LAGI</button></div>
+</div>
+
+<script>
+const c=document.getElementById('road'),ctx=c.getContext('2d'),W=c.width,H=c.height;
+let running=false,raf=0,car,enemies=[],keys={left:false,right:false,boost:false},score=0,distance=0,speed=0,nitro=100,spawn=0,lineOffset=0;
+const road={x:250,w:460};
+function startGame(){
+ running=true;score=0;distance=0;speed=0;nitro=100;spawn=0;lineOffset=0;
+ car={x:W/2-23,y:H-115,w:46,h:82};
+ enemies=[];
+ document.getElementById('start').classList.add('hide');document.getElementById('end').classList.add('hide');
+ cancelAnimationFrame(raf);loop();
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function spawnEnemy(){
+ const lanes=[road.x+65,road.x+175,road.x+285,road.x+395];
+ const x=lanes[Math.floor(Math.random()*lanes.length)]-23;
+ const colors=['#d9535f','#4f78e8','#e7b84d','#a65ce0','#55b88a'];
+ enemies.push({x,y:-100,w:46,h:82,v:2.5+Math.random()*2.5,color:colors[Math.floor(Math.random()*colors.length)]});
+}
+function hit(a,b){return a.x+7<b.x+b.w-7&&a.x+a.w-7>b.x+7&&a.y+8<b.y+b.h-8&&a.y+a.h-8>b.y+8}
+function update(){
+ let boost=keys.boost&&nitro>0;
+ // Kecepatan dasar sedikit lebih tinggi agar race lebih menantang.
+ let target=boost?12.5:8;
+ speed+=(target-speed)*.035;
+ if(!boost&&speed>7)speed-=.03;
+ if(boost){nitro=Math.max(0,nitro-.75)}else nitro=Math.min(100,nitro+.12);
+ if(keys.left)car.x-=7.2;
+ if(keys.right)car.x+=7.2;
+ car.x=clamp(car.x,road.x+25,road.x+road.w-25-car.w);
+ lineOffset=(lineOffset+speed*2.2)%80;
+ distance+=speed*.12;score+=Math.floor(speed*.08);
+ spawn-=1;
+ if(spawn<=0){
+  // Traffic lebih rapat dan interval makin pendek ketika kecepatan naik.
+  spawnEnemy();
+  if(speed>8.5 && Math.random()<0.35)spawnEnemy();
+  spawn=Math.max(20,58-speed*3.8+Math.random()*28)
+ }
+ for(const e of enemies){
+  // Mobil lawan lebih cepat dan makin agresif saat race berlangsung.
+  e.y+=e.v+speed*.68;
+ }
+ enemies=enemies.filter(e=>e.y<H+120);
+ for(const e of enemies)if(hit(car,e)){finish();return}
+ document.getElementById('speed').textContent=Math.round(speed*22);
+ document.getElementById('dist').textContent=Math.floor(distance);
+ document.getElementById('score').textContent=score;
+ document.getElementById('nitroTxt').textContent=Math.round(nitro);
+ document.getElementById('nitroBar').style.width=nitro+'%';
+}
+function draw(){
+ ctx.fillStyle='#202b22';ctx.fillRect(0,0,W,H);
+ // roadside
+ ctx.fillStyle='#2f542f';ctx.fillRect(0,0,road.x,H);ctx.fillRect(road.x+road.w,0,W-road.x-road.w,H);
+ // road
+ ctx.fillStyle='#303238';ctx.fillRect(road.x,0,road.w,H);
+ // edge lines
+ ctx.fillStyle='#e9e9df';ctx.fillRect(road.x+16,0,5,H);ctx.fillRect(road.x+road.w-21,0,5,H);
+ // lane markings
+ ctx.fillStyle='#b8bbc1';
+ for(let lane=1;lane<4;lane++){
+  const x=road.x+lane*road.w/4-3;
+  for(let y=-80+lineOffset;y<H;y+=80)ctx.fillRect(x,y,6,42);
+ }
+ // roadside dashes
+ ctx.fillStyle='#e5c34e';
+ for(let y=-50+lineOffset*1.2;y<H;y+=70){ctx.fillRect(road.x-12,y,7,30);ctx.fillRect(road.x+road.w+5,y,7,30)}
+ for(const e of enemies)drawCar(e);
+ drawCar({...car,color:'#4e61ff',player:true});
+}
+function drawCar(o){
+ ctx.fillStyle='#08090d';ctx.fillRect(o.x+4,o.y+8,o.w-8,o.h-10);
+ ctx.fillStyle=o.color;ctx.fillRect(o.x,o.y+8,o.w,o.h-16);
+ ctx.fillStyle='#151a23';ctx.fillRect(o.x+7,o.y+22,o.w-14,24);
+ ctx.fillStyle='#7fbbd1';ctx.fillRect(o.x+10,o.y+25,o.w-20,16);
+ ctx.fillStyle='#f4f1df';ctx.fillRect(o.x+5,o.y+o.h-15,9,5);ctx.fillRect(o.x+o.w-14,o.y+o.h-15,9,5);
+ ctx.fillStyle='#d84c58';ctx.fillRect(o.x+5,o.y+11,9,5);ctx.fillRect(o.x+o.w-14,o.y+11,9,5);
+}
+function finish(){
+ running=false;cancelAnimationFrame(raf);
+ document.getElementById('endText').textContent=`Kamu menempuh ${Math.floor(distance)} meter dan mendapat ${score} poin.`;
+ document.getElementById('end').classList.remove('hide');
+}
+function loop(){if(!running)return;update();draw();raf=requestAnimationFrame(loop)}
+function hold(el,key){
+ const on=e=>{e.preventDefault();keys[key]=true},off=e=>{e.preventDefault();keys[key]=false};
+ ['pointerdown','touchstart'].forEach(v=>el.addEventListener(v,on,{passive:false}));
+ ['pointerup','pointercancel','pointerleave','touchend'].forEach(v=>el.addEventListener(v,off,{passive:false}));
+}
+hold(document.getElementById('left'),'left');hold(document.getElementById('right'),'right');hold(document.getElementById('boost'),'boost');
+addEventListener('keydown',e=>{
+ if(['ArrowLeft','a','A'].includes(e.key)){keys.left=true;e.preventDefault()}
+ if(['ArrowRight','d','D'].includes(e.key)){keys.right=true;e.preventDefault()}
+ if(e.key===' '||e.key==='Shift')keys.boost=true;
+});
+addEventListener('keyup',e=>{
+ if(['ArrowLeft','a','A'].includes(e.key))keys.left=false;
+ if(['ArrowRight','d','D'].includes(e.key))keys.right=false;
+ if(e.key===' '||e.key==='Shift')keys.boost=false;
+});
+draw();
+</script>
+</body>
+</html>
