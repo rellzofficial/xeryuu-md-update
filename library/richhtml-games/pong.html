@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Xeryuu Pong</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#080a12;color:#fff}
+body{display:flex;align-items:center;justify-content:center;padding:8px;overflow:hidden}
+.app{width:min(410px,100%);background:linear-gradient(180deg,#111526,#090b13);border:1px solid #252a3c;border-radius:26px;padding:16px;box-shadow:0 20px 70px #0009}
+.top{display:flex;justify-content:space-between;align-items:center;padding:2px 5px 12px}
+.logo{font-weight:950;font-size:21px}
+.mode{font-size:12px;font-weight:800;color:#9ea8c2;background:#191e2e;padding:7px 11px;border-radius:999px}
+.score{display:flex;justify-content:center;align-items:center;gap:25px;font-size:38px;font-weight:950;margin:0 0 10px}
+.score span:first-child{color:#b8bfff}.score span:last-child{color:#ffb5c0}
+canvas{display:block;width:100%;aspect-ratio:16/9;background:#05070d;border:1px solid #292f42;border-radius:18px;touch-action:none}
+.help{text-align:center;color:#7f89a4;font-size:12px;margin:10px 0 12px}
+.controls{display:flex;justify-content:center;gap:12px}
+.ctrl{width:48%;max-width:220px;border:1px solid #2c3349;background:#151a29;color:#fff;border-radius:14px;padding:14px;font-size:16px;font-weight:900;touch-action:none;user-select:none}
+.ctrl:active{transform:scale(.97);background:#20273a}
+.overlay{position:fixed;inset:0;background:#0009;display:flex;align-items:center;justify-content:center;padding:22px}
+.card{width:min(420px,100%);background:#111526;border:1px solid #2a3044;border-radius:24px;padding:28px;text-align:center;box-shadow:0 25px 80px #000}
+.card h1{margin:0 0 8px;font-size:32px}
+.card p{color:#9da6bd;line-height:1.5;margin:0 0 22px}
+.btn{width:100%;border:0;border-radius:15px;padding:16px;background:linear-gradient(135deg,#6861ff,#915df4);color:#fff;font-size:16px;font-weight:950}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><div class="logo">🏓 Xeryuu Pong</div><div class="mode">VS COMPUTER</div></div>
+  <div class="score"><span id="playerScore">0</span><b>:</b><span id="aiScore">0</span></div>
+  <canvas id="game" width="960" height="540"></canvas>
+  <div class="help">Keyboard: W / S atau ↑ / ↓ &nbsp; • &nbsp; Mobile: tahan tombol di bawah</div>
+  <div class="controls">
+    <button class="ctrl" id="up">▲ ATAS</button>
+    <button class="ctrl" id="down">▼ BAWAH</button>
+  </div>
+</div>
+
+<div class="overlay" id="startOverlay">
+ <div class="card">
+  <div style="font-size:58px">🏓</div>
+  <h1>Xeryuu Pong</h1>
+  <p>Kalahkan komputer sampai 7 poin. Pantulkan bola, bertahan, dan manfaatkan sudut pantulan.</p>
+  <button class="btn" onclick="startGame()">MULAI</button>
+ </div>
+</div>
+
+<div class="overlay hide" id="endOverlay">
+ <div class="card">
+  <div style="font-size:58px" id="endIcon">🏆</div>
+  <h1 id="endTitle">Menang!</h1>
+  <p id="endText"></p>
+  <button class="btn" onclick="startGame()">MAIN LAGI</button>
+ </div>
+</div>
+
+<script>
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const W=canvas.width,H=canvas.height;
+const paddle={w:18,h:108,speed:8};
+let player,ai,ball,ps=0,as=0,running=false,raf=0;
+const keys={up:false,down:false};
+
+function resetBall(dir){
+ ball={x:W/2,y:H/2,r:10,vx:(dir||1)*(6+Math.random()*1.5),vy:(Math.random()-.5)*6};
+}
+function startGame(){
+ ps=as=0;
+ document.getElementById('playerScore').textContent=0;
+ document.getElementById('aiScore').textContent=0;
+ player={x:30,y:H/2-paddle.h/2};
+ ai={x:W-48,y:H/2-paddle.h/2};
+ resetBall(Math.random()<.5?-1:1);
+ document.getElementById('startOverlay').classList.add('hide');
+ document.getElementById('endOverlay').classList.add('hide');
+ running=true; cancelAnimationFrame(raf); loop();
+}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function update(){
+ if(keys.up) player.y-=paddle.speed;
+ if(keys.down) player.y+=paddle.speed;
+ player.y=clamp(player.y,12,H-paddle.h-12);
+
+ // AI with slight reaction delay / imperfection
+ const target=ball.y-paddle.h/2;
+ ai.y += clamp(target-ai.y,-5.3,5.3);
+ ai.y=clamp(ai.y,12,H-paddle.h-12);
+
+ ball.x+=ball.vx; ball.y+=ball.vy;
+ if(ball.y-ball.r<8 || ball.y+ball.r>H-8) ball.vy*=-1;
+
+ if(ball.x-ball.r<player.x+paddle.w && ball.x>player.x &&
+    ball.y>player.y && ball.y<player.y+paddle.h && ball.vx<0){
+   ball.x=player.x+paddle.w+ball.r;
+   const rel=(ball.y-(player.y+paddle.h/2))/(paddle.h/2);
+   ball.vx=Math.min(12,Math.abs(ball.vx)*1.045);
+   ball.vy=rel*8;
+ }
+ if(ball.x+ball.r>ai.x && ball.x<ai.x+paddle.w &&
+    ball.y>ai.y && ball.y<ai.y+paddle.h && ball.vx>0){
+   ball.x=ai.x-ball.r;
+   const rel=(ball.y-(ai.y+paddle.h/2))/(paddle.h/2);
+   ball.vx=-Math.min(12,Math.abs(ball.vx)*1.045);
+   ball.vy=rel*8;
+ }
+ if(ball.x<-25){
+   as++; document.getElementById('aiScore').textContent=as;
+   if(as>=7)return finish(false);
+   resetBall(1);
+ }
+ if(ball.x>W+25){
+   ps++; document.getElementById('playerScore').textContent=ps;
+   if(ps>=7)return finish(true);
+   resetBall(-1);
+ }
+}
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ ctx.fillStyle='#05070d';ctx.fillRect(0,0,W,H);
+ ctx.setLineDash([12,16]);ctx.lineWidth=4;ctx.strokeStyle='#252b3d';
+ ctx.beginPath();ctx.moveTo(W/2,10);ctx.lineTo(W/2,H-10);ctx.stroke();ctx.setLineDash([]);
+ ctx.fillStyle='#fff';
+ ctx.fillRect(player.x,player.y,paddle.w,paddle.h);
+ ctx.fillRect(ai.x,ai.y,paddle.w,paddle.h);
+ ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2);ctx.fill();
+}
+function loop(){
+ if(!running)return;
+ update();draw();raf=requestAnimationFrame(loop);
+}
+function finish(win){
+ running=false; cancelAnimationFrame(raf);
+ document.getElementById('endIcon').textContent=win?'🏆':'🤖';
+ document.getElementById('endTitle').textContent=win?'Kamu Menang!':'Komputer Menang';
+ document.getElementById('endText').textContent=`Skor akhir ${ps} : ${as}. ${win?'Pertahananmu kuat!':'Coba lagi dan kuasai sudut pantulan bola.'}`;
+ document.getElementById('endOverlay').classList.remove('hide');
+}
+function hold(el,key){
+ const on=e=>{e.preventDefault();keys[key]=true};
+ const off=e=>{e.preventDefault();keys[key]=false};
+ ['pointerdown','touchstart'].forEach(ev=>el.addEventListener(ev,on,{passive:false}));
+ ['pointerup','pointercancel','pointerleave','touchend'].forEach(ev=>el.addEventListener(ev,off,{passive:false}));
+}
+hold(document.getElementById('up'),'up');hold(document.getElementById('down'),'down');
+addEventListener('keydown',e=>{
+ if(['ArrowUp','w','W'].includes(e.key)){keys.up=true;e.preventDefault()}
+ if(['ArrowDown','s','S'].includes(e.key)){keys.down=true;e.preventDefault()}
+});
+addEventListener('keyup',e=>{
+ if(['ArrowUp','w','W'].includes(e.key))keys.up=false;
+ if(['ArrowDown','s','S'].includes(e.key))keys.down=false;
+});
+draw();
+</script>
+</body>
+</html>
