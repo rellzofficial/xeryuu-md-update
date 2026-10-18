@@ -1,0 +1,402 @@
+[
+    {
+        "soal": "Planet apa yang dikenal sebagai Planet Merah?",
+        "jawaban": "mars"
+    },
+    {
+        "soal": "Apa ibu kota Jepang?",
+        "jawaban": "tokyo"
+    },
+    {
+        "soal": "Apa ibu kota Indonesia?",
+        "jawaban": "jakarta"
+    },
+    {
+        "soal": "Berapa hasil 12 x 12?",
+        "jawaban": "144"
+    },
+    {
+        "soal": "Berapa jumlah provinsi Indonesia?",
+        "jawaban": "38"
+    },
+    {
+        "soal": "Apa satelit alami bumi?",
+        "jawaban": "bulan"
+    },
+    {
+        "soal": "Apa planet terbesar di tata surya?",
+        "jawaban": "jupiter"
+    },
+    {
+        "soal": "Apa planet terdekat dengan matahari?",
+        "jawaban": "merkurius"
+    },
+    {
+        "soal": "Gas terbanyak di atmosfer bumi adalah?",
+        "jawaban": "nitrogen"
+    },
+    {
+        "soal": "Apa simbol kimia emas?",
+        "jawaban": "au"
+    },
+    {
+        "soal": "Apa simbol kimia oksigen?",
+        "jawaban": "o"
+    },
+    {
+        "soal": "Berapa sisi segitiga?",
+        "jawaban": "3"
+    },
+    {
+        "soal": "Berapa sisi persegi?",
+        "jawaban": "4"
+    },
+    {
+        "soal": "Berapa hasil 15 + 27?",
+        "jawaban": "42"
+    },
+    {
+        "soal": "Berapa hasil 100 - 37?",
+        "jawaban": "63"
+    },
+    {
+        "soal": "Berapa hasil 9 x 8?",
+        "jawaban": "72"
+    },
+    {
+        "soal": "Berapa hasil 144 / 12?",
+        "jawaban": "12"
+    },
+    {
+        "soal": "Hewan darat terbesar adalah?",
+        "jawaban": "gajah"
+    },
+    {
+        "soal": "Hewan tercepat di darat adalah?",
+        "jawaban": "cheetah"
+    },
+    {
+        "soal": "Hewan yang menghasilkan madu adalah?",
+        "jawaban": "lebah"
+    },
+    {
+        "soal": "Benua terbesar di dunia adalah?",
+        "jawaban": "asia"
+    },
+    {
+        "soal": "Samudra terbesar adalah?",
+        "jawaban": "pasifik"
+    },
+    {
+        "soal": "Gunung tertinggi di dunia adalah?",
+        "jawaban": "everest"
+    },
+    {
+        "soal": "Negara dengan piramida Giza adalah?",
+        "jawaban": "mesir"
+    },
+    {
+        "soal": "Menara Eiffel berada di negara mana?",
+        "jawaban": "prancis"
+    },
+    {
+        "soal": "Tembok Besar berada di negara mana?",
+        "jawaban": "china"
+    },
+    {
+        "soal": "Mata uang Jepang adalah?",
+        "jawaban": "yen"
+    },
+    {
+        "soal": "Mata uang Indonesia adalah?",
+        "jawaban": "rupiah"
+    },
+    {
+        "soal": "Mata uang Amerika Serikat adalah?",
+        "jawaban": "dollar"
+    },
+    {
+        "soal": "Lambang negara Indonesia adalah?",
+        "jawaban": "garuda pancasila"
+    },
+    {
+        "soal": "Semboyan Indonesia adalah?",
+        "jawaban": "bhineka tunggal ika"
+    },
+    {
+        "soal": "Kemerdekaan Indonesia diperingati tanggal?",
+        "jawaban": "17 agustus"
+    },
+    {
+        "soal": "Proklamasi Indonesia dibacakan tahun?",
+        "jawaban": "1945"
+    },
+    {
+        "soal": "Siapa proklamator Indonesia?",
+        "jawaban": "soekarno"
+    },
+    {
+        "soal": "Siapa wakil proklamator Indonesia?",
+        "jawaban": "mohammad hatta"
+    },
+    {
+        "soal": "Planet yang memiliki cincin terkenal adalah?",
+        "jawaban": "saturnus"
+    },
+    {
+        "soal": "Berapa hari dalam satu minggu?",
+        "jawaban": "7"
+    },
+    {
+        "soal": "Berapa bulan dalam satu tahun?",
+        "jawaban": "12"
+    },
+    {
+        "soal": "Berapa jam dalam satu hari?",
+        "jawaban": "24"
+    },
+    {
+        "soal": "Berapa menit dalam satu jam?",
+        "jawaban": "60"
+    },
+    {
+        "soal": "Berapa detik dalam satu menit?",
+        "jawaban": "60"
+    },
+    {
+        "soal": "Air membeku pada suhu berapa Celsius?",
+        "jawaban": "0"
+    },
+    {
+        "soal": "Air mendidih pada suhu berapa Celsius pada tekanan normal?",
+        "jawaban": "100"
+    },
+    {
+        "soal": "Organ yang memompa darah adalah?",
+        "jawaban": "jantung"
+    },
+    {
+        "soal": "Organ untuk bernapas adalah?",
+        "jawaban": "paru-paru"
+    },
+    {
+        "soal": "Organ untuk berpikir adalah?",
+        "jawaban": "otak"
+    },
+    {
+        "soal": "Indra untuk melihat adalah?",
+        "jawaban": "mata"
+    },
+    {
+        "soal": "Indra untuk mendengar adalah?",
+        "jawaban": "telinga"
+    },
+    {
+        "soal": "Indra untuk mencium adalah?",
+        "jawaban": "hidung"
+    },
+    {
+        "soal": "Indra untuk mengecap adalah?",
+        "jawaban": "lidah"
+    },
+    {
+        "soal": "Zat hijau pada daun disebut?",
+        "jawaban": "klorofil"
+    },
+    {
+        "soal": "Proses tumbuhan membuat makanan disebut?",
+        "jawaban": "fotosintesis"
+    },
+    {
+        "soal": "Sumber energi utama bumi adalah?",
+        "jawaban": "matahari"
+    },
+    {
+        "soal": "Alat untuk mengukur suhu disebut?",
+        "jawaban": "termometer"
+    },
+    {
+        "soal": "Alat untuk mengukur waktu disebut?",
+        "jawaban": "jam"
+    },
+    {
+        "soal": "Alat untuk melihat benda sangat kecil disebut?",
+        "jawaban": "mikroskop"
+    },
+    {
+        "soal": "Alat untuk melihat benda jauh disebut?",
+        "jawaban": "teleskop"
+    },
+    {
+        "soal": "Siapa penemu teori relativitas?",
+        "jawaban": "albert einstein"
+    },
+    {
+        "soal": "Siapa yang terkenal dengan hukum gravitasi?",
+        "jawaban": "isaac newton"
+    },
+    {
+        "soal": "Siapa pencipta lagu Indonesia Raya?",
+        "jawaban": "wr supratman"
+    },
+    {
+        "soal": "Rumah adat Sumatera Barat adalah?",
+        "jawaban": "rumah gadang"
+    },
+    {
+        "soal": "Tari tradisional Bali yang terkenal adalah?",
+        "jawaban": "kecak"
+    },
+    {
+        "soal": "Makanan khas Indonesia dari kedelai adalah?",
+        "jawaban": "tempe"
+    },
+    {
+        "soal": "Makanan Jepang berupa nasi dan ikan disebut?",
+        "jawaban": "sushi"
+    },
+    {
+        "soal": "Makanan Italia berbentuk pipih dengan topping disebut?",
+        "jawaban": "pizza"
+    },
+    {
+        "soal": "Olahraga dengan raket dan kok disebut?",
+        "jawaban": "bulu tangkis"
+    },
+    {
+        "soal": "Olahraga dengan bola dan ring disebut?",
+        "jawaban": "basket"
+    },
+    {
+        "soal": "Olahraga dengan gawang dan bola disebut?",
+        "jawaban": "sepak bola"
+    },
+    {
+        "soal": "Jumlah pemain sepak bola satu tim di lapangan?",
+        "jawaban": "11"
+    },
+    {
+        "soal": "Jumlah pemain basket satu tim di lapangan?",
+        "jawaban": "5"
+    },
+    {
+        "soal": "Campuran merah dan putih menghasilkan warna?",
+        "jawaban": "pink"
+    },
+    {
+        "soal": "Campuran biru dan kuning menghasilkan warna?",
+        "jawaban": "hijau"
+    },
+    {
+        "soal": "Warna bendera Indonesia adalah?",
+        "jawaban": "merah putih"
+    },
+    {
+        "soal": "Alat musik bambu dari Jawa Barat adalah?",
+        "jawaban": "angklung"
+    },
+    {
+        "soal": "Alat musik tradisional Jawa yang terkenal adalah?",
+        "jawaban": "gamelan"
+    },
+    {
+        "soal": "Negara terluas di dunia adalah?",
+        "jawaban": "rusia"
+    },
+    {
+        "soal": "Negara berbentuk seperti sepatu bot adalah?",
+        "jawaban": "italia"
+    },
+    {
+        "soal": "Ibu kota Australia adalah?",
+        "jawaban": "canberra"
+    },
+    {
+        "soal": "Ibu kota Inggris adalah?",
+        "jawaban": "london"
+    },
+    {
+        "soal": "Ibu kota Prancis adalah?",
+        "jawaban": "paris"
+    },
+    {
+        "soal": "Ibu kota Korea Selatan adalah?",
+        "jawaban": "seoul"
+    },
+    {
+        "soal": "Ibu kota Thailand adalah?",
+        "jawaban": "bangkok"
+    },
+    {
+        "soal": "Ibu kota Malaysia adalah?",
+        "jawaban": "kuala lumpur"
+    },
+    {
+        "soal": "Ibu kota Filipina adalah?",
+        "jawaban": "manila"
+    },
+    {
+        "soal": "Ibu kota India adalah?",
+        "jawaban": "new delhi"
+    },
+    {
+        "soal": "Galaksi tempat tata surya berada adalah?",
+        "jawaban": "bima sakti"
+    },
+    {
+        "soal": "Bintang terdekat dengan bumi adalah?",
+        "jawaban": "matahari"
+    },
+    {
+        "soal": "Perubahan air menjadi uap disebut?",
+        "jawaban": "penguapan"
+    },
+    {
+        "soal": "Perubahan uap menjadi air disebut?",
+        "jawaban": "kondensasi"
+    },
+    {
+        "soal": "Alat untuk menunjukkan arah disebut?",
+        "jawaban": "kompas"
+    },
+    {
+        "soal": "Berapa hasil 25 x 4?",
+        "jawaban": "100"
+    },
+    {
+        "soal": "Berapa hasil 81 / 9?",
+        "jawaban": "9"
+    },
+    {
+        "soal": "Berapa hasil 17 + 18?",
+        "jawaban": "35"
+    },
+    {
+        "soal": "Berapa hasil 50% dari 200?",
+        "jawaban": "100"
+    },
+    {
+        "soal": "Berapa sisi segi lima?",
+        "jawaban": "5"
+    },
+    {
+        "soal": "Berapa sisi segi enam?",
+        "jawaban": "6"
+    },
+    {
+        "soal": "Planet tempat manusia tinggal adalah?",
+        "jawaban": "bumi"
+    },
+    {
+        "soal": "Hewan yang dikenal sebagai raja hutan adalah?",
+        "jawaban": "singa"
+    },
+    {
+        "soal": "Berapa hasil 7 x 8?",
+        "jawaban": "56"
+    },
+    {
+        "soal": "Berapa hasil 90 - 45?",
+        "jawaban": "45"
+    }
+]
