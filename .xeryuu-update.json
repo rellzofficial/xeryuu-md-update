@@ -1,0 +1,585 @@
+{
+  "schemaVersion": 1,
+  "version": "v20261018092729",
+  "updatedAt": "2026-10-18T09:27:29.315Z",
+  "branch": "main",
+  "previousVersion": null,
+  "previousCommitSha": null,
+  "files": [
+    {
+      "path": "library/afk.js",
+      "sha256": "f5cf46d4dd2aa704e831dc85d3806f28d40c88b2921c0c70da6b20309900eddc",
+      "size": 1668
+    },
+    {
+      "path": "library/antibot.js",
+      "sha256": "a22f5e44d82b467a85c0c712a60abe5794620777eb6a228273c72b4045b399e5",
+      "size": 12279
+    },
+    {
+      "path": "library/antidelete.js",
+      "sha256": "c3dc3f510cad5b1e884788a036c5074d51fd39ec9a7d58dc12d15c2c58ac1c73",
+      "size": 7630
+    },
+    {
+      "path": "library/antikudeta.js",
+      "sha256": "852f0aaa2eab12776293e917ce2f6e621268a6c4772efe3873db99ca50ac5e32",
+      "size": 7436
+    },
+    {
+      "path": "library/antipromosi.js",
+      "sha256": "82067cf63dcc441e2940f40cb302c1fb3880d645e3857248005c7770d605c62a",
+      "size": 10767
+    },
+    {
+      "path": "library/antivirtex.js",
+      "sha256": "b70d586f39c2813314030c77eb5e8cee868f847d7c8007386aa3b9bb25fd9d3b",
+      "size": 3461
+    },
+    {
+      "path": "library/brat.js",
+      "sha256": "4f6df597998652665c53f5a84f9b1ef9147e04c101e0e44e069091206fa06121",
+      "size": 20404
+    },
+    {
+      "path": "library/caklontong.js",
+      "sha256": "4ab683b597e5424061da2fdb5a1a47e97bee18553d1f9a6c95d0af5f4f68171e",
+      "size": 6614
+    },
+    {
+      "path": "library/channel-monitor.js",
+      "sha256": "e9abffa5a5b70ee9a8483ee354811dfa688c26496405f818f34ac8c991fe95f1",
+      "size": 30552
+    },
+    {
+      "path": "library/convert-pulsa-card.js",
+      "sha256": "a94e83a8e1757a64ccdcb8db4c2990ffbd6520b49ba499c3fce01f7ee5fcc0d4",
+      "size": 9645
+    },
+    {
+      "path": "library/convert-pulsa.js",
+      "sha256": "bf9f4cb96f215d7f16922f94a649a3d24ac11de80c9cf14de66e57b71519a2cc",
+      "size": 40593
+    },
+    {
+      "path": "library/converter.js",
+      "sha256": "d7ae964f7341534b410e978d899a28891efaa9ce4b50fae69a6b797224e9de76",
+      "size": 2136
+    },
+    {
+      "path": "library/database/games/legacy/asahotak.json",
+      "sha256": "25133e5fc8a308132e19d04bfa3d4510c4551eeeda21ee1443d34cfece230523",
+      "size": 35890
+    },
+    {
+      "path": "library/database/games/legacy/cepattepat.json",
+      "sha256": "c10bb466f08ddcb7f5a3e37cddd72337de25a380437f4ae81556d0998dc02e27",
+      "size": 9294
+    },
+    {
+      "path": "library/database/games/legacy/family100.json",
+      "sha256": "8c9d9281ff5c1e32635dfe59fd58e8f5c9cdcfcd6f8dbc6a0f0aaf9f27bad8ea",
+      "size": 865579
+    },
+    {
+      "path": "library/database/games/legacy/siapaaku.json",
+      "sha256": "115df8861eab237b457751e4af92fadbdf834ccd358cad5e3cee83b6e2e27624",
+      "size": 10549
+    },
+    {
+      "path": "library/database/games/legacy/susunkata.json",
+      "sha256": "943af3db79d919e1d73bce50ffb8fd7311a45d8e527ee8589f9411a85a485a2f",
+      "size": 34838
+    },
+    {
+      "path": "library/database/games/legacy/tebakbendera.json",
+      "sha256": "4a13d6fd5f5dc49904560cdab3e6040895c76894686a51cbb96be63aa90881ed",
+      "size": 5658
+    },
+    {
+      "path": "library/database/games/legacy/tebakemoji.json",
+      "sha256": "2dbc2a2df592811a43118d45ffca9ad8d1f5f729869c021b440f6f779b0feb44",
+      "size": 7208
+    },
+    {
+      "path": "library/database/games/legacy/tebakgambar.json",
+      "sha256": "7aac862f2eb8b9e8e070ba0a4260363f07bcc849041a2b11f2b361638a647201",
+      "size": 233726
+    },
+    {
+      "path": "library/database/games/legacy/tebakkata.json",
+      "sha256": "66a479035386f9b4f01dde3213359cb4d5a6aef977a85dd58e6a87e33c29da2a",
+      "size": 28012
+    },
+    {
+      "path": "library/database/games/legacy/tebakkimia.json",
+      "sha256": "ac87c36f52f9c75bd0f58f908c4bfb496aac4b9b5916fb18e66d1f73db133d5a",
+      "size": 6522
+    },
+    {
+      "path": "library/database/games/README.md",
+      "sha256": "ea420422ebdc24406512a6ad47361a8d767d4e91550d7bcfcfb1fc5fbabdaac2",
+      "size": 280
+    },
+    {
+      "path": "library/deposit.js",
+      "sha256": "b8f1e32ec6dacca411d2d798f7fc9146454df90afe48af43e2fb33595259ea80",
+      "size": 30902
+    },
+    {
+      "path": "library/economy.js",
+      "sha256": "2a8783a2820eda085650d2a9e1bc05d2e7783e853d21d3811a54247c335c731b",
+      "size": 31462
+    },
+    {
+      "path": "library/exif.js",
+      "sha256": "ac2adfc5215b48fb34370f3db8a412c0c5ba4417e62b9e7bec5187823f6ece87",
+      "size": 4322
+    },
+    {
+      "path": "library/function.js",
+      "sha256": "5b03dbfebbeb35026c4edbb2954bc0898a8acda6aae930a97203b4348d6baba8",
+      "size": 14207
+    },
+    {
+      "path": "library/funmenu.js",
+      "sha256": "e925c157cabfcc66463e5c4f303b9b2793af280967db8e56925347cffecb035e",
+      "size": 15833
+    },
+    {
+      "path": "library/furina-v18-features.js",
+      "sha256": "fc3fa54d5e0e7938470cce024bbe879a048e1a29dd9418f119ba3374aea6d958",
+      "size": 22218
+    },
+    {
+      "path": "library/games.js",
+      "sha256": "c2acfe8848659d17c525d92e04a1399e30bb6dde47c17a2571122ddabc3f72c1",
+      "size": 32913
+    },
+    {
+      "path": "library/github-update-user.js",
+      "sha256": "89cbeb38b70c4404bb5e876ea9b901f42747e5fdf9f1980cf9a58d4403c1d545",
+      "size": 15775
+    },
+    {
+      "path": "library/global-database.js",
+      "sha256": "9fbea28ff59d5cd2bfd82fdc8cc609728293b64265e80fc757087e63eff03832",
+      "size": 4159
+    },
+    {
+      "path": "library/greetings.js",
+      "sha256": "e28e0f333886ee5bf5d33026f2b0aa3a11cc232fb486d68bcb11c173e3c21ecf",
+      "size": 2771
+    },
+    {
+      "path": "library/hd.js",
+      "sha256": "d5d2be6e9df746e77748434ab0d6d8b25379ff406e0dd57dada188d834813108",
+      "size": 16700
+    },
+    {
+      "path": "library/indonesia-tools.js",
+      "sha256": "3fb93fe828e3c6a252c764bbc6c2c5d38e8194834bdd43f7d7262c8da2a2a0b4",
+      "size": 21753
+    },
+    {
+      "path": "library/jadibot.js",
+      "sha256": "d7a1cf94fe08338989d08aec131d4eacde76e736598e6c95ef59cd2519abc5c3",
+      "size": 37347
+    },
+    {
+      "path": "library/judi.js",
+      "sha256": "dbbc3677262ec5e9bae3f278fef308dcf7371b7784dd5642081f1d35fbc36401",
+      "size": 9144
+    },
+    {
+      "path": "library/list.js",
+      "sha256": "499b27211c7352be13ed55d894a7ca561f526e6daf022d6b991ce4e4ef7b1d41",
+      "size": 3068
+    },
+    {
+      "path": "library/luma.js",
+      "sha256": "18b29a527747f8b8b6aff86df9321ea18667b5bd470a98df0f45e1b760a93d3f",
+      "size": 2496
+    },
+    {
+      "path": "library/music-downloader.js",
+      "sha256": "a440b7711b1cf256751193385f349b04c6e78d8777121f2fc857a9412f45043c",
+      "size": 58192
+    },
+    {
+      "path": "library/nokos.js",
+      "sha256": "e4be75185d7a8f4ab7038ed20c28cb6d14f33eb5350f80e2591570efffe2ba4b",
+      "size": 45355
+    },
+    {
+      "path": "library/provider-wallets.js",
+      "sha256": "c7fca50044360b82e728dbe192a26d723f5d5784d9d75cbf0405b5311c813c40",
+      "size": 3261
+    },
+    {
+      "path": "library/purchase-payment.js",
+      "sha256": "8adaeb371966012547e7779269c80ff19194931bda2853da8ee17320caa8360a",
+      "size": 49646
+    },
+    {
+      "path": "library/richapi.js",
+      "sha256": "7bfd1f061dcc91050d35c27a5cd7623935e850616bf5d5018b62403f8acdd0de",
+      "size": 16264
+    },
+    {
+      "path": "library/richhtml-games/aim-shooter.html",
+      "sha256": "15b2311c42fe5bfdc96ca138edb266fc8c27a918eb02d76aa0893c29041184c0",
+      "size": 8977
+    },
+    {
+      "path": "library/richhtml-games/arrow-breakout.html",
+      "sha256": "2e1a775ae47f9601aa359f1dade6a2bc33273ab0f09b793fee6e01c1f944e376",
+      "size": 13934
+    },
+    {
+      "path": "library/richhtml-games/chess-ultimate.html",
+      "sha256": "3dc136218087480cc654f6377cc2ba1ea285aee7cfb80c3e9efefda824c3aa8a",
+      "size": 44825
+    },
+    {
+      "path": "library/richhtml-games/flappy.html",
+      "sha256": "25cba925f942cb2a94af3ae8b870f5e58d30a75ecd4b5287771bdee1b4d8275c",
+      "size": 14827
+    },
+    {
+      "path": "library/richhtml-games/murder-mystery.html",
+      "sha256": "321ab8c56c896aafd767deb0abf86593a6bf710801add9b5be8d93125d4c856f",
+      "size": 10530
+    },
+    {
+      "path": "library/richhtml-games/platformer.html",
+      "sha256": "d9bbeb7e16c9b4dd3b5487f05175066f39a4c0333ae49e02815d842713f10643",
+      "size": 10144
+    },
+    {
+      "path": "library/richhtml-games/pong.html",
+      "sha256": "c8eafff151735552e6fc51b675dcdacbd99e59b983f9b3b7ae9bfbea31169bc3",
+      "size": 6936
+    },
+    {
+      "path": "library/richhtml-games/quiz-hard.html",
+      "sha256": "1aec64364f66affbedc1c50ee1b71b46dbd9ca20d99469eb45cbd1aae86dc46d",
+      "size": 15397
+    },
+    {
+      "path": "library/richhtml-games/racing.html",
+      "sha256": "059556494e049d718b20cdecdc8851020d1c641b9d9078b334fd715dcc74448a",
+      "size": 8462
+    },
+    {
+      "path": "library/richhtml-games/snake.html",
+      "sha256": "00434153fdf988ffbb2a52dd7b1b2277e5526354a3afd9ff1d1588810e66079c",
+      "size": 36126
+    },
+    {
+      "path": "library/richhtml-games/space-shooter.html",
+      "sha256": "95e6801c78670bd7c01c45eaeda883d37d11a53964013e1ae6f205e182dbef10",
+      "size": 14756
+    },
+    {
+      "path": "library/richhtml-games/tetromino.html",
+      "sha256": "4d9475168c83e724e743a5ca5091873e7afc59afd83a2d497fbbc3dc9dd53af8",
+      "size": 21792
+    },
+    {
+      "path": "library/richhtml-pages/richspotify-v16.html",
+      "sha256": "8b4953635ecaa0091823958f16c05c952d3a2f0afaf00fb5d0c63553d66d69e1",
+      "size": 6608
+    },
+    {
+      "path": "library/richhtml-pages/richstalk-v16.html",
+      "sha256": "ee09ef35b2afefce0cc908cab19494398015cab31f56d23b36c1b511df663de7",
+      "size": 25652
+    },
+    {
+      "path": "library/richhtml-pages/richtourl2-v16.html",
+      "sha256": "681e5981e1872de97965768bacd68a8aa15e6a492e8f2e6ecbdd88256ae42b83",
+      "size": 3545
+    },
+    {
+      "path": "library/richhtml-pages/richyoutube-v16.html",
+      "sha256": "61920b4034eaa4a9a19cb2b282cf4a7946ea3c46414d183f296d9343b58e3ef0",
+      "size": 12595
+    },
+    {
+      "path": "library/richhtml.js",
+      "sha256": "8e045bab62939a88f734bff452ddaadacc46963872f8c31293997b1841ac3600",
+      "size": 17301
+    },
+    {
+      "path": "library/richmedia.js",
+      "sha256": "880dce01605b993e448d85b127ecf7c90c6ce3cca1b327a822b57c9118e0c84d",
+      "size": 10020
+    },
+    {
+      "path": "library/richspotify.js",
+      "sha256": "a442d6421ad4b8e5616100af56a7443a7bd5d13f5e9af116a6696d2704946099",
+      "size": 8366
+    },
+    {
+      "path": "library/richstalk.js",
+      "sha256": "ca59a3dfab42e224ee88d81963a3f1a03f74ed5b293ce2c47aaf4de8eeab5b3d",
+      "size": 44365
+    },
+    {
+      "path": "library/rwm.js",
+      "sha256": "d242fd8123fed9f680dfc90e8738a15d2b42691011162a381bef161a0f737e05",
+      "size": 1405
+    },
+    {
+      "path": "library/scraper.js",
+      "sha256": "26977f7ee5aa3ea592138de98c97e2c59309ca8ea1d4eb953ead40a8b62a1cf4",
+      "size": 12468
+    },
+    {
+      "path": "library/scrapr-downloader.js",
+      "sha256": "e396f0319b9f23c557bcbfa1b514b2b491fb285fa698a7cdad0d1d37b81b5631",
+      "size": 25811
+    },
+    {
+      "path": "library/sewa.js",
+      "sha256": "344a5d8f87900eaa77a9d3bdcab36999fbe77278f62deb8bc929c98396429381",
+      "size": 12027
+    },
+    {
+      "path": "library/spotify-scraper.js",
+      "sha256": "b932113755409bcd0e1ddec6dfcf01bd4118fba0d565c642f23d0500e8e752e8",
+      "size": 14232
+    },
+    {
+      "path": "library/store.js",
+      "sha256": "a978eae2534a6dcadfd5462c4efea233360f958db6dbfce65cb22d983af56d19",
+      "size": 56239
+    },
+    {
+      "path": "library/storyedit.js",
+      "sha256": "5aaa118df854038e7e0f37a3ed436765a670bf5ade7f2b29a1517a3f4a53ce8c",
+      "size": 26410
+    },
+    {
+      "path": "library/topup.js",
+      "sha256": "a79b9520810f6b9e651f6ddbd5f2582608b9c5a0ba737113ba26b51bf036ebce",
+      "size": 18352
+    },
+    {
+      "path": "library/tourl.js",
+      "sha256": "310ae7c5ac889be834366cd7cc934bfc09bea0eb71dd70b9974524ae696ad2be",
+      "size": 13445
+    },
+    {
+      "path": "library/upch.js",
+      "sha256": "463c5d68a8f221d046c3fde4551ec534bf0606d2eb352e36103f6f1d061fc634",
+      "size": 977
+    },
+    {
+      "path": "library/uploaden.js",
+      "sha256": "e2c3da5c6f4fb78b42d8b1c3a7fe38997522b41adc9e0354ecdb5d6dcb1804af",
+      "size": 789
+    },
+    {
+      "path": "library/uploader.js",
+      "sha256": "7fc12d2782988b54732e85c4f004fccc903269d4e51e977a6fc102613790f343",
+      "size": 4134
+    },
+    {
+      "path": "library/wa-connection.js",
+      "sha256": "d8202316f16c0f30fefecb4631de41e7201efb91abc3df39971dfb05eeb85866",
+      "size": 7531
+    },
+    {
+      "path": "library/welcome.js",
+      "sha256": "7d3ff4a21081d089505103b4acbd00b5c4fea896e80fb05cb0798be8025b39be",
+      "size": 1071
+    },
+    {
+      "path": "library/werewolf.js",
+      "sha256": "1484a19bd060d180d2ea3bb3fd65dad4bdc4e6c1627e1ba3574b6389d1698ca7",
+      "size": 39055
+    },
+    {
+      "path": "media/buy.mp3",
+      "sha256": "f30b335a3340c24bcabc7d94e317fe5fce1f57fd155f786b573daefb06f83b31",
+      "size": 547423
+    },
+    {
+      "path": "media/dev.jpg",
+      "sha256": "ca933b8d80ebe8922cc934f3a92cb8baa8cceb003bb791bed93335f22599bfed",
+      "size": 29000
+    },
+    {
+      "path": "media/dev.mp3",
+      "sha256": "1fb66eb9e1323330ff4d4c90194a658239cad63570a0c3d0564ad73745f34d8a",
+      "size": 493654
+    },
+    {
+      "path": "media/lol.jpg",
+      "sha256": "8fba534a0f47202df7778b70cca13b5520453004a82ed9258d1a84e1412461c7",
+      "size": 82950
+    },
+    {
+      "path": "media/menu.mp3",
+      "sha256": "b09046b48fa02afa405ca12655ad7f43323ce6768997e15784ae9cf65645ff40",
+      "size": 972214
+    },
+    {
+      "path": "media/menu2.mp3",
+      "sha256": "b09046b48fa02afa405ca12655ad7f43323ce6768997e15784ae9cf65645ff40",
+      "size": 972214
+    },
+    {
+      "path": "media/menu3.mp3",
+      "sha256": "b09046b48fa02afa405ca12655ad7f43323ce6768997e15784ae9cf65645ff40",
+      "size": 972214
+    },
+    {
+      "path": "media/menu5.mp3",
+      "sha256": "c8376a916186b177e6f4b4a4390937046161c42a664dade27c91ebd707870893",
+      "size": 523540
+    },
+    {
+      "path": "media/panduan.mp3",
+      "sha256": "a7edcd3228fc2a97b4eb2fb146f7c950f1bbde00c03a9a1d711f0a2bdac613a8",
+      "size": 672123
+    },
+    {
+      "path": "media/store/jadibot.jpg",
+      "sha256": "7ca060fe3d2c5900962b7700daaeb95bcf0962f87ce9bd1f6aa89f9ef497cb37",
+      "size": 63141
+    },
+    {
+      "path": "media/store/nokos.jpg",
+      "sha256": "729b607a61af463d67fbeb37d2f15e58b168fc126037abec4064321a286ea83d",
+      "size": 64685
+    },
+    {
+      "path": "media/store/panel.jpg",
+      "sha256": "665c94a447e22c39bc0b1a8e69d56221767bc4610b2aeb5b1f9c695b8b167683",
+      "size": 70573
+    },
+    {
+      "path": "media/store/sewabot.jpg",
+      "sha256": "f13e3053c183d52e4530bcd702ff929ea7e55553d709b9d9183a03b29b928758",
+      "size": 71336
+    },
+    {
+      "path": "media/store/store.jpg",
+      "sha256": "4170bfef527f7eea2aac7e9aa20f64dfc50ebf0de04b36ae30c2057c073cd49e",
+      "size": 323026
+    },
+    {
+      "path": "media/store/topup.jpg",
+      "sha256": "01baf7277cfe85c3a83e0df0193ea1969bd28fced4edafef94b07a2a34e1e5d6",
+      "size": 63142
+    },
+    {
+      "path": "media/storyedit-music.mp3",
+      "sha256": "1884f5f36ec6af935061d42b68e8a88819de86cbc6ac195cf67b6c51f50f7656",
+      "size": 384983
+    },
+    {
+      "path": "media/text.txt",
+      "sha256": "4a15e76958f5372833754eb3e413311d8367f8ac932eada32a9cb1b2c31647a5",
+      "size": 36
+    },
+    {
+      "path": "media/tq.mp3",
+      "sha256": "846f4b60b22c2522c06a55c59c74ffe4b75f641037b615e64949600bfb367c86",
+      "size": 194642
+    },
+    {
+      "path": "media/Xeryuu-MD V15 @xnalz.webp",
+      "sha256": "2933972b6344f911de276e8e1ff0854216351eacba38d8786ebcd6c929615454",
+      "size": 336768
+    },
+    {
+      "path": "media/xeryuu.jpg",
+      "sha256": "f670466f06446cee68f7f74c96acd0ddb456ba7e595d5021e03bbd45759d6b6f",
+      "size": 363258
+    },
+    {
+      "path": "media/xnalz.png",
+      "sha256": "0eaf11bd3de0a6764d76dcf08cb83f7571f2baaf9435e52b9704164870caf652",
+      "size": 56494
+    },
+    {
+      "path": "package.json",
+      "sha256": "068a59583f604e6f47648712b46dcaaf75b6e5abf98eba632b83cbb1798a4672",
+      "size": 2014
+    },
+    {
+      "path": "source/database.js",
+      "sha256": "f6d4fa22b0b5df47eb4ac701e6b06ce3bbd23a617ca01703238f507ded8769b3",
+      "size": 2701
+    },
+    {
+      "path": "source/message.js",
+      "sha256": "a339c7ff6829bd34947621c01bae2d8bb8017acdae5e448e65c120b18fb213b4",
+      "size": 49681
+    },
+    {
+      "path": "source/upsert-policy.js",
+      "sha256": "36c3c269a5dbc36f930592984afe40feb48a70842a6bdc15147b7519480c1d1e",
+      "size": 4024
+    },
+    {
+      "path": "stalk-check.js",
+      "sha256": "a45a40e73bc211ce8f576a04abb0214d5941135836667ecb2a8f09ce6c460180",
+      "size": 4801
+    },
+    {
+      "path": "telegram.js",
+      "sha256": "ea40d5cc95d116e0c045406fe178d66c6120dca4162dee09bb65c632d37e6399",
+      "size": 320827
+    },
+    {
+      "path": "tests/channel-monitor.test.js",
+      "sha256": "52da0c490627d4d789c16c10ddee08fb73d3fba7a18f85971d1677c36840fc62",
+      "size": 4714
+    },
+    {
+      "path": "tests/convert-pulsa.test.js",
+      "sha256": "358542743a82045bbf58be3d5400d6fadbff39174c3d0a71dbf8b247e32e388a",
+      "size": 3485
+    },
+    {
+      "path": "tests/feature-integration.test.js",
+      "sha256": "c306e1f5d9f50e1beb69bd6c7e919af74c7675ee5a56077e0a811895adbe4580",
+      "size": 4255
+    },
+    {
+      "path": "tests/richstalk.test.js",
+      "sha256": "08c19f1610cf15347bd85191015b7aca92f245cb5ca891f6933ea2f008e7e533",
+      "size": 15979
+    },
+    {
+      "path": "tests/scrapr-downloader.test.js",
+      "sha256": "4594b74cc5e8194611f348286e0d077ab85752f3790b7cfa3b2e519699f30492",
+      "size": 4444
+    },
+    {
+      "path": "tests/upsert-policy.test.js",
+      "sha256": "8b155b26f3939b21d85ae1881b5b57dbbc2de070f763f3e61c9217353c3ddaca",
+      "size": 3535
+    },
+    {
+      "path": "tests/wa-connection.test.js",
+      "sha256": "362f418928a0796a4b01392d10cd76b9b9508c339f7544ed165a462f9ea128d0",
+      "size": 4334
+    },
+    {
+      "path": "TqTo.md",
+      "sha256": "3276cda8e047985f3a584d9f3aaf8cfd815bf638cbc9e3e7b8a356c2aede72ab",
+      "size": 830
+    },
+    {
+      "path": "xeryuu.js",
+      "sha256": "b98b210bcb8996c92bc77f0fd52f10be7cc0e657d190341bb711d8974bdd5f9a",
+      "size": 1421279
+    }
+  ]
+}
