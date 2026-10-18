@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Xeryuu Spotify</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#080a0b;color:#fff;font-family:Arial,sans-serif}
+body{padding:16px}
+.app{width:min(760px,100%);margin:auto}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.logo{font-size:24px;font-weight:900}.logo b{color:#1ed760}
+.badge{border:1px solid #2f3438;background:#171a1d;border-radius:999px;padding:10px 14px;color:#bbb;font-weight:700;font-size:13px;white-space:nowrap}
+.search{display:flex;gap:8px;margin-bottom:14px}
+.search input{flex:1;min-width:0;background:#17191b;border:1px solid #2b2f33;color:#fff;border-radius:14px;padding:14px;font-size:15px;outline:none}
+.search button{border:0;border-radius:14px;background:#1ed760;color:#071108;padding:0 18px;font-weight:900}
+.card{background:#14171a;border:1px solid #2a2f33;border-radius:18px;overflow:hidden}
+.cover{width:100%;aspect-ratio:1/1;object-fit:contain;display:block;background:#202326}
+.body{padding:15px}.type{font-size:11px;font-weight:800;color:#1ed760;letter-spacing:.08em;text-transform:uppercase}.title{font-size:22px;font-weight:900;line-height:1.2;margin-top:7px;word-break:break-word}.author{font-size:13px;color:#aeb3b7;margin-top:6px}
+.embed{margin-top:14px;overflow:hidden;border-radius:12px}.embed iframe{width:100%;min-height:152px;border:0;display:block;background:#121212}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;border-radius:12px;padding:11px 14px;font-weight:800}.primary{background:#1ed760;color:#071108}.secondary{background:#262b2f;color:#fff}
+h2{font-size:18px;margin:18px 0 10px}.list{display:flex;flex-direction:column;gap:9px}.item{display:flex;gap:12px;align-items:center;padding:9px;border-radius:14px;background:#121517;border:1px solid #252a2f;cursor:pointer}.thumb{width:64px;height:64px;border-radius:10px;object-fit:contain;background:#222;flex:0 0 auto}.ititle{font-weight:800;line-height:1.25}.sub{font-size:12px;color:#9ba2a9;margin-top:4px}.empty{background:#121517;padding:12px;border-radius:12px;color:#9ba2a9}.err{display:none;background:#351313;color:#ffb4b4;padding:10px;border-radius:10px;margin-bottom:12px;font-size:12px}.note{margin-top:13px;color:#737a80;font-size:11px;line-height:1.5}
+@media(max-width:500px){body{padding:12px}.top{align-items:flex-start}.logo{font-size:22px}.badge{padding:8px 10px}.cover{aspect-ratio:1/1}.title{font-size:20px}.search button{padding:0 15px}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="top"><div class="logo">Xeryuu <b>Spotify</b></div><div class="badge">Rich Player</div></div>
+<div class="search"><input id="q" placeholder="Cari Spotify / tempel link..."><button id="go">CARI</button></div>
+<div id="err" class="err"></div>
+<div id="main"></div>
+<h2>Hasil pencarian</h2><div id="list" class="list"></div>
+<div class="note">Rich Spotify memakai Spotify Embed. Bot tidak mengunduh atau me-rip audio Spotify.</div>
+</div>
+<script>
+(()=>{'use strict';
+const BOOT=__XERYUU_SPOTIFY_BOOTSTRAP__, $=id=>document.getElementById(id);let items=Array.isArray(BOOT.results)?BOOT.results.slice():[], token=0;
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function img(x){return x?.thumbnail||'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="800"><rect width="800" height="800" fill="#202326"/><circle cx="400" cy="400" r="120" fill="#1ed760"/><text x="400" y="430" text-anchor="middle" font-size="140" fill="#071108">♪</text></svg>')}
+function showErr(msg){const e=$('err');e.textContent=msg||'';e.style.display=msg?'block':'none'}
+function renderMain(x){if(!x){$('main').innerHTML='';return}const iframe=x.iframe?'<div class="embed"><iframe src="'+esc(x.iframe)+'" title="Spotify Embed" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe></div>':'';$('main').innerHTML='<div class="card"><img class="cover" src="'+esc(img(x))+'" alt=""><div class="body"><div class="type">'+esc(x.type||'spotify')+'</div><div class="title">'+esc(x.title||'Spotify')+'</div><div class="author">'+esc(x.author||'Spotify')+'</div>'+iframe+'<div class="actions"><a class="btn primary" href="'+esc(x.url||'https://open.spotify.com')+'" target="_blank" rel="noopener">OPEN SPOTIFY</a></div></div></div>'}
+function renderList(){if(!items.length){$('list').innerHTML='<div class="empty">Belum ada hasil. Tempel link Spotify atau gunakan pencarian saat Spotify API dikonfigurasi.</div>';return}$('list').innerHTML=items.map((x,i)=>'<div class="item" data-i="'+i+'"><img class="thumb" src="'+esc(img(x))+'" alt=""><div><div class="ititle">'+esc(x.title)+'</div><div class="sub">'+esc(x.subtitle||x.type||'Spotify')+'</div></div></div>').join('');document.querySelectorAll('.item').forEach(el=>el.onclick=async()=>{const x=items[+el.dataset.i];try{const r=await resolve(x.url);renderMain(r)}catch(e){showErr(e.message||'Gagal membuka Spotify')}})}
+async function resolve(url){if(!BOOT.apiBase)throw new Error('API Rich belum publik. Isi RICH_API_PUBLIC_URL di server.');const r=await fetch(BOOT.apiBase+'/api/rich/spotify/resolve?url='+encodeURIComponent(url),{headers:{accept:'application/json'}});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Resolve Spotify gagal');return d.item}
+async function search(){const q=$('q').value.trim();if(!q)return;showErr('');if(/^https?:\/\//i.test(q)||/^spotify:/i.test(q)){try{const x=await resolve(q);renderMain(x)}catch(e){showErr(e.message||'Link Spotify tidak valid')}return}if(!BOOT.apiBase){showErr('Pencarian membutuhkan RICH_API_PUBLIC_URL yang aktif. Tempel link Spotify untuk pemakaian langsung.');return}const my=++token;try{const r=await fetch(BOOT.apiBase+'/api/rich/spotify/search?q='+encodeURIComponent(q)+'&limit=8',{headers:{accept:'application/json'}});const d=await r.json().catch(()=>({}));if(my!==token)return;if(!r.ok)throw new Error(d.error||'Pencarian Spotify gagal');items=Array.isArray(d.results)?d.results:[];renderList();if(items[0])renderMain(await resolve(items[0].url))}catch(e){showErr(e.message||'Pencarian Spotify gagal')}}
+$('go').onclick=search;$('q').onkeydown=e=>{if(e.key==='Enter')search()};renderMain(BOOT.item||null);renderList();
+})();
+</script>
+</body>
+</html>
