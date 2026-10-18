@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Xeryuu Space Shooter</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:#080c15;color:#fff;font-family:Arial,sans-serif;-webkit-user-select:none;user-select:none}
+body{display:flex;justify-content:center;min-height:100vh;touch-action:pan-y}
+.app{width:min(410px,100%);padding:8px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+h1{font-size:21px;margin:0}
+.muted{color:#9ba8c5;font-size:12px}
+.game{background:#111827;border:1px solid #293755;border-radius:18px;padding:12px}
+.hud{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:9px}
+.stat{background:#0c1425;border:1px solid #253653;border-radius:10px;padding:8px 4px;text-align:center;font-size:11px}
+.stat b{display:block;font-size:17px;margin-top:2px}
+#stage{position:relative;width:100%;aspect-ratio:10/11;overflow:hidden;border-radius:15px;border:1px solid #2b3b5c;background:#020617;touch-action:none}
+#game{display:block;position:absolute;inset:0;width:100%;height:100%;background:#020617}
+#bossbar{position:absolute;left:12px;right:12px;top:10px;z-index:10;display:none;pointer-events:none}
+#bossbar .label{font-size:11px;font-weight:800;margin-bottom:5px;text-align:center;text-shadow:0 1px 4px #000}
+.bar{height:9px;border-radius:999px;background:rgba(255,255,255,.13);overflow:hidden;border:1px solid rgba(255,255,255,.1)}
+.bar>i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ef4444,#f97316);border-radius:inherit;transition:width .08s linear}
+.controls{display:grid;grid-template-columns:1fr 1fr 1.35fr 1.35fr;gap:8px;margin-top:9px}
+.ctrl{height:50px;padding:0;border:1px solid #2c344a;border-radius:14px;background:#171c2c;color:#fff;font-size:20px;font-weight:800;touch-action:none}
+.ctrl:active,.ctrl.on{transform:scale(.96);background:#242b40}
+#boost{border:0;background:linear-gradient(135deg,#574dff,#9b57e9);font-size:12px}
+#fire{border:0;background:#dc2626;font-size:13px}
+#overlay{position:absolute;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(2,6,23,.84);overflow:auto}
+#panel{width:min(320px,100%);max-height:100%;overflow:auto;padding:18px;border-radius:18px;text-align:center;background:linear-gradient(180deg,rgba(15,23,42,.98),rgba(2,6,23,.98));border:1px solid rgba(255,255,255,.14);box-shadow:0 20px 70px rgba(0,0,0,.45)}
+#panel h1{margin:0 0 8px;font-size:23px;color:#7dd3fc}
+#panel p{margin:0 0 14px;color:#cbd5e1;font-size:13px;line-height:1.5}
+#start{width:100%;min-height:46px;border:0;border-radius:13px;background:#0284c7;color:#fff;font-weight:800;font-size:15px}
+#hint{margin-top:10px;color:#94a3b8;font-size:10.5px;line-height:1.5}
+.hidden{display:none!important}
+@media(max-width:360px){h1{font-size:18px}.muted{display:none}.stat b{font-size:15px}.ctrl{height:46px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top"><h1>🚀 Xeryuu Space Shooter</h1><span class="muted">Survive • Shoot</span></div>
+  <div class="game">
+    <div class="hud">
+      <div class="stat">SCORE<b id="score">0</b></div>
+      <div class="stat">LEVEL<b id="level">1</b></div>
+      <div class="stat">LIVES<b id="lives">3</b></div>
+      <div class="stat">BEST<b id="best">0</b></div>
+    </div>
+    <div id="stage">
+      <canvas id="game"></canvas>
+      <div id="bossbar"><div class="label" id="bossLabel">BOSS</div><div class="bar"><i id="bossFill"></i></div></div>
+      <div id="overlay">
+        <div id="panel">
+          <h1 id="panelTitle">🚀 Space Shooter</h1>
+          <p id="panelText">Hancurkan meteor dan alien, kumpulkan skor, lalu kalahkan boss setiap beberapa level.</p>
+          <button id="start">MULAI GAME</button>
+          <div id="hint">Keyboard: A/D atau ←/→ gerak • Space tembak • Shift boost</div>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <button id="left" class="ctrl">◀</button>
+      <button id="right" class="ctrl">▶</button>
+      <button id="boost" class="ctrl">⚡ BOOST</button>
+      <button id="fire" class="ctrl">🔥 FIRE</button>
+    </div>
+  </div>
+</div>
+<script>
+(()=>{
+'use strict';
+const stage=document.getElementById('stage');
+const canvas=document.getElementById('game');
+const ctx=canvas.getContext('2d',{alpha:false});
+if(!ctx)return;
+const $=id=>document.getElementById(id);
+let W=760,H=950,DPR=Math.min(devicePixelRatio||1,2);
+let raf=0,last=0,running=false,gameOver=false;
+let score=0,level=1,lives=3,best=0;
+try{best=Number(localStorage.getItem('xeryuu_space_best')||0)}catch{}
+let spawnTimer=0,shotTimer=0,enemyShotTimer=0,levelTimer=0,screenShake=0,boss=null;
+const keys={left:false,right:false,fire:false,boost:false};
+const stars=[],bullets=[],enemies=[],enemyBullets=[],particles=[];
+const ship={x:0,y:0,w:30,h:38,speed:360,invuln:0,boost:100};
+$('best').textContent=best;
+const hasAR=!!(window.CSS&&CSS.supports&&CSS.supports('aspect-ratio','10/11'));
+function shipY(){return H-Math.max(52,H*.1)}
+function resize(){
+  if(!hasAR)stage.style.height=Math.round(stage.clientWidth*1.1)+'px';
+  const rect=stage.getBoundingClientRect();
+  W=Math.max(120,Math.floor(rect.width)); H=Math.max(120,Math.floor(rect.height)); DPR=Math.min(devicePixelRatio||1,2);
+  canvas.width=Math.floor(W*DPR); canvas.height=Math.floor(H*DPR);
+  canvas.style.width='100%'; canvas.style.height='100%';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ship.y=shipY();
+  ship.x=Math.max(24,Math.min(W-24,ship.x||W/2));
+  if(stars.length<90){for(let i=stars.length;i<90;i++)stars.push({x:Math.random()*W,y:Math.random()*H,s:1+Math.random()*2,v:20+Math.random()*80})}
+}
+addEventListener('resize',()=>{resize();if(!running)draw()});resize();
+function showPanel(title,text,button='MULAI GAME'){$('panelTitle').textContent=title;$('panelText').innerHTML=text;$('start').textContent=button;$('overlay').classList.remove('hidden')}
+function hidePanel(){$('overlay').classList.add('hidden')}
+function reset(){
+  bullets.length=enemies.length=enemyBullets.length=particles.length=0;boss=null;score=0;level=1;lives=3;ship.x=W/2;ship.y=shipY();ship.invuln=0;ship.boost=100;spawnTimer=.3;shotTimer=0;enemyShotTimer=0;levelTimer=0;gameOver=false;screenShake=0;
+  updateHud();
+}
+function updateHud(){$('score').textContent=Math.floor(score);$('level').textContent=level;$('lives').textContent=lives;$('best').textContent=best}
+function addParticle(x,y,color,size=3,life=.5,vx=0,vy=0){particles.push({x,y,color,size,life,max:life,vx,vy})}
+function burst(x,y,color,count=10){for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,s=(30+Math.random()*110);addParticle(x,y,color,1+Math.random()*3,.3+Math.random()*.45,Math.cos(a)*s,Math.sin(a)*s)}}
+function shoot(){if(!running||ship.invuln>99||shotTimer>0)return;bullets.push({x:ship.x,y:ship.y-21,vy:-650,w:4,h:14});shotTimer=keys.boost?.07:.12}
+function spawnEnemy(){
+  const r=Math.random();
+  const type=r<.62?'normal':r<.86?'fast':'tank';
+  const size=type==='tank'?29:type==='fast'?20:23;
+  const hp=type==='tank'?3:1;
+  enemies.push({type,x:18+Math.random()*(W-36),y:-35,w:size,h:size,vy:type==='fast'?115+level*4:type==='tank'?55+level*2:75+level*3,hp,maxHp:hp,t:Math.random()*10,phase:Math.random()*6,shoot:1+Math.random()*2})
+}
+function spawnBoss(){
+  boss={x:W/2,y:-90,w:84,h:62,hp:18+level*3,maxHp:18+level*3,vy:48};
+  $('bossbar').style.display='block';
+  $('bossFill').style.width='100%';
+  $('bossLabel').textContent='BOSS • LEVEL '+level;
+}
+function enemyDamage(x,y){
+  for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];if(Math.abs(x-e.x)<(e.w+4)&&Math.abs(y-e.y)<(e.h+6)){e.hp--;burst(x,y,e.type==='tank'?'#fb923c':'#facc15',5);if(e.hp<=0){score+=e.type==='tank'?50:e.type==='fast'?25:15;burst(e.x,e.y,e.type==='fast'?'#a855f7':'#ef4444',16);enemies.splice(i,1);updateHud()}return true}}
+  if(boss&&Math.abs(x-boss.x)<boss.w*.55&&Math.abs(y-boss.y)<boss.h*.6){boss.hp--;score+=8;burst(x,y,'#facc15',4);$('bossFill').style.width=Math.max(0,boss.hp/boss.maxHp*100)+'%';if(boss.hp<=0){score+=500;burst(boss.x,boss.y,'#ef4444',50);boss=null;$('bossbar').style.display='none';level++;levelTimer=0;updateHud()}return true}
+  return false;
+}
+function hitPlayer(){
+  if(ship.invuln>0)return;
+  lives--;ship.invuln=1.35;screenShake=.25;burst(ship.x,ship.y,'#f97316',25);updateHud();
+  if(lives<=0)endGame();
+}
+function endGame(){
+  running=false;gameOver=true;best=Math.max(best,Math.floor(score));try{localStorage.setItem('xeryuu_space_best',String(best))}catch{}updateHud();
+  showPanel('💥 GAME OVER',`Skor kamu <b>${Math.floor(score)}</b><br>Level tercapai <b>${level}</b><br><br>Tekan tombol untuk bermain lagi.`,'MAIN LAGI');
+}
+function update(dt){
+  const boostActive=keys.boost&&ship.boost>0;
+  if(boostActive)ship.boost=Math.max(0,ship.boost-32*dt);else ship.boost=Math.min(100,ship.boost+16*dt);
+  const speed=ship.speed*(boostActive?1.8:1);
+  if(keys.left)ship.x-=speed*dt;if(keys.right)ship.x+=speed*dt;ship.x=Math.max(24,Math.min(W-24,ship.x));
+  ship.invuln=Math.max(0,ship.invuln-dt);shotTimer=Math.max(0,shotTimer-dt);
+  if(keys.fire)shoot();
+  levelTimer+=dt;
+  if(!boss&&level%3===0&&levelTimer<1)spawnBoss();
+  if(!boss){spawnTimer-=dt;if(spawnTimer<=0){spawnEnemy();spawnTimer=Math.max(.35,1.05-level*.045)*(.75+Math.random()*.55)}enemyShotTimer-=dt;if(enemyShotTimer<=0){for(const e of enemies){if(Math.random()<.28)enemyBullets.push({x:e.x,y:e.y+e.h*.6,vy:160+level*7,r:4})}enemyShotTimer=.9+Math.random()*.9}}
+  for(let i=stars.length-1;i>=0;i--){const s=stars[i];s.y+=(s.v+(boostActive?80:0))*dt;if(s.y>H+3)s.y=-3}
+  for(let i=bullets.length-1;i>=0;i--){const b=bullets[i];b.y+=b.vy*dt;if(b.y<-30){bullets.splice(i,1);continue}if(enemyDamage(b.x,b.y)){bullets.splice(i,1)}}
+  for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];e.y+=e.vy*dt;e.x+=Math.sin((e.t+=dt)+e.phase)*18*dt;if(e.y>H+45){enemies.splice(i,1);continue}if(Math.abs(ship.x-e.x)<(ship.w+e.w)*.45&&Math.abs(ship.y-e.y)<(ship.h+e.h)*.45){enemies.splice(i,1);hitPlayer()}}
+  for(let i=enemyBullets.length-1;i>=0;i--){const b=enemyBullets[i];b.y+=b.vy*dt;if(b.y>H+20){enemyBullets.splice(i,1);continue}if(Math.abs(ship.x-b.x)<20&&Math.abs(ship.y-b.y)<28){enemyBullets.splice(i,1);hitPlayer()}}
+  if(boss){boss.y=Math.min(130,boss.y+boss.vy*dt);boss.x=W/2+Math.sin(performance.now()/900)*Math.max(30,W*.24);if(Math.random()<dt*.7)enemyBullets.push({x:boss.x-24,y:boss.y+24,vy:210+level*7,r:5});if(Math.random()<dt*.7)enemyBullets.push({x:boss.x+24,y:boss.y+24,vy:230+level*7,r:5})}
+  for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0)particles.splice(i,1)}
+  screenShake=Math.max(0,screenShake-dt);updateHud();
+}
+function drawShip(){
+  if(ship.invuln>0&&Math.floor(ship.invuln*12)%2===0)return;
+  ctx.save();ctx.translate(ship.x,ship.y);
+  ctx.fillStyle='#38bdf8';ctx.shadowColor='#38bdf8';ctx.shadowBlur=14;ctx.beginPath();ctx.moveTo(0,-23);ctx.lineTo(-18,19);ctx.lineTo(0,11);ctx.lineTo(18,19);ctx.closePath();ctx.fill();
+  ctx.shadowBlur=0;ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(0,-3,5,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='#f97316';ctx.beginPath();ctx.moveTo(-5,16);ctx.lineTo(0,29+Math.random()*7);ctx.lineTo(5,16);ctx.closePath();ctx.fill();
+  ctx.restore();
+}
+function draw(){
+  const shake=screenShake>0?screenShake*14:0;ctx.save();if(shake)ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
+  const g=ctx.createRadialGradient(W*.5,H*.2,20,W*.5,H*.5,Math.max(W,H)*.75);g.addColorStop(0,'#172554');g.addColorStop(.48,'#06102a');g.addColorStop(1,'#000');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  for(const s of stars){ctx.fillStyle=`rgba(255,255,255,${.35+s.s*.2})`;ctx.fillRect(s.x,s.y,s.s,s.s*2)}
+  for(const b of bullets){ctx.fillStyle='#facc15';ctx.shadowColor='#facc15';ctx.shadowBlur=8;ctx.fillRect(b.x-2,b.y-b.h*.5,b.w,b.h);ctx.shadowBlur=0}
+  for(const b of enemyBullets){ctx.fillStyle='#fb7185';ctx.shadowColor='#fb7185';ctx.shadowBlur=9;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0}
+  for(const e of enemies){ctx.save();ctx.translate(e.x,e.y);ctx.fillStyle=e.type==='fast'?'#a855f7':e.type==='tank'?'#f97316':'#ef4444';ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=12;ctx.beginPath();ctx.arc(0,0,e.w*.5,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#020617';ctx.beginPath();ctx.arc(-e.w*.16,-2,3,0,Math.PI*2);ctx.arc(e.w*.16,-2,3,0,Math.PI*2);ctx.fill();ctx.restore()}
+  if(boss){ctx.save();ctx.translate(boss.x,boss.y);ctx.fillStyle='#dc2626';ctx.shadowColor='#dc2626';ctx.shadowBlur=22;ctx.beginPath();ctx.moveTo(-27,-28);ctx.lineTo(27,-28);ctx.quadraticCurveTo(42,-28,42,-13);ctx.lineTo(42,13);ctx.quadraticCurveTo(42,28,27,28);ctx.lineTo(-27,28);ctx.quadraticCurveTo(-42,28,-42,13);ctx.lineTo(-42,-13);ctx.quadraticCurveTo(-42,-28,-27,-28);ctx.closePath();ctx.fill();ctx.shadowBlur=0;ctx.fillStyle='#111827';ctx.fillRect(-22,-7,12,12);ctx.fillRect(10,-7,12,12);ctx.fillStyle='#fef08a';ctx.fillRect(-4,10,8,8);ctx.restore()}
+  for(const p of particles){ctx.globalAlpha=Math.max(0,p.life/p.max);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,p.size,p.size);ctx.globalAlpha=1}
+  drawShip();ctx.restore();
+}
+function loop(t){if(!running)return;const dt=Math.min(.033,Math.max(.001,(t-last)/1000||.016));last=t;update(dt);draw();raf=requestAnimationFrame(loop)}
+function startGame(){cancelAnimationFrame(raf);reset();running=true;hidePanel();last=performance.now();raf=requestAnimationFrame(loop)}
+$('start').addEventListener('click',startGame);
+function bindHold(id,key){const b=$(id);const on=e=>{e.preventDefault();keys[key]=true;b.classList.add('on')};const off=e=>{e.preventDefault();keys[key]=false;b.classList.remove('on')};b.addEventListener('contextmenu',e=>e.preventDefault());b.addEventListener('pointerdown',on);b.addEventListener('pointerup',off);b.addEventListener('pointercancel',off);b.addEventListener('pointerleave',off)}
+bindHold('left','left');bindHold('right','right');bindHold('fire','fire');bindHold('boost','boost');
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k==='a'||e.key==='arrowleft')keys.left=true;if(k==='d'||e.key==='arrowright')keys.right=true;if(e.code==='space')keys.fire=true;if(e.key==='shift')keys.boost=true;if(['arrowleft','arrowright',' '].includes(e.key)||e.code==='Space')e.preventDefault()});
+addEventListener('keyup',e=>{const k=e.key.toLowerCase();if(k==='a'||e.key==='arrowleft')keys.left=false;if(k==='d'||e.key==='arrowright')keys.right=false;if(e.code==='space')keys.fire=false;if(e.key==='shift')keys.boost=false});
+reset();draw();
+})();
+</script>
+</body>
+</html>
