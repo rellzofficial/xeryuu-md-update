@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Xeryuu Platformer</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#080d18;color:#fff;font-family:Arial,sans-serif;display:flex;justify-content:center;min-height:100vh}.app{width:min(410px,100%);padding:8px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}h1{font-size:21px;margin:0}.muted{font-size:12px;color:#98a6c5}
+.menu,.game{background:#111a2c;border:1px solid #2a3b60;border-radius:18px;padding:14px}.menu{text-align:center}.levels{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:15px}.level{border:1px solid #354b76;background:#182540;color:#fff;border-radius:14px;padding:16px 10px;text-align:left;cursor:pointer}.level:hover{border-color:#7895ff;transform:translateY(-2px)}.level b{display:block;margin-bottom:5px}.level small{color:#aab8d2;line-height:1.45}
+.game{display:none}.hud{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:9px}.stat{background:#0b1323;border:1px solid #253858;border-radius:10px;padding:7px;text-align:center;font-size:11px}.stat b{display:block;font-size:16px;margin-top:2px}
+.canvasWrap{position:relative;border-radius:15px;overflow:hidden;border:1px solid #314568;background:#72b8e6}.gamecanvas{display:block;width:100%;height:auto;touch-action:none}.controls{display:flex;justify-content:space-between;gap:10px;margin-top:9px}.pad{display:flex;gap:8px}.btn{border:0;border-radius:12px;background:#536eff;color:#fff;font-weight:bold;min-width:58px;min-height:48px;font-size:20px;cursor:pointer;touch-action:none}.jump{min-width:100px;background:#5a8cff}.secondary{background:#253653;font-size:13px}
+.bar{height:8px;background:#263147;border-radius:10px;overflow:hidden;margin-top:7px}.bar i{display:block;height:100%;width:0;background:#62e28a}.modal{position:fixed;inset:0;background:#000c;display:none;place-items:center;padding:18px}.box{width:min(390px,100%);background:#121c31;border:1px solid #3b4e76;border-radius:18px;padding:20px;text-align:center}.big{font-size:34px;font-weight:bold}.box button{margin-top:12px;width:100%}
+@media(max-width:600px){.levels{grid-template-columns:1fr}.hud{grid-template-columns:repeat(2,1fr)}.game{padding:8px}.canvasWrap{max-height:none}}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="top"><h1>🏃 Xeryuu Platformer</h1><span class="muted">Jump • Run • Collect</span></div>
+<div id="menu" class="menu">
+<h2>Pilih Level</h2><p class="muted">Lompat melewati rintangan, ambil koin, injak musuh, dan capai portal.</p>
+<div class="levels">
+<button class="level" data-level="easy"><b>🟢 Mudah</b><small>Platform lebar<br>Musuh sedikit<br>Kecepatan santai</small></button>
+<button class="level" data-level="normal"><b>🟡 Normal</b><small>Platform lebih kecil<br>Musuh lebih banyak<br>Rintangan bergerak</small></button>
+<button class="level" data-level="hard"><b>🔴 Sulit</b><small>Platform sempit<br>Musuh cepat<br>Jatuh lebih mudah</small></button>
+</div></div>
+
+<div id="game" class="game">
+<div class="hud">
+<div class="stat">❤️ HP<b id="hp">3</b></div><div class="stat">🪙 COIN<b id="coins">0</b></div><div class="stat">🏆 SCORE<b id="score">0</b></div><div class="stat">🚩 LEVEL<b id="levelText">Mudah</b></div>
+</div>
+<div class="canvasWrap"><canvas id="c" class="gamecanvas" width="860" height="480"></canvas></div>
+<div class="controls"><div class="pad"><button class="btn" id="left">◀</button><button class="btn" id="right">▶</button></div><button class="btn jump" id="jump">JUMP ⤴</button><button class="btn secondary" id="quit">Keluar</button></div>
+<div class="bar"><i id="progress"></i></div>
+</div>
+</div>
+<div class="modal" id="modal"><div class="box"><h2 id="resultTitle">Selesai</h2><div class="big" id="resultScore">0</div><p id="resultText"></p><button class="btn" id="again">Main Lagi</button></div></div>
+
+<script>
+const canvas=document.getElementById("c"),ctx=canvas.getContext("2d");
+const cfg={easy:{name:"Mudah",speed:3.4,jump:10.8,enemy:1,plats:10},normal:{name:"Normal",speed:4.1,jump:11.2,enemy:2,plats:12},hard:{name:"Sulit",speed:4.8,jump:11.7,enemy:3,plats:14}};
+let S=null,keys={left:false,right:false},raf=0,last=0;
+
+function start(level){
+ const z=cfg[level]; S={mode:level,c:z,x:70,y:360,vx:0,vy:0,w:28,h:38,hp:3,coins:0,score:0,cam:0,done:false,win:false,jump:false,
+ platforms:[],coinsArr:[],enemies:[],portal:{x:0,y:0,w:34,h:60}};
+ build();
+ document.getElementById("menu").style.display="none";document.getElementById("game").style.display="block";document.getElementById("modal").style.display="none";
+ last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);updateHUD();
+}
+function build(){
+ const n=S.c.plats;let x=0,y=410;
+ S.platforms.push({x:0,y:410,w:230,h:70});
+ for(let i=1;i<n;i++){
+  x+=170+Math.random()*130;
+  y=300+Math.random()*105;
+  let w=S.mode==="hard"?95+Math.random()*45:120+Math.random()*70;
+  S.platforms.push({x,y,w,h:22});
+  if(i<n-1)S.coinsArr.push({x:x+w*.5,y:y-25,r:9,got:false});
+  if(i>1 && i<n-1 && (i%2===0 || S.mode==="hard")){
+   S.enemies.push({x:x+w*.55,y:y-28,w:28,h:28,vx:(Math.random()>.5?1:-1)*(S.c.enemy+.5),min:x+8,max:x+w-36,alive:true});
+  }
+ }
+ let lastp=S.platforms[S.platforms.length-1];S.portal={x:lastp.x+lastp.w-48,y:lastp.y-60,w:34,h:60};
+}
+function inputLoop(){
+ S.vx=keys.left?-S.c.speed:keys.right?S.c.speed:S.vx*.78;
+ if(Math.abs(S.vx)<.08)S.vx=0;
+}
+function jump(){
+ if(!S||S.done)return;
+ const p=playerPlatform();
+ if(p&&S.y+S.h<=p.y+5){S.vy=-S.c.jump}
+}
+function playerPlatform(){
+ return S.platforms.find(p=>S.x+S.w>p.x+4&&S.x<p.x+p.w-4&&S.y+S.h>=p.y-3&&S.y+S.h<=p.y+18);
+}
+function update(dt){
+ inputLoop();S.x+=S.vx;S.vy+=.5*60*dt;S.y+=S.vy;
+ let landed=false;
+ for(const p of S.platforms){
+  if(S.x+S.w>p.x&&S.x<p.x+p.w&&S.y+S.h>=p.y&&S.y+S.h<=p.y+20&&S.vy>=0){S.y=p.y-S.h;S.vy=0;landed=true}
+ }
+ for(const e of S.enemies){
+  if(!e.alive)continue;e.x+=e.vx;
+  if(e.x<e.min||e.x>e.max)e.vx*=-1;
+  if(collide(S,e)){
+   if(S.vy>1&&S.y+S.h-e.y<16){e.alive=false;S.vy=-7;S.score+=150}
+   else hurt();
+  }
+ }
+ for(const q of S.coinsArr)if(!q.got&&Math.hypot(S.x+S.w/2-q.x,S.y+S.h/2-q.y)<25){q.got=true;S.coins++;S.score+=50}
+ if(collide(S,S.portal)){finish(true);return}
+ if(S.y>canvas.height+100){hurt(true);return}
+ S.x=Math.max(0,S.x);S.cam=Math.max(0,S.x-260);
+ const target= S.platforms[S.platforms.length-1].x;
+ document.getElementById("progress").style.width=Math.min(100,S.x/target*100)+"%";
+}
+function hurt(fall=false){
+ if(S.done)return;S.hp--;S.score=Math.max(0,S.score-50);
+ if(S.hp<=0){finish(false);return}
+ S.x=Math.max(40,S.x-90);S.y=180;S.vy=0;
+}
+function collide(a,b){return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y}
+function draw(){
+ ctx.clearRect(0,0,canvas.width,canvas.height);
+ const g=ctx.createLinearGradient(0,0,0,canvas.height);g.addColorStop(0,"#74c4ec");g.addColorStop(1,"#d4f0ff");ctx.fillStyle=g;ctx.fillRect(0,0,canvas.width,canvas.height);
+ ctx.save();ctx.translate(-S.cam,0);
+ // background hills
+ ctx.fillStyle="#75a86e";for(let i=0;i<8;i++){ctx.beginPath();ctx.arc(i*260,410,130,Math.PI,Math.PI*2);ctx.fill()}
+ for(const p of S.platforms){ctx.fillStyle="#6a4935";ctx.fillRect(p.x,p.y,p.w,p.h);ctx.fillStyle="#5ec76b";ctx.fillRect(p.x,p.y,p.w,8)}
+ for(const q of S.coinsArr)if(!q.got){ctx.fillStyle="#ffd54a";ctx.beginPath();ctx.arc(q.x,q.y,q.r,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff1a6";ctx.fillRect(q.x-2,q.y-6,4,12)}
+ for(const e of S.enemies)if(e.alive){ctx.fillStyle="#8b3d58";ctx.fillRect(e.x,e.y,e.w,e.h);ctx.fillStyle="#fff";ctx.fillRect(e.x+5,e.y+7,5,5);ctx.fillRect(e.x+18,e.y+7,5,5)}
+ ctx.fillStyle="#6b4eff";ctx.fillRect(S.portal.x,S.portal.y,S.portal.w,S.portal.h);ctx.fillStyle="#a88cff";ctx.fillRect(S.portal.x+7,S.portal.y+8,20,44);
+ // player
+ ctx.fillStyle="#ffcf45";ctx.fillRect(S.x,S.y,S.w,S.h);ctx.fillStyle="#2e3b72";ctx.fillRect(S.x+5,S.y+8,18,12);ctx.fillStyle="#fff";ctx.fillRect(S.x+8,S.y+11,4,5);ctx.fillRect(S.x+17,S.y+11,4,5);
+ ctx.restore();
+}
+function loop(now){
+ if(!S||S.done)return;const dt=Math.min(.035,(now-last)/1000);last=now;update(dt);draw();updateHUD();raf=requestAnimationFrame(loop);
+}
+function updateHUD(){document.getElementById("hp").textContent=S.hp;document.getElementById("coins").textContent=S.coins;document.getElementById("score").textContent=S.score;document.getElementById("levelText").textContent=S.c.name}
+function finish(win){
+ S.done=true;cancelAnimationFrame(raf);
+ document.getElementById("resultTitle").textContent=win?"🏆 LEVEL SELESAI!":"💀 GAME OVER";
+ document.getElementById("resultScore").textContent=S.score+" pts";
+ document.getElementById("resultText").textContent=win?`Kamu mencapai portal dengan ${S.coins} coin.`:`HP habis. Coin terkumpul: ${S.coins}.`;
+ document.getElementById("modal").style.display="grid";
+}
+function bindHold(id,key){
+ const b=document.getElementById(id);
+ const on=()=>keys[key]=true,onoff=()=>keys[key]=false;
+ b.addEventListener("pointerdown",on);["pointerup","pointercancel","pointerleave"].forEach(e=>b.addEventListener(e,onoff));
+}
+bindHold("left","left");bindHold("right","right");
+document.getElementById("jump").addEventListener("pointerdown",jump);
+document.querySelectorAll(".level").forEach(b=>b.addEventListener("click",()=>start(b.dataset.level)));
+document.getElementById("again").addEventListener("click",()=>start(S.mode));
+document.getElementById("quit").addEventListener("click",()=>{S.done=true;cancelAnimationFrame(raf);document.getElementById("game").style.display="none";document.getElementById("menu").style.display="block";document.getElementById("modal").style.display="none"});
+window.addEventListener("keydown",e=>{if(e.key==="ArrowLeft"||e.key==="a")keys.left=true;if(e.key==="ArrowRight"||e.key==="d")keys.right=true;if(e.key==="ArrowUp"||e.key===" "||e.key==="w"){e.preventDefault();jump()}});
+window.addEventListener("keyup",e=>{if(e.key==="ArrowLeft"||e.key==="a")keys.left=false;if(e.key==="ArrowRight"||e.key==="d")keys.right=false});
+</script>
+</body>
+</html>
