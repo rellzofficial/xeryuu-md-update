@@ -62,12 +62,22 @@ function parseIndonesianPlate(input) {
   };
 }
 
+const COMMON_IDX_TICKERS = new Set((
+  'AALI ABBA ABDA ABMM ACES ACRO ADHI ADMF ADMR ADRO AGII AGRO AKRA AMAG AMAR AMFG AMIN AMMN AMMS AMRT ANTM APEX APIC ARCI AREA ARNA ARTO ASGR ASII ASLC ASRI ASSA AUTO AVIA AYAM BABY BACA BANK BBCA BBHI BBKP BBLD BBNI BBRI BBTN BBYB BCAP BCIC BCIP BDMN BEKS BELL BFIN BGTG BHAT BHIT BIKA BIMA BINA BINO BIPI BIRD BISI BJBR BJTM BKSL BLTA BLTZ BMAS BMRI BNBA BNGA BNII BNLI BOBA BOGA BOLT BRAM BRIS BRMS BRNA BRPT BSDE BSSR BTEK BTPS BUDI BUKA BULL CARS CBMF CCSI CEKA CENT CFIN CHIP CITA CLPI CMNP CMRY CNMA COAL CPIN CPRO CRAB CSAP CTRA CUAN DEFI DEWA DGIK DIGI DKFT DMAS DMND DOID DRMA DSSA DUTI DVLA EAST ELSA ELTY EMTK ENRG ENZO ERAA ESIP ESSA ESTI ETWA EXCL FAST FILM FIRE FISH FITT FREN FUTR GDST GDYR GEMA GGRM GGRP GIAA GJTL GLOB GMFI GMTD GOLD GOTO GPRA GREN GRPM GULA HADE HDFA HDIT HEAL HERO HEXA HILL HMSP HOME HOPE HRTA HRUM ICBP ICON IDEA IFII IGAR IIKP IMAS IMPC INAF INAI INCO INDF INDY INKP INPP INPS INRU INTP IPCC IPCM IPOL IPPE IPTV IRRA ISAT ISSP ITIC ITMG JARR JECC JGLE JIHD JKON JPFA JRPT JSMR JTPE KARW KBLI KBLM KDSI KINO KIOS KKGI KLBF KMDS KMTR KOBX KPIG KRAS KREN LCKM LION LIVE LMAS LMPI LMSH LPCK LPKR LPPF LPPS LSIP LTLS MABA MAIN MAPA MAPI MARK MASA MAYA MBAP MBMA MBSS MBTO MCAS MCOL MDIA MDKA MDKI MDLN MDRN MEDC MEGA MERK META MFMI MGNA MICE MIDI MIKA MINA MIRA MITI MKPI MLBI MLIA MLPL MLPT MMLP MNCN MPPA MPRO MREI MTDL MTEL MTLA MTSM MYOH MYOR MYRX MYTX NANO NASA NATO NCKL NELY NIKL NIPS NIRO NICE NKLA NOBU NRCA NSSS NTBK NUSA OBMD OCAP OKAS OMRE OPMS PADI PANI PANR PANS PBID PBRX PDES PEGE PGAS PGEO PGLI PICO PJAA PLIN PMMP PNBN PNIN PNLF PNSE POLI POLL POLU PORT POWR PRAS PRDA PRIM PSDN PSKT PTPP PTRO PUDP PWON PZZA RAJA RALS RANC RBMS RDTX REAL RELI RICY RIGS RISE RMKE RMKO ROTI RUIS SAFE SAME SAMF SAPX SCMA SCCO SCMA SCNP SEMA SGER SGRO SHID SILO SIMP SIPD SKBM SKLT SMAR SMBR SMCB SMDM SMDR SMGR SMKL SMKM SMMA SMMT SMRA SMSM SNLK SOCI SONA SPMA SRAJ SRTG SSIA SSMS SSTM STAR STTP SUGI SULI SUPR SURE TAMA TAPG TAXI TBIG TBLA TBMS TCID TCPI TDPM TFAS TGKA TIFA TINS TKIM TLKM TMAS TMPO TNCA TOBA TOPS TOTL TOTO TOWR TPIA TPMA TRIM TRIN TRIS TRST TRUE TSPC TURI UANG UCID ULTJ UNIQ UNIT UNTR UNVR UNSP UNTD VICI VINS VOKS VRNA WAPO WEGE WEHA WGSH WICO WIKA WINS WIFI WINR WMPP WOOD WSKT WTON YELO ZATA ZBRA ZINC ZONE'.split(/\s+/)
+));
+
 function normalizeStockSymbol(input) {
-  const original = String(input || '').trim().toUpperCase();
-  if (!/^[A-Z0-9]{2,8}(?:\.JK)?$/.test(original)) {
-    throw new Error('Masukkan kode saham BEI, misalnya BBCA, BBRI, BMRI atau TLKM. Fitur ini hanya menerima kode saham Indonesia (.JK).');
+  const raw = String(input || '').trim().toUpperCase();
+  if (!raw) throw new Error('Masukkan kode saham, misalnya BBCA, AAPL, MSFT, atau IHSG.');
+  if (['IHSG', 'IDX', 'IDXCOMPOSITE', '^JKSE', 'JKSE'].includes(raw)) return '^JKSE';
+  const original = raw.replace(/\s+/g, '');
+  if (!/^[A-Z0-9^][A-Z0-9.^=-]{0,14}$/.test(original) || /[;|`$]/.test(original)) {
+    throw new Error('Kode saham tidak valid. Contoh: BBCA, BBCA.JK, AAPL, MSFT, atau IHSG.');
   }
-  return original.endsWith('.JK') ? original : `${original}.JK`;
+  if (original.startsWith('^') || original.includes('=') || original.includes('.')) return original;
+  // Common IDX tickers default to Yahoo's .JK notation. Other valid symbols
+  // are treated as international tickers; an IDX ticker can always be explicit with .JK.
+  return COMMON_IDX_TICKERS.has(original) ? `${original}.JK` : original;
 }
 
 function formatIDR(value) {
@@ -307,16 +317,23 @@ async function getIndonesianStockQuote(input) {
 
 function formatStockQuote(quote) {
   const number = value => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value);
+  const currency = /^[A-Z]{3}$/.test(String(quote.currency || '')) ? String(quote.currency) : 'IDR';
+  const money = value => {
+    if (currency === 'IDR') return formatIDR(value);
+    try { return new Intl.NumberFormat('id-ID', { style: 'currency', currency, maximumFractionDigits: 4 }).format(value); }
+    catch { return `${number(value)} ${currency}`; }
+  };
   const changeLabel = quote.change === null || quote.changePercent === null
     ? 'Tidak tersedia dari sumber'
-    : `${quote.change > 0 ? '+' : ''}${formatIDR(quote.change)} (${quote.changePercent > 0 ? '+' : ''}${number(quote.changePercent)}%)`;
+    : `${quote.change > 0 ? '+' : ''}${money(quote.change)} (${quote.changePercent > 0 ? '+' : ''}${number(quote.changePercent)}%)`;
   const volumeLabel = quote.volume === null ? 'Tidak tersedia' : new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(quote.volume);
+  const marketHeading = quote.symbol === '^JKSE' ? 'INDEKS IHSG' : currency === 'IDR' && String(quote.symbol).endsWith('.JK') ? 'SAHAM INDONESIA' : 'SAHAM INTERNASIONAL';
   return [
-    '╭─═⪩ 📈 *SAHAM INDONESIA*',
+    `╭─═⪩ 📈 *${marketHeading}*`,
     '│',
     `│ 🏢 ${quote.name}`,
     `│ 🔎 Kode: ${quote.symbol}`,
-    `│ 💵 Harga terakhir: ${formatIDR(quote.price)}`,
+    `│ 💵 Harga terakhir: ${money(quote.price)}`,
     `│ 📊 Perubahan: ${changeLabel}`,
     `│ 📦 Volume terakhir: ${volumeLabel}`,
     `│ 🕒 Pembaruan sumber: ${quote.updatedAt}`,
@@ -429,6 +446,11 @@ async function diagnoseProject(projectRoot) {
       let match;
       while ((match = requirePattern.exec(source)) !== null) {
         if (!resolveLocalRequire(file, match[2])) {
+          // authen.js is intentionally excluded from the user distribution and
+          // all call sites load it under try/catch as optional local secrets.
+          // Do not report that deliberate absence as a broken relative import.
+          const optionalTarget = path.resolve(path.dirname(file), match[2]);
+          if (path.basename(optionalTarget).toLowerCase() === 'authen.js' && !fs.existsSync(optionalTarget)) continue;
           issues.push({ file, type: 'Require lokal tidak ditemukan', detail: match[2] });
           if (issues.length >= 200) return;
         }
