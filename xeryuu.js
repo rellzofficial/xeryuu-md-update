@@ -1,4 +1,3 @@
-
 //Please don't change script credit creator
 //🔰 Creator : Xnalz
 //🔰 Telegram : https://t.me/XnalzNotDev
@@ -175,11 +174,12 @@ const { unixTimestampSeconds, generateMessageTag, processTime, webApi, getRandom
 const { FajarNews, BBCNews, metroNews, CNNNews, iNews, KumparanNews, TribunNews, DailyNews, DetikNews, OkezoneNews, CNBCNews, KompasNews, SindoNews, TempoNews, IndozoneNews, AntaraNews, RepublikaNews, VivaNews, KontanNews, MerdekaNews, KomikuSearch, AniPlanetSearch, KomikFoxSearch, KomikStationSearch, MangakuSearch, KiryuuSearch, KissMangaSearch, KlikMangaSearch, PalingMurah, LayarKaca21, AminoApps, Mangatoon, WAModsSearch, Emojis, CoronaInfo, JalanTikusMeme,Cerpen, Quotes, Couples, Darkjokes } = require("dhn-api");
 const { targetChannelData, loadTargetChannel, saveTargetChannel } = require('./library/upch.js');
 const { UploadFileUgu } = require('./library/uploader.js')
-const furinaV18Features = require('./library/furina-v18-features.js')
+const furinaV18Features = require('./library/XeryuuV17.js')
 const gameHub = require('./library/games.js')
 const tourlService = require('./library/tourl.js')
 const bratService = require('./library/brat.js')
 const indonesiaTools = require('./library/indonesia-tools.js')
+const xeryuuExtras = require('./library/xeryuu-extras.js')
 const caklontongService = require('./library/caklontong.js')
 const { sendRichHtmlGame, listRichHtmlGames } = require('./library/richhtml.js')
 const { sendRichYoutube, sendRichTourl, searchYouTube, resolveYouTubeAudio, publicApiBase } = require('./library/richmedia.js')
@@ -2325,7 +2325,32 @@ const replyV1 = async (teks, options = {}) => {
   }
 };
 
+// Compatibility helper for replytolak-style handlers imported from Furina.
+// It intentionally shares Xeryuu's normal, triple-backtick reply path.
+const replytolak = async (teks, options = {}) => replyV1(teks, options);
+
 const Reply = async (content, options = {}) => replyV1(content, options);
+// Furina V18 reply helper names kept for handler compatibility, but routed through
+// Xeryuu's plain-text, quoted reply to avoid fake-document / synthetic-forward metadata.
+const replyFurina = async (content) => replyV1(content);
+const replyFurina1 = async (content) => replyV1(content);
+const replytolak1 = async (content) => replyV1(content);
+const reply = async (content) => replyV1(content);
+async function replyprem() {
+    return replyV1('🔒 Fitur ini khusus pengguna premium. Hubungi developer untuk informasi akses.');
+}
+async function replyreseller() {
+    return replyV1('🔒 Fitur ini khusus pengguna reseller. Hubungi developer untuk informasi akses.');
+}
+async function replyhigh() {
+    return replyV1('🔒 Fitur ini khusus pengguna PT/Own. Hubungi developer untuk informasi akses.');
+}
+async function replyall() {
+    return replyV1('🔒 Fitur ini memerlukan tier reseller/ADP/PT/Own. Hubungi developer untuk informasi akses.');
+}
+async function replyadminp() {
+    return replyV1('🔒 Fitur ini khusus administrator panel. Hubungi developer untuk informasi akses.');
+}
 
 const sendCompatibilityMentionReply = async (name1, name2, jid1 = '', jid2 = '') => {
     const result = funMenu.scoreCompatibility(name1, name2)
@@ -9273,6 +9298,290 @@ if (DISABLED_CRASH_FLOOD_COMMANDS.has(String(command || '').toLowerCase())) {
 }
 
 switch (command) {
+case 'gachanomor': {
+    // This command intentionally produces a clearly dummy/fictional example.
+    // It does not fetch shared temporary numbers or expose other people's OTPs.
+    const draws = [
+        { country: 'Indonesia', code: '62' }, { country: 'Jepang', code: '81' },
+        { country: 'Korea Selatan', code: '82' }, { country: 'Amerika Serikat', code: '1' },
+        { country: 'Inggris', code: '44' }, { country: 'Malaysia', code: '60' }
+    ];
+    const draw = draws[Math.floor(Math.random() * draws.length)];
+    return replyV1(
+        `🎰 GACHA NOMOR DUMMY\n\n` +
+        `Negara: ${draw.country} (+${draw.code})\n` +
+        `Nomor contoh: +${draw.code} XXX-XXX-XXXX\n\n` +
+        `⚠️ Ini data fiktif untuk demo, bukan nomor telepon aktif dan tidak dapat menerima SMS/OTP.`
+    );
+}
+case 'getotp': {
+    return replyV1(
+        `🔐 PEMERIKSAAN OTP\n\n` +
+        `Perintah ini tidak mengambil atau menampilkan OTP dari nomor publik/nomor orang lain. Kode verifikasi bersifat pribadi.\n\n` +
+        `Untuk order yang kamu miliki, gunakan status/riwayat resmi penyedia layanan yang kamu pakai; jangan bagikan kode OTP ke siapa pun.`
+    );
+}
+case 'botmode': {
+    if (!isCreator) return replyV1(mess.owner);
+    const mode = String(args[0] || '').toLowerCase();
+    if (!mode || mode === 'status') {
+        const activeMode = conn.public === false ? 'OFF / SELF' : 'ON / PUBLIC';
+        return replyV1(`⚙️ BOTMODE\n\nStatus: ${activeMode}\nGunakan: ${prefix}botmode on atau ${prefix}botmode off`);
+    }
+    if (!['on', 'off'].includes(mode)) return replyV1(`Format: ${prefix}botmode on|off|status`);
+    conn.public = mode === 'on';
+    if (conn.__xeryuuRole !== 'JADIBOT') {
+        global.db.settings.whatsappMode = mode === 'on' ? 'public' : 'self';
+        saveDB(global.db);
+    }
+    return replyV1(`✅ Bot mode sekarang ${mode === 'on' ? 'PUBLIC — menerima command pengguna' : 'SELF — hanya owner yang dapat menggunakan command'}.`);
+}
+case 'listonline': {
+    if (!m.isGroup) return replyV1(mess.group);
+    try {
+        const metadata = await conn.groupMetadata(m.chat);
+        const presenceMap = conn.__xeryuuStore?.presences?.[m.chat] || conn.store?.presences?.[m.chat] || {};
+        const online = [];
+        for (const member of (metadata.participants || [])) {
+            const jid = member.id || member.jid;
+            const presence = presenceMap[jid] || presenceMap[String(jid || '').replace(/:\d+@/, '@')];
+            const state = String(presence?.lastKnownPresence || presence?.presence || '').toLowerCase();
+            if (['available', 'composing', 'recording'].includes(state)) {
+                let name = '';
+                try { name = await conn.getName(jid); } catch {}
+                online.push({ jid, name: String(name || member.notify || member.name || '').trim() || 'Anggota tanpa nama', state });
+            }
+        }
+        if (!online.length) return replyV1('ℹ️ Belum ada status online yang tersedia di cache bot. WhatsApp tidak selalu membagikan presence untuk semua anggota.');
+        return replyV1(`🟢 ANGGOTA TERLIHAT ONLINE (${online.length})\n\n` + online.slice(0, 50).map((item, index) => `${index + 1}. ${item.name} — ${item.state === 'available' ? 'online' : item.state}`).join('\n') + `\n\nCatatan: hanya berdasarkan presence yang diterima bot; bukan pelacak status tersembunyi.`);
+    } catch (error) {
+        return replyV1(`❌ Gagal membaca status online: ${String(error?.message || error).slice(0, 180)}`);
+    }
+}
+case 'scanme': {
+    const target = m.mentionedJid?.[0] || m.quoted?.sender || m.sender;
+    let targetName = 'Pengguna';
+    try { targetName = await conn.getName(target) || targetName; } catch {}
+    const pick = array => array[Math.floor(Math.random() * array.length)];
+    const progress = value => `${'█'.repeat(Math.floor(value / 10))}${'░'.repeat(10 - Math.floor(value / 10))} ${value}%`;
+    return replyV1(
+        `🧪 SCANME — MODE HIBURAN\n\n` +
+        `Target: ${String(targetName).replace(/[\r\n`]/g, ' ').slice(0, 60)}\n` +
+        `Vibe hari ini: ${pick(['Santai', 'Kocak', 'Kreatif', 'Kalem', 'Misterius', 'Ramah', 'Penuh ide'])}\n` +
+        `Energi: ${progress(Math.floor(Math.random() * 101))}\n` +
+        `Keberuntungan: ${progress(Math.floor(Math.random() * 101))}\n\n` +
+        `⚠️ Hasil acak untuk hiburan, bukan hasil pemindaian atau penilaian kepribadian yang nyata.`
+    );
+}
+case 'maps':
+case 'caritempat': {
+    if (!text) return replyV1(`🗺️ MAPS SEARCH\n\nContoh: ${prefix + command} Monas Jakarta`);
+    try {
+        const results = await xeryuuExtras.searchPlace(text);
+        if (!results.length) return replyV1('❌ Tempat tidak ditemukan. Coba kata kunci dan kota yang lebih spesifik.');
+        const output = results.map((place, index) => {
+            const mapUrl = `https://maps.google.com/?q=${place.latitude},${place.longitude}`;
+            return `${index + 1}. ${place.name}\nAlamat: ${place.address}\nKoordinat: ${place.latitude}, ${place.longitude}\nPeta: ${mapUrl}`;
+        }).join('\n\n');
+        return replyV1(`🗺️ HASIL PENCARIAN TEMPAT\n\n${output}\n\nSumber koordinat: OpenStreetMap. Pastikan kembali lokasi sebelum berangkat.`);
+    } catch (error) {
+        console.error('[MAPS SEARCH]', error?.message || error);
+        return replyV1(`❌ Maps sedang tidak bisa mencari tempat: ${String(error?.message || error).slice(0, 160)}\nTautan pencarian umum: https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(text)}`);
+    }
+}
+case 'wanumber':
+case 'searchno':
+case 'searchnumber': {
+    const number = String(text || '').replace(/[+() .-]/g, '');
+    if (!/^\d{8,15}$/.test(number)) return replyV1(`📞 FORMAT NOMOR\n\nContoh: ${prefix + command} 6281234567890\nGunakan kode negara dan hanya satu nomor setiap permintaan.`);
+    return replyV1(
+        `📞 TAUTAN WHATSAPP\n\n` +
+        `Nomor yang dimasukkan: +${number}\n` +
+        `Buka chat: https://wa.me/${number}\n\n` +
+        `Untuk menjaga privasi, fitur ini tidak melakukan pemindaian massal atau mengambil foto profil/status/About nomor tersebut.`
+    );
+}
+case 'pinchat':
+case 'unpinchat': {
+    if (!isCreator) return replyV1(mess.owner);
+    if (m.isGroup) return replyV1('🔒 Perintah ini hanya tersedia di chat pribadi.');
+    if (typeof conn.chatModify !== 'function') return replyV1('❌ Versi koneksi WhatsApp ini tidak menyediakan chatModify.');
+    try {
+        await conn.chatModify({ pin: command === 'pinchat' }, m.chat);
+        return replyV1(command === 'pinchat' ? '📌 Chat ini diminta untuk disematkan.' : '📍 Permintaan melepas sematan chat dikirim.');
+    } catch (error) {
+        return replyV1(`❌ Gagal mengubah pin chat: ${String(error?.message || error).slice(0, 180)}`);
+    }
+}
+case 'fakebangjago': {
+    const parts = String(text || '').split('|').map(value => value.trim());
+    const who = parts[0] || pushname || 'Xeryuu User';
+    const label = parts[1] || 'Mockup contoh';
+    const note = parts[2] || 'Bukan bukti transaksi / prestasi asli';
+    try {
+        const image = xeryuuExtras.createMockupCard({ title: 'BANG JAGO • MOCKUP', subtitle: `Nama: ${who}`, lines: [`Label: ${label}`, note], watermark: 'SIMULASI • BUKAN BUKTI ASLI', accent: '#f59e0b' });
+        return conn.sendMessage(m.chat, { image, caption: '🧩 Mockup hiburan. Bukan bukti transaksi, pembayaran, atau pencapaian yang terverifikasi.' }, { quoted: m });
+    } catch (error) { return replyV1(`❌ Mockup gagal dibuat: ${String(error?.message || error).slice(0, 160)}`); }
+}
+case 'fakewafat': {
+    const parts = String(text || '').split('|').map(value => value.trim());
+    if (parts.length < 3 || !parts[0] || !/^\d{4}$/.test(parts[1]) || !/^\d{4}$/.test(parts[2])) {
+        return replyV1(`🕯️ FAKE WAFAT — MOCKUP SIMULASI\n\nFormat: ${prefix}fakewafat Nama|Tahun lahir|Tahun wafat\nContoh: ${prefix}fakewafat Nama Contoh|2000|2026\n\nHasil diberi watermark simulasi dan tidak boleh digunakan untuk mengabarkan kematian seseorang sebagai fakta.`);
+    }
+    try {
+        const image = xeryuuExtras.createMockupCard({ title: 'MEMORIAL CARD • MOCKUP', subtitle: 'Desain simulasi / fiksi', lines: [`Nama: ${parts[0]}`, `Tahun lahir: ${parts[1]}`, `Tahun wafat (simulasi): ${parts[2]}`], watermark: 'SIMULASI • BUKAN BERITA NYATA', accent: '#64748b' });
+        return conn.sendMessage(m.chat, { image, caption: '⚠️ Gambar ini adalah mockup fiksi dengan watermark. Jangan sebarkan sebagai kabar kematian nyata.' }, { quoted: m });
+    } catch (error) { return replyV1(`❌ Mockup gagal: ${String(error?.message || error).slice(0, 160)}`); }
+}
+case 'fakedev': {
+    const parts = String(text || '').split('|').map(value => value.trim());
+    const username = parts[0];
+    if (!username) return replyV1(`Contoh: ${prefix}fakedev Nama|Deskripsi developer`);
+    try {
+        const image = xeryuuExtras.createMockupCard({ title: 'DEVELOPER PROFILE • FAN CARD', subtitle: `Profil fiksi: ${username}`, lines: [parts[1] || 'Profil konsep buatan pengguna', 'Tidak terhubung ke akun atau identitas resmi mana pun'], watermark: 'FAN-MADE • BUKAN PROFIL RESMI', accent: '#0ea5e9' });
+        return conn.sendMessage(m.chat, { image, caption: '🧩 Kartu profil konsep. Bukan bukti identitas atau afiliasi resmi.' }, { quoted: m });
+    } catch (error) { return replyV1(`❌ Kartu developer gagal dibuat: ${String(error?.message || error).slice(0, 160)}`); }
+}
+case 'fakegc': {
+    const parts = String(text || '').split('|').map(value => value.trim());
+    const groupName = parts[0];
+    const count = parts[1];
+    if (!groupName || !count || !/^\d{1,6}$/.test(count)) return replyV1(`Contoh: ${prefix}fakegc Nama grup|250`);
+    try {
+        const image = xeryuuExtras.createMockupCard({ title: 'GROUP INFO • MOCKUP', subtitle: groupName, lines: [`Jumlah anggota contoh: ${count}`, 'Ini bukan tangkapan layar WhatsApp asli'], watermark: 'SIMULASI • BUKAN DATA GRUP NYATA', accent: '#22c55e' });
+        return conn.sendMessage(m.chat, { image, caption: '🧩 Mockup ilustrasi. Data nama dan jumlah anggota berasal dari input, bukan hasil verifikasi WhatsApp.' }, { quoted: m });
+    } catch (error) { return replyV1(`❌ Mockup grup gagal: ${String(error?.message || error).slice(0, 160)}`); }
+}
+case 'fakethread':
+case 'faketh':
+case 'fth': {
+    const parts = String(text || '').split('|').map(value => value.trim());
+    if (parts.length < 2 || !parts[0] || !parts[1]) return replyV1(`Contoh: ${prefix}fakethread username|Teks post|100`);
+    try {
+        const image = xeryuuExtras.createMockupCard({ title: 'THREADS POST • MOCKUP', subtitle: `@${parts[0]}`, lines: [parts[1], `Likes contoh: ${parts[2] || '0'}`], watermark: 'SIMULASI • BUKAN POST ASLI', accent: '#111827' });
+        return conn.sendMessage(m.chat, { image, caption: '🧩 Mockup feed fiksi; bukan unggahan atau statistik akun sebenarnya.' }, { quoted: m });
+    } catch (error) { return replyV1(`❌ Mockup Threads gagal dibuat: ${String(error?.message || error).slice(0, 160)}`); }
+}
+case 'nulis': {
+    if (!text) return replyV1(`✍️ Contoh: ${prefix}nulis Aku sedang belajar JavaScript.`);
+    try {
+        const image = xeryuuExtras.createNulisImage(text);
+        return conn.sendMessage(m.chat, { image, caption: '✍️ Hasil tulisan digital bergaya buku tulis. Ini hasil render, bukan foto tulisan tangan asli.' }, { quoted: m });
+    } catch (error) { return replyV1(`❌ Gagal membuat gambar tulisan: ${String(error?.message || error).slice(0, 180)}`); }
+}
+case 'cekfemboy': {
+    let name = pushname || 'Pengguna';
+    try { if (m.mentionedJid?.[0]) name = await conn.getName(m.mentionedJid[0]) || name; } catch {}
+    return replyV1(`🌈 CEK FEMBOY — MODE HIBURAN\n\nTarget: ${String(name).replace(/[\r\n`]/g, ' ').slice(0, 60)}\n\nIdentitas gender dan ekspresi seseorang tidak bisa ditentukan lewat foto, nama, atau nomor. Bot tidak memberikan skor/label identitas kepada orang lain. Kalau kamu menggunakan fitur ini untuk candaan, pastikan orang yang bersangkutan nyaman.`);
+}
+case 'ppcouple':
+case 'couplepp': {
+    try {
+        const response = await axios.get('https://raw.githubusercontent.com/DGXeon/XeonMedia/main/couple.json', { timeout: 12000, maxContentLength: 2 * 1024 * 1024 });
+        const list = Array.isArray(response.data) ? response.data : [];
+        const item = list[Math.floor(Math.random() * list.length)];
+        if (!item?.male || !item?.female) throw new Error('Data wallpaper tidak valid.');
+        await conn.sendMessage(m.chat, { image: { url: item.male }, caption: '🖼️ PP Couple — gambar 1' }, { quoted: m });
+        await conn.sendMessage(m.chat, { image: { url: item.female }, caption: '🖼️ PP Couple — gambar 2' }, { quoted: m });
+        return;
+    } catch (error) { return replyV1(`❌ PP Couple gagal mengambil gambar: ${String(error?.message || error).slice(0, 160)}`); }
+}
+case 'spekhp':
+case 'spek':
+case 'spesifikasi': {
+    if (!text) return replyV1(`📱 Contoh: ${prefix + command} Samsung Galaxy A55\nSumber: Carisinyal; hasil bergantung pada struktur situs dan ketersediaan datanya.`);
+    try {
+        const searchResponse = await axios.get('https://carisinyal.com/', {
+            params: { s: text }, timeout: 12000, maxContentLength: 4 * 1024 * 1024,
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Xeryuu-MD phone-spec search)', Accept: 'text/html' }
+        });
+        const $search = cheerio.load(searchResponse.data);
+        const results = [];
+        $search('.oxy-post').each((_, element) => {
+            const title = $search(element).find('.oxy-post-title').text().trim();
+            const url = $search(element).find('.oxy-post-title').attr('href');
+            if (title && url && /^https:\/\/carisinyal\.com\//i.test(url)) results.push({ title, url });
+        });
+        if (!results.length) {
+            $search('a[href]').each((_, element) => {
+                const title = $search(element).text().trim(); const url = $search(element).attr('href');
+                if (title && url && /carisinyal\.com\//i.test(url) && /ponsel|hp|samsung|oppo|vivo|xiaomi|iphone|infinix|realme/i.test(`${title} ${url}`) && results.length < 5) results.push({ title, url });
+            });
+        }
+        if (!results.length) return replyV1(`❌ Tidak ada hasil yang dapat diparse untuk “${text}”. Struktur halaman Carisinyal mungkin berubah; coba merk/model lebih spesifik.`);
+        const phone = results[0];
+        const detailResponse = await axios.get(phone.url, { timeout: 12000, maxContentLength: 5 * 1024 * 1024, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Xeryuu-MD phone-spec search)' } });
+        const $detail = cheerio.load(detailResponse.data);
+        const title = $detail('h1').first().text().trim() || phone.title;
+        const description = $detail('meta[name="description"]').attr('content') || '';
+        const image = $detail('meta[property="og:image"]').attr('content') || '';
+        const specs = [];
+        $detail('table tr').each((_, element) => {
+            const cells = $detail(element).find('th,td').map((i, cell) => $detail(cell).text().trim()).get().filter(Boolean);
+            if (cells.length >= 2 && specs.length < 24) specs.push(`${cells[0]}: ${cells.slice(1).join(' / ')}`);
+        });
+        const caption = `📱 SPESIFIKASI ${title.toUpperCase()}\n\n${description.slice(0, 450)}\n\n${specs.length ? specs.join('\n') : 'Tabel spesifikasi tidak terbaca dari halaman ini.'}\n\nSumber: ${phone.url}`;
+        if (image && /^https:\/\//i.test(image)) await conn.sendMessage(m.chat, { image: { url: image }, caption }, { quoted: m });
+        else await replyV1(caption);
+        return;
+    } catch (error) { console.error('[SPEKHP]', error?.message || error); return replyV1(`❌ Pencarian spesifikasi HP gagal: ${String(error?.message || error).slice(0, 180)}`); }
+}
+case 'addid': {
+    if (!isCreator) return replyV1(mess.owner);
+    const file = path.join(__dirname, 'database', 'listid.json');
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+    if (!Array.isArray(list)) list = [];
+    const rawValue = String(text || '').trim();
+    let value = rawValue || String(m.chat || '').trim();
+    if (/^\+?\d{8,15}$/.test(value)) value = `${value.replace(/\D/g, '')}@s.whatsapp.net`;
+    if (!/^(?:\d{8,15}@s\.whatsapp\.net|\d{8,15}@c\.us|\d{8,15}@lid|[0-9-]{5,}@g\.us)$/.test(value)) {
+        return replyV1(`Format tidak dikenali. Gunakan ${prefix}addid tanpa teks untuk chat saat ini, atau masukkan nomor telepon / JID grup yang valid.`);
+    }
+    if (list.includes(value)) return replyV1('⚠️ Tujuan tersebut sudah terdaftar.');
+    list.push(value);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(list, null, 2));
+    return replyV1(`✅ ID tujuan ditambahkan. Total: ${list.length}.`);
+}
+case 'delid': {
+    if (!isCreator) return replyV1(mess.owner);
+    const file = path.join(__dirname, 'database', 'listid.json');
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+    if (!Array.isArray(list)) list = [];
+    if (!text.trim()) return replyV1(`Contoh: ${prefix}delid <ID atau nomor urut>`);
+    const input = String(text).trim();
+    let next;
+    if (/^\d+$/.test(input) && Number(input) >= 1 && Number(input) <= list.length) next = list.filter((_, index) => index !== Number(input) - 1);
+    else next = list.filter(id => id !== input);
+    if (next.length === list.length) return replyV1('⚠️ ID tidak ditemukan; tidak ada yang diubah.');
+    fs.writeFileSync(file, JSON.stringify(next, null, 2));
+    return replyV1(`✅ ID dihapus. Total tersisa: ${next.length}.`);
+}
+case 'listid': {
+    if (!isCreator) return replyV1(mess.owner);
+    const file = path.join(__dirname, 'database', 'listid.json');
+    let list = [];
+    try { list = JSON.parse(fs.readFileSync(file, 'utf8')); } catch {}
+    if (!Array.isArray(list) || !list.length) return replyV1('📭 Belum ada ID tujuan yang terdaftar.');
+    const lines = [];
+    for (let index = 0; index < Math.min(list.length, 50); index++) {
+        const jid = String(list[index] || '');
+        let label = 'Chat tersimpan';
+        try {
+            if (jid.endsWith('@g.us')) label = (await conn.groupMetadata(jid)).subject || 'Grup tanpa nama';
+            else label = await conn.getName(jid) || 'Kontak tanpa nama';
+        } catch {}
+        lines.push(`${index + 1}. ${String(label).replace(/[\r\n`]/g, ' ').slice(0, 80)}`);
+    }
+    return replyV1(`📋 DAFTAR ID TUJUAN (${list.length})\n\n${lines.join('\n')}\n\nID teknis tidak ditampilkan agar daftar lebih mudah dibaca. Gunakan nomor urut pada ${prefix}delid untuk menghapus.`);
+}
+case 'addhyd':
+case 'addalya': {
+    if (!isCreator) return replyV1(mess.owner);
+    return replyV1(`⚠️ ${command} belum memiliki implementasi fungsional di source Furina V18 yang diberikan (hanya tercantum di menu). Tidak ada perubahan atau request API yang dijalankan agar bot tidak melakukan tindakan yang ditebak-tebak.`);
+}
 case 'richgamepage': {
     const page = Number(args[0] || 1)
     try {
@@ -17543,22 +17852,21 @@ break
 
 case 'jasher':
 case 'jashermenu': {
-    await sendXeryuuMenuArtwork('JASHER MENU', 'media/store/sewabot.jpg')
-    const products = storeService.products().filter(p => p.type === 'jasher')
-    if (!products.length) return replyV1('❌ Paket Jasher belum tersedia di settings.js.')
-    let out = `╔─═⪩ 『 📣 JASA SHARE / JASHER 』\n`
-    products.forEach((p, i) => {
-        out += `║ ${i + 1}. *${p.name}*\n`
-        out += `║    💰 Rp${storeService.formatMoney(p.price)}\n`
-        out += `║    📦 Stok: ${Number(p.stock) > 0 ? `${p.stock} unit` : 'HABIS'}\n`
-        out += `║    ${p.description}\n`
-        if (Number(p.stock) > 0) out += `║    🛒 *${prefix}jasherbuy ${p.key.replace('jasher', '') || 'premium'}*\n`
-    })
-    out += `╚─═─═─═─═─═─═⪩\n\n`
-    out += `Premium membutuhkan status premium. Paket Owner hanya owner. Paket CEO hanya CEO/owner.`
-    return replyV1(out)
+    return replyV1(
+        `╭── • 🛠️ *JASHER* • ──╮\n` +
+        `┃\n` +
+        `│⦿ ➕ *${prefix}addid*\n` +
+        `│⦿ 🗑️ *${prefix}delid*\n` +
+        `│⦿ 📜 *${prefix}listid*\n` +
+        `│⦿ ⚡ *${prefix}addhyd (Own JS)*\n` +
+        `│⦿ ⚡ *${prefix}addalya (PT JS)*\n` +
+        `│⦿ 📢 *${prefix}jpmch*\n` +
+        `◣──────────❈\n\n` +
+        `Catatan: ${prefix}addhyd dan ${prefix}addalya tercantum di menu Furina, tetapi handler fungsionalnya tidak ditemukan pada source yang dikirim; perintah itu belum menjalankan tindakan. Daftar tujuan menggunakan nama chat/anggota jika dapat diambil, bukan ID mentah.`
+    );
 }
 break
+
 case 'jasherbuy': {
     const requestedPlan = String(args[0] || 'premium').toLowerCase()
     const map = { premium: 'jasherpremium', owner: 'jasherowner', ceo: 'jasherceo' }
@@ -17813,16 +18121,22 @@ case 'bcstatus': {
 }
 break
 
+case 'bcimage':
+case 'bcvideo':
 case 'broadcast':
 case 'bc': {
     if (!isCreator) return replyV1(mess.owner)
-    if (!text) {
+    const broadcastMediaType = command === 'bcimage' ? 'image' : command === 'bcvideo' ? 'video' : 'text'
+    if (!text && broadcastMediaType === 'text') {
         return sendXeryuuImageReply(
             `📣 FORMAT BROADCAST\n\n` +
             `• ${prefix}broadcast 10 Halo semuanya\n` +
             `  Mengirim ke maksimal 10 grup non-blacklist.\n\n` +
             `• ${prefix}broadcast Halo semuanya\n` +
-            `  Mengirim ke semua grup non-blacklist.\n\n` +
+            `  Mengirim teks ke semua grup non-blacklist.\n\n` +
+            `• Balas foto dengan ${prefix}bcimage [caption]\n` +
+            `• Balas video dengan ${prefix}bcvideo [caption]\n` +
+            `  Keduanya memakai blacklist dan jeda broadcast yang sama.\n\n` +
             `• ${prefix}stopbroadcast\n` +
             `  Menghentikan broadcast aktif tanpa restart panel.\n\n` +
             `• ${prefix}broadcaststatus\n` +
@@ -17835,20 +18149,44 @@ case 'bc': {
         return replyV1(`⚠️ Broadcast masih berjalan. Gunakan ${prefix}broadcaststatus untuk melihat progres atau ${prefix}stopbroadcast untuk menghentikannya.`)
     }
 
+    let broadcastMediaBuffer = null
+    let broadcastMediaMime = ''
+    let messageText = String(text || '').trim()
+    if (broadcastMediaType !== 'text') {
+        const mediaQuote = m.quoted || ((m.mimetype || m.msg?.mimetype || m.message?.imageMessage || m.message?.videoMessage) ? m : null)
+        if (!mediaQuote) return replyV1(`Balas pesan ${broadcastMediaType === 'image' ? 'foto' : 'video'} dengan ${prefix}${command} [caption].`)
+        const mediaContent = mediaQuote.msg || mediaQuote.message || mediaQuote
+        const mediaTypeKey = mediaQuote.mtype || mediaQuote.type || Object.keys(mediaContent || {}).find(key => key === 'imageMessage' || key === 'videoMessage') || ''
+        const mediaNode = mediaContent?.[mediaTypeKey] || mediaContent?.imageMessage || mediaContent?.videoMessage || {}
+        broadcastMediaMime = String(mediaNode.mimetype || mediaQuote.mimetype || mediaQuote.msg?.mimetype || '').toLowerCase()
+        const correctMime = broadcastMediaType === 'image' ? /^image\//.test(broadcastMediaMime) : /^video\//.test(broadcastMediaMime)
+        if (!correctMime) return replyV1(`❌ ${command} memerlukan ${broadcastMediaType === 'image' ? 'foto' : 'video'}. Balas media yang sesuai.`)
+        try {
+            broadcastMediaBuffer = await downloadHd2MediaBuffer(mediaQuote)
+            const maxBytes = broadcastMediaType === 'image' ? 18 * 1024 * 1024 : 42 * 1024 * 1024
+            if (!Buffer.isBuffer(broadcastMediaBuffer) || !broadcastMediaBuffer.length) throw new Error('Media kosong atau tidak terbaca.')
+            if (broadcastMediaBuffer.length > maxBytes) throw new Error(`Ukuran media terlalu besar. Batas ${broadcastMediaType === 'image' ? '18 MB' : '42 MB'}.`)
+        } catch (error) {
+            return replyV1(`❌ Media broadcast gagal dibaca: ${String(error?.message || error).slice(0, 180)}`)
+        }
+        if (!messageText) messageText = '📢 Informasi dari developer Xeryuu-MD.'
+    }
+
     let requestedLimit = null
-    let messageText = text
     const firstArg = String(args[0] || '').trim().toLowerCase()
     if (/^\d+$/.test(firstArg)) {
         requestedLimit = Number.parseInt(firstArg, 10)
-        messageText = args.slice(1).join(' ').trim()
+        const parsedCaption = args.slice(1).join(' ').trim()
+        if (broadcastMediaType === 'text' || parsedCaption) messageText = parsedCaption
         if (!Number.isSafeInteger(requestedLimit) || requestedLimit < 1) {
             return replyV1(`❌ Jumlah grup harus angka minimal 1. Contoh: ${prefix}broadcast 10 Pesan kamu`)
         }
     } else if (firstArg === 'all' || firstArg === 'semua') {
         requestedLimit = null
-        messageText = args.slice(1).join(' ').trim()
+        const parsedCaption = args.slice(1).join(' ').trim()
+        if (broadcastMediaType === 'text' || parsedCaption) messageText = parsedCaption
     }
-    if (!messageText) return replyV1(`❌ Pesan broadcast tidak boleh kosong. Contoh: ${prefix}broadcast 10 Halo semuanya`)
+    if (!messageText && broadcastMediaType === 'text') return replyV1(`❌ Pesan broadcast tidak boleh kosong. Contoh: ${prefix}broadcast 10 Halo semuanya`)
 
     // Notifikasi akhir memakai socket yang terbaru jika proses sempat melewati reconnect.
     const sendBroadcastNotice = async caption => {
@@ -17976,9 +18314,13 @@ case 'bc': {
 
                 const sendSocket = ready.socket
                 try {
-                    await sendSocket.sendMessage(jid, {
-                        text: `📢 INFORMASI OWNER\n\n${messageText}`
-                    }, { quoted: qlocJpm })
+                    const broadcastCaption = `📢 INFORMASI OWNER\n\n${messageText}`
+                    const broadcastPayload = broadcastMediaType === 'image'
+                        ? { image: broadcastMediaBuffer, mimetype: broadcastMediaMime || 'image/jpeg', caption: broadcastCaption }
+                        : broadcastMediaType === 'video'
+                            ? { video: broadcastMediaBuffer, mimetype: broadcastMediaMime || 'video/mp4', caption: broadcastCaption }
+                            : { text: broadcastCaption }
+                    await sendSocket.sendMessage(jid, broadcastPayload, { quoted: qlocJpm })
                     state.sent++
                     delivered = true
                     state.status = 'running'
@@ -25874,6 +26216,7 @@ break
 case 'update':
 case 'updatelist':
 if (command === 'update' && !q.includes('|')) {
+   if (!isOwner) return replyV1(mess.owner) 
     try {
         await githubUpdateUser.update({
             projectRoot: __dirname,
@@ -26143,22 +26486,20 @@ case "creategc":
  return replyV1(`Use ${cmd} groupname`);
  }
  try {
- let cret = await conn.groupCreate(args.join(" "), []);
- let response = await conn.groupInviteCode(cret.id);
- teks = ` 「 Create Group 」
+ const cret = await conn.groupCreate(args.join(" "), []);
+ const response = await conn.groupInviteCode(cret.id);
+ let creatorName = 'Nama tidak tersedia';
+ try { creatorName = await conn.getName(cret.owner) || creatorName; } catch {}
+ const createdAt = moment(cret.creation * 1000).tz("Asia/Jakarta").format("DD/MM/YYYY HH:mm:ss");
+ const teks = ` 「 Create Group 」
 
-▸ Name : ${cret.subject}
-▸ Owner : @${cret.owner.split("@")[0]}
-▸ Creation : ${moment(cret.creation * 1000).tz("Asia/Kolkata").format("DD/MM/YYYY HH:mm:ss")}
+▸ Nama grup : ${cret.subject}
+▸ Dibuat oleh : ${String(creatorName).replace(/[\r\n`]/g, ' ').slice(0, 80)}
+▸ Waktu : ${createdAt} WIB
 
 https://chat.whatsapp.com/${response}
  `;
- conn.sendMessage(m.chat, {
- text: teks,
- mentions: await conn.parseMention(teks)
- }, {
- quoted: qtoko
- });
+ await conn.sendMessage(m.chat, { text: teks }, { quoted: m });
  } catch (e) {
  console.error(e) 
  return replyV1("yah Error kak laporankan ke owner agar di perbaiki", e);
@@ -26909,63 +27250,139 @@ case 'accall': {
 }
 break;
 
-case 'pindown': {
-    if (!text) return Reply`❌ *Format salah!*
-Contoh: ${usedPrefix + command} https://pin.it/xxxxx`;
+case 'pindown':
+case 'pindl':
+case 'pinterestdl': {
+    const input = String(text || '').trim()
+    if (!input) return replyV1(
+        `📌 PINTEREST DOWNLOADER\n\n` +
+        `Kirim kata kunci atau tautan pin publik.\n\n` +
+        `Contoh query: ${prefix + command} wallpaper anime\n` +
+        `Contoh link: ${prefix + command} https://pin.it/xxxxx`
+    )
 
-    try {
-        const apiUrl = `https://api.platform.web.id/pinterestdl?q=${encodeURIComponent(text)}`;
-        const res = await fetch(apiUrl);
-        if (!res.ok) return replyV1(`❌ API Error: ${res.status} ${res.statusText}`);
-
-        const json = await res.json();
-        console.log('📌 PinterestDL JSON:', JSON.stringify(json, null, 2));
-
-        if (!json.success || !Array.isArray(json.media) || json.media.length === 0) {
-            throw new Error("❌ Tidak ditemukan media di URL tersebut.");
+    const isUrlLike = /^(?:https?:\/\/|www\.|pin\.it\/|(?:[a-z0-9-]+\.)?pinterest\.)/i.test(input)
+    if (isUrlLike) {
+        let url
+        try {
+            url = new URL(/^https?:\/\//i.test(input) ? input : `https://${input}`)
+        } catch {
+            return replyV1('❌ Format tautan Pinterest tidak valid.')
         }
-
-        const videoMedia = json.media.filter(media => media.extension === 'mp4');
-        const imageMedia = json.media.filter(media => ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(media.extension));
-
-        if (videoMedia.length > 0) {
-            const video = videoMedia[0];
-            await conn.sendMessage(m.chat, {
-                video: { url: video.url },
-                caption: `🎥 *Video Pinterest*
-📌 *Kualitas:* ${video.quality}
-📌 *Ukuran:* ${video.formattedSize}
-📌 *URL:* ${text}`,
-                fileName: `pinterest_${Date.now()}.mp4`,
-                mimetype: 'video/mp4'
-            }, { quoted: m });
-
-            await conn.sendMessage(m.chat, { react: { text: '🎥', key: m.key } });
-            return;
+        const host = url.hostname.toLowerCase().replace(/^www\./, '')
+        const validHost = host === 'pin.it' || host.endsWith('.pin.it') ||
+            host === 'pinterest.com' || host.endsWith('.pinterest.com') ||
+            /^pinterest\.[a-z]{2,3}$/i.test(host) || /^pinterest\.co\.[a-z]{2}$/i.test(host)
+        if (!['http:', 'https:'].includes(url.protocol) || !validHost) {
+            return replyV1('❌ Tautan harus berasal dari Pinterest atau pin.it.')
         }
-        else if (imageMedia.length > 0) {
-            const image = imageMedia.reduce((prev, current) =>
-                prev.size > current.size ? prev : current
-            );
+        url.hash = ''
+        await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {})
+        try {
+            try {
+                const result = await extractScrapr(url.toString(), 'pinterest')
+                await sendScraprToWhatsApp(conn, m, result)
+                return
+            } catch (scraprError) {
+                console.warn('[PINDL SCRAPR FALLBACK]', scraprError?.message || scraprError)
+            }
 
-            await conn.sendMessage(m.chat, {
-                image: { url: image.url },
-                caption: `🖼️ *Gambar Pinterest*
-📌 *Kualitas:* ${image.quality}
-📌 *Ukuran:* ${image.formattedSize}
-📌 *URL:* ${text}`
-            }, { quoted: m });
-
-            await conn.sendMessage(m.chat, { react: { text: '🖼️', key: m.key } });
-        } else {
-            throw new Error("❌ Tidak ditemukan video atau gambar yang valid.");
+            // Fallback endpoint is already used by Xeryuu's .pinterest URL downloader.
+            const response = await axios.get(`https://api.nekolabs.web.id/downloader/pinterest?url=${encodeURIComponent(url.toString())}`, {
+                timeout: 25000, maxContentLength: 8 * 1024 * 1024,
+                headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'application/json' }
+            })
+            const findMedia = (value, out = [], depth = 0) => {
+                if (depth > 8 || value == null) return out
+                if (typeof value === 'string') {
+                    if (/^https?:\/\//i.test(value) && /\.(?:jpe?g|png|webp|gif|mp4)(?:[?#]|$)/i.test(value)) out.push(value)
+                    return out
+                }
+                if (Array.isArray(value)) { for (const entry of value) findMedia(entry, out, depth + 1); return out }
+                if (typeof value === 'object') {
+                    for (const [key, entry] of Object.entries(value)) {
+                        if (['url', 'media', 'download', 'src', 'image', 'video'].includes(key.toLowerCase())) findMedia(entry, out, depth + 1)
+                        else if (entry && typeof entry === 'object') findMedia(entry, out, depth + 1)
+                    }
+                }
+                return out
+            }
+            const media = [...new Set(findMedia(response.data))].slice(0, 5)
+            if (!media.length) throw new Error('Provider tidak memberikan URL media yang dapat dikenali.')
+            let sent = 0
+            for (const mediaUrl of media) {
+                try {
+                    if (/\.mp4(?:[?#]|$)/i.test(mediaUrl)) {
+                        await conn.sendMessage(m.chat, { video: { url: mediaUrl }, mimetype: 'video/mp4', caption: `📌 Pinterest downloader\nSumber: ${url.toString()}` }, { quoted: m })
+                    } else {
+                        await conn.sendMessage(m.chat, { image: { url: mediaUrl }, caption: `📌 Pinterest downloader\nSumber: ${url.toString()}` }, { quoted: m })
+                    }
+                    sent++
+                } catch (sendError) {
+                    console.warn('[PINDL SEND MEDIA]', sendError?.message || sendError)
+                }
+            }
+            if (!sent) throw new Error('Media ditemukan, tetapi WhatsApp gagal mengirimnya.')
+            await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } }).catch(() => {})
+            return
+        } catch (error) {
+            console.error('[PINDL URL]', error?.response?.status || error?.message || error)
+            return replyV1(`❌ Pinterest downloader gagal: ${String(error?.response?.status || error?.message || 'Provider tidak tersedia').slice(0, 180)}`)
         }
-
-    } catch (e) {
-        console.error('🚨 PinterestDL Error:', e);
-        replyV1('🚨 *Error:* ' + (e.message || 'Terjadi kesalahan saat mengunduh media.'));
     }
-};
+
+    // Query mode uses the same Pinterest search helper and fallback provider
+    // already used by Xeryuu's .pin command; no guessed endpoint is introduced.
+    const query = input.slice(0, 160)
+    await conn.sendMessage(m.chat, { react: { text: '🔎', key: m.key } }).catch(() => {})
+    try {
+        let results = []
+        try {
+            const scraped = await pinterest2(query)
+            results = (Array.isArray(scraped) ? scraped : []).map(item => ({
+                image: item?.images_url,
+                title: String(item?.grid_title || query).slice(0, 120),
+                source: item?.pin || item?.link || ''
+            })).filter(item => typeof item.image === 'string' && /^https:\/\//i.test(item.image))
+        } catch (error) {
+            console.warn('[PINDL QUERY PRIMARY]', error?.message || error)
+        }
+        if (!results.length) {
+            try {
+                const apiResponse = await axios.get('https://api.siputzx.my.id/api/s/pinterest', {
+                    params: { query }, timeout: 20000, maxContentLength: 5 * 1024 * 1024,
+                    headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; Xeryuu-MD Pinterest search)' }
+                })
+                const payload = apiResponse?.data
+                const items = Array.isArray(payload) ? payload :
+                    (Array.isArray(payload?.data) ? payload.data :
+                    (Array.isArray(payload?.result) ? payload.result :
+                    (Array.isArray(payload?.results) ? payload.results : [])))
+                results = items.map(item => ({
+                    image: item?.images_url || item?.image || item?.imageUrl || item?.url || item?.src || item?.images?.orig?.url || item?.images?.['736x']?.url,
+                    title: String(item?.grid_title || item?.title || item?.name || query).slice(0, 120),
+                    source: item?.pin || item?.link || item?.source || ''
+                })).filter(item => typeof item.image === 'string' && /^https:\/\//i.test(item.image))
+            } catch (error) {
+                console.warn('[PINDL QUERY FALLBACK]', error?.response?.status || error?.message || error)
+            }
+        }
+        if (!results.length) return replyV1(`❌ Tidak ada hasil yang dapat diambil untuk “${query}”. Pinterest atau provider pencarian mungkin membatasi akses; coba query lebih spesifik atau kirim tautan pin publik.`)
+        let sent = 0
+        for (const item of results.slice(0, 3)) {
+            try {
+                await conn.sendMessage(m.chat, { image: { url: item.image }, caption: `📌 ${item.title || query}\n${item.source || 'Hasil pencarian Pinterest'}` }, { quoted: m })
+                sent++
+            } catch (error) { console.warn('[PINDL QUERY SEND]', error?.message || error) }
+        }
+        if (!sent) return replyV1('❌ Hasil ditemukan, tetapi tidak berhasil dikirim ke WhatsApp.')
+        await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } }).catch(() => {})
+        return
+    } catch (error) {
+        console.error('[PINDL QUERY]', error?.message || error)
+        return replyV1(`❌ Pinterest query gagal: ${String(error?.message || error).slice(0, 180)}`)
+    }
+}
 break
 
 case "rch2": {
@@ -28353,48 +28770,20 @@ case 'createquote': {
 break
 
 case "qc": {
-if (!text) return replyV1(example('teksnya'))
-let warna = ["#000000", "#ff2414", "#22b4f2", "#eb13f2"]
-var ppuser
-try {
-ppuser = await conn.profilePictureUrl(m.sender, 'image')
-} catch (err) {
-ppuser = 'https://telegra.ph/file/a059a6a734ed202c879d3.jpg'
-}
-const json = {
-  "type": "quote",
-  "format": "png",
-  "backgroundColor": "#000000",
-  "width": 812,
-  "height": 968,
-  "scale": 2,
-  "messages": [
-    {
-      "entities": [],
-      "avatar": true,
-      "from": {
-        "id": 1,
-        "name": m.pushName,
-        "photo": {
-          "url": ppuser
-        }
-      },
-      "text": text,
-      "ReplyMessage": {}
+    const quoteText = String(text || '').trim()
+    if (!quoteText) return replyV1(`💬 QUICK QUOTE\n\nContoh: ${prefix}qc jangan menyerah hari ini`)
+    if (quoteText.length > 650) return replyV1('❌ Teks QC maksimal 650 karakter.')
+    await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {})
+    try {
+        const quoteImage = xeryuuExtras.createQuoteCardImage({ name: pushname || 'User', text: quoteText })
+        await conn.sendAsSticker(m.chat, quoteImage, m, { packname: global.packname, author: global.author })
+    } catch (error) {
+        console.error('[QC QUICK QUOTE]', error?.stack || error)
+        return replyV1(`❌ Gagal membuat QC: ${String(error?.message || error).slice(0, 180)}`)
+    } finally {
+        await conn.sendMessage(m.chat, { react: { text: '', key: m.key } }).catch(() => {})
     }
-  ]
-};
-        const response = axios.post('https://bot.lyo.su/quote/generate', json, {
-        headers: {'Content-Type': 'application/json'}
-}).then(async (res) => {
-    const buffer = Buffer.from(res.data.result.image, 'base64')
-    let tempnya = "./library/database/sampah/"+m.sender+".png"
-await fs.writeFile(tempnya, buffer, async (err) => {
-if (err) return replyV1("Error")
-await conn.sendAsSticker(m.chat, tempnya, m, {packname: global.packname})
-await fs.unlinkSync(`${tempnya}`)
-})
-})
+    return
 }
 break
 
@@ -30283,8 +30672,22 @@ case "brat": {
 }
 break
 
+case 'animebrat': {
+    if (!text?.trim()) return replyV1(`Contoh: ${prefix}animebrat halo dunia`)
+    try {
+        const buffer = await bratService.createAnimeBratImage(text.trim())
+        await conn.sendAsSticker(m.chat, buffer, m, { packname: global.packname, author: global.author })
+    } catch (error) {
+        console.error('[ANIME BRAT]', error?.stack || error)
+        return replyV1(`❌ Gagal membuat Anime BRAT. ${String(error?.message || error).slice(0, 180)}`)
+    }
+    return
+}
+break
+
 case 'furinabrat':
-case 'bratbahlil': {
+case 'bratbahlil':
+case 'bahlilbrat': {
     if (!text?.trim()) return replyV1(`Contoh: ${prefix + command} Halo dunia`)
     const variant = command === 'bratbahlil' ? 'bahlil' : 'handwritten'
     try {
@@ -32095,10 +32498,11 @@ case 'antibot': {
                 timeoutMs: Number(group.antibotTimeout || 60) * 1000,
                 metadata: m.metadata
             })
+            let targetName = 'anggota yang dipilih';
+            try { targetName = await conn.getName(targetJid) || targetName; } catch {}
             return replyV1(started
-                ? `🛡️ Tantangan verifikasi dikirim kepada @${targetJid.split('@')[0]}.`
-                : '⚠️ Tantangan tidak dapat dimulai. Pastikan anggota masih berada di grup dan bukan admin grup.',
-                { mentions: [targetJid] }
+                ? `🛡️ Tantangan verifikasi dikirim kepada ${String(targetName).replace(/[\r\n`]/g, ' ').slice(0, 80)}.`
+                : '⚠️ Tantangan tidak dapat dimulai. Pastikan anggota masih berada di grup dan bukan admin grup.'
             )
         } catch (error) {
             console.error('[ANTIBOT MANUAL VERIFY]', error?.stack || error)
@@ -34816,107 +35220,56 @@ case "number-info": {
 }
 
 break;
-case "school-track": {
-  if (!q) return replyV1(`🏫 *School Tracker*\n\nFormat: .schooltrack nama sekolah | kota\nContoh: .schooltrack sman 1 | jakarta`);
+case 'school-track':
+case 'schooltrack': {
+    const raw = String(text || '').trim();
+    if (!raw) return replyV1(
+        `🏫 SCHOOL TRACKER\n\n` +
+        `Format: ${prefix}school-track nama sekolah | kota/provinsi\n` +
+        `Contoh: ${prefix}school-track SMAN 1 Jakarta | Jakarta\n` +
+        `Kamu juga bisa langsung mencari NPSN 8 digit.`
+    );
+    const parts = raw.split('|').map(value => value.trim());
+    const schoolQuery = parts[0];
+    const regionQuery = parts.slice(1).join(' | ').trim();
+    if (!schoolQuery || schoolQuery.length < 2) return replyV1('❌ Masukkan nama sekolah atau NPSN yang valid.');
 
-  const [namaSekolah, daerah] = text.split('|').map(str => str.trim());
-  if (!namaSekolah || !daerah) return replyV1('❌ Format salah!');
-
-  const statusMsg = await replyV1(`🔍 Mencari: ${namaSekolah} di ${daerah}...`);
-
-  const apis = [
-    `https://api-sekolah-indonesia.vercel.app/sekolah?s=${encodeURIComponent(namaSekolah)}&kab=${encodeURIComponent(daerah)}`,
-    `https://data.sekolah-kita.net/sekolah/${encodeURIComponent(namaSekolah)}/${encodeURIComponent(daerah)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://dapo.kemdikbud.go.id/api/search?q=${namaSekolah}&kab=${daerah}`)}`
-  ];
-
-  let schoolData = null;
-  let apiUsed = "";
-
-  for (const apiUrl of apis) {
+    await conn.sendMessage(m.chat, { react: { text: '🔎', key: m.key } }).catch(() => {});
     try {
-      const response = await fetch(apiUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
-        timeout: 10000
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        if (data && (data.data || data.sekolah || data.result)) {
-          schoolData = data.data || data.sekolah || data.result;
-          apiUsed = apiUrl.includes('vercel.app') ? "API Sekolah Indonesia" : 
-                   apiUrl.includes('sekolah-kita') ? "Sekolah Kita" : "Dapodik Kemdikbud";
-          break;
-        }
-      }
+        const matches = await xeryuuExtras.searchSchools(schoolQuery, regionQuery);
+        const list = matches.slice(0, 5).map((school, index) => {
+            const lines = [
+                `${index + 1}. ${school.name}`,
+                `   NPSN: ${school.npsn || 'Tidak tersedia'}`,
+                `   Jenjang/status: ${[school.shape, school.status].filter(Boolean).join(' • ') || 'Tidak tersedia'}`,
+                `   Wilayah: ${[school.district, school.city, school.province].filter(Boolean).join(', ') || 'Tidak tersedia'}`,
+                `   Alamat: ${school.address || 'Tidak tersedia'}`
+            ];
+            if (school.accreditation) lines.push(`   Akreditasi: ${school.accreditation}`);
+            if (school.phone) lines.push(`   Telepon publik: ${school.phone}`);
+            if (school.email) lines.push(`   Email publik: ${school.email}`);
+            if (Number.isFinite(school.latitude) && Number.isFinite(school.longitude)) {
+                lines.push(`   Maps: https://maps.google.com/?q=${school.latitude},${school.longitude}`);
+            }
+            return lines.join('\n');
+        }).join('\n\n');
+        return replyV1(
+            `🏫 HASIL SCHOOL TRACKER\n\n${list}\n\n` +
+            `Sumber data: ${matches[0]?.source || 'API data sekolah publik'}.\n` +
+            `Data dapat terlambat atau tidak lengkap; verifikasi melalui portal resmi Kemendikdasmen sebelum dipakai untuk keputusan penting.`
+        );
     } catch (error) {
-      continue;
+        console.error('[SCHOOL TRACKER]', error?.message || error);
+        return replyV1(
+            `⚠️ Pencarian sekolah belum berhasil.\n${String(error?.message || error).slice(0, 240)}\n\n` +
+            `Coba kata kunci yang lebih singkat, tambahkan wilayah, atau gunakan NPSN 8 digit.`
+        );
+    } finally {
+        await conn.sendMessage(m.chat, { react: { text: '', key: m.key } }).catch(() => {});
     }
-  }
-
-  if (!schoolData || (Array.isArray(schoolData) && schoolData.length === 0)) {
-    await conn.sendMessage(m.chat, {
-      edit: statusMsg.key,
-      text: `❌ Data tidak ditemukan untuk "${namaSekolah}" di ${daerah}`
-    });
-    return;
-  }
-
-  const sekolah = Array.isArray(schoolData) ? schoolData[0] : schoolData;
-  
-  let info = `🏫 *DATA SEKOLAH TERVERIFIKASI*\n\n`;
-  info += `📛 *Nama:* ${sekolah.nama_sekolah || sekolah.nama || 'Tidak tersedia'}\n`;
-  info += `🆔 *NPSN:* ${sekolah.npsn || 'Tidak tersedia'}\n`;
-  info += `📍 *Alamat:* ${sekolah.alamat || sekolah.alamat_jalan || 'Tidak tersedia'}\n`;
-  info += `🏙️ *Kecamatan:* ${sekolah.kecamatan || 'Tidak tersedia'}\n`;
-  info += `🌆 *Kabupaten/Kota:* ${sekolah.kabupaten || sekolah.kab || daerah}\n`;
-  info += `📍 *Provinsi:* ${sekolah.provinsi || 'Tidak tersedia'}\n`;
-  info += `📞 *Telepon:* ${sekolah.telepon || sekolah.no_telp || 'Tidak tersedia'}\n`;
-  info += `📧 *Email:* ${sekolah.email || 'Tidak tersedia'}\n`;
-  info += `🌐 *Website:* ${sekolah.website || 'Tidak tersedia'}\n`;
-  info += `🏛️ *Status:* ${sekolah.status_sekolah || sekolah.status || 'Tidak tersedia'}\n`;
-  info += `📊 *Jenjang:* ${sekolah.jenjang_pendidikan || sekolah.bentuk_pendidikan || 'Tidak tersedia'}\n\n`;
-  
-  if (sekolah.akreditasi) {
-    info += `⭐ *Akreditasi:* ${sekolah.akreditasi}\n`;
-  }
-  
-  if (sekolah.latitude && sekolah.longitude) {
-    info += `🗺️ *Koordinat:* ${sekolah.latitude}, ${sekolah.longitude}\n`;
-  }
-  
-  info += `\n📡 *Sumber:* ${apiUsed}\n`;
-  info += `🔍 *Pencarian:* ${namaSekolah} | ${daerah}\n`;
-  info += `⏰ *Update:* ${new Date().toLocaleDateString('id-ID')}`;
-
-  const mapUrl = sekolah.latitude && sekolah.longitude 
-    ? `https://maps.google.com/maps?q=${sekolah.latitude},${sekolah.longitude}&z=17&hl=id`
-    : `https://maps.google.com/maps?q=${encodeURIComponent(sekolah.alamat + ', ' + daerah)}&hl=id`;
-
-  await conn.sendMessage(m.chat, {
-    edit: statusMsg.key,
-    text: info,
-    contextInfo: {
-      externalAdReply: {
-        title: `🏫 ${sekolah.nama_sekolah || sekolah.nama || 'Sekolah'}`,
-        body: `📍 ${sekolah.kabupaten || daerah} | 🆔 ${sekolah.npsn || 'NPSN'}`,
-        mediaType: 1,
-        thumbnail: await (await fetch('https://api.dicebear.com/7.x/shapes/png?seed=school')).buffer(),
-        mediaUrl: mapUrl,
-        sourceUrl: mapUrl
-      }
-    }
-  });
-
-  if (Array.isArray(schoolData) && schoolData.length > 1) {
-    setTimeout(async () => {
-      await replyV1(`📚 Ditemukan ${schoolData.length} sekolah serupa. Gunakan filter lebih spesifik untuk hasil tepat.`);
-    }, 1000);
-  }
 }
-
 break;
+
 case "getcode": {
   const messType = m.quoted ? { [m.quoted.mtype]:m.quoted } : { [m.mtype]:m.message };
   const formattedJson = JSON.stringify(messType, null, 2);
@@ -35784,18 +36137,28 @@ case "deployweb": {
 break;
 case 'carivt':
 case 'ttsearch': {
-if (!q) return replyV1("Masukkan kata kunci!")
-
-let res = await fetch(`https://api.agatz.xyz/api/tiktoksearch?message=${q}`)
-let data = await res.json()
-
-let vid = data.data[0]
-
-await conn.sendMessage(m.chat, {
-video: { url: vid.play },
-caption: `*TikTok Search*\n\nTitle: ${vid.title}\nAuthor: ${vid.author.nickname}`
-}, { quoted: m })
-
+    const query = String(text || '').trim()
+    if (query.length < 2) return replyV1(`Masukkan kata kunci TikTok.\nContoh: ${prefix}ttsearch kucing lucu`)
+    try {
+        const response = await axios.get('https://api.agatz.xyz/api/tiktoksearch', {
+            params: { message: query }, timeout: 15000, maxContentLength: 3 * 1024 * 1024
+        })
+        const body = response.data || {}
+        const candidates = Array.isArray(body.data) ? body.data : Array.isArray(body.result) ? body.result : []
+        const video = candidates.find(item => item && typeof (item.play || item.playUrl || item.url) === 'string')
+        if (!video) return replyV1('❌ Hasil pencarian tidak tersedia atau provider mengubah format respons. Coba kata kunci lain.')
+        const videoUrl = video.play || video.playUrl || video.url
+        const authorName = video.author?.nickname || video.author?.unique_id || video.author || 'Tidak tersedia'
+        await conn.sendMessage(m.chat, {
+            video: { url: videoUrl },
+            mimetype: 'video/mp4',
+            caption: `📱 TIKTOK SEARCH\n\nJudul: ${String(video.title || video.desc || 'Tanpa judul').slice(0, 250)}\nKreator: ${String(authorName).slice(0, 100)}\nKata kunci: ${query.slice(0, 120)}`
+        }, { quoted: m })
+    } catch (error) {
+        console.error('[TIKTOK SEARCH]', error?.response?.status || error?.message || error)
+        return replyV1(`❌ TikTok Search gagal: ${String(error?.response?.status || error?.message || 'Provider tidak tersedia').slice(0, 180)}`)
+    }
+    return
 }
 break
 // Case untuk menampilkan list produk
@@ -36210,14 +36573,39 @@ case "tobase64": {
 }
 break;
 case 'saham':
-case 'sahamindo': {
-    const symbolInput = String(text || args?.[0] || '').trim().split(/\s+/)[0]
-    if (!symbolInput) return replyV1(`Contoh: ${prefix + command} BBCA\nKode lain: BBRI, BMRI, TLKM, ASII`)
+case 'sahamindo':
+case 'ceksaham': {
+    const symbolInput = String(text || args?.[0] || '').trim().split(/\s+/)[0];
+    if (!symbolInput) {
+        try {
+            const ihsg = await indonesiaTools.getIndonesianStockQuote('IHSG');
+            return replyV1(
+                `${indonesiaTools.formatStockQuote(ihsg)}\n\n` +
+                `Contoh saham BEI: ${prefix}ceksaham BBCA atau ${prefix}ceksaham TLKM.JK\n` +
+                `Contoh internasional: ${prefix}ceksaham AAPL atau ${prefix}ceksaham MSFT\n` +
+                `Indeks IHSG: ${prefix}ceksaham IHSG\n\n` +
+                `Data berasal dari Yahoo Finance Chart API dan bisa tertunda; bukan nasihat investasi.`
+            );
+        } catch (error) {
+            return replyV1(`Contoh: ${prefix}ceksaham BBCA, ${prefix}ceksaham AAPL, atau ${prefix}ceksaham IHSG\n\nIHSG juga dapat dicari langsung.\nDetail: ${String(error?.message || error).slice(0, 180)}`);
+        }
+    }
     try {
-        const quote = await indonesiaTools.getIndonesianStockQuote(symbolInput)
-        await replyV1(indonesiaTools.formatStockQuote(quote))
+        const quote = await indonesiaTools.getIndonesianStockQuote(symbolInput);
+        let result = indonesiaTools.formatStockQuote(quote);
+        // Tampilkan IHSG sebagai konteks pasar Indonesia untuk ticker BEI maupun internasional.
+        if (quote.symbol !== '^JKSE') {
+            try {
+                const ihsg = await indonesiaTools.getIndonesianStockQuote('IHSG');
+                result += `\n\n${indonesiaTools.formatStockQuote(ihsg)}`;
+            } catch (ihsgError) {
+                result += `\n\n📊 IHSG: belum dapat diambil sekarang (${String(ihsgError?.message || ihsgError).slice(0, 100)}).`;
+            }
+        }
+        result += `\n\n⚠️ Data informasi, dapat tertunda; bukan nasihat investasi.`;
+        return replyV1(result);
     } catch (error) {
-        await replyV1(`❌ Gagal mengambil harga saham Indonesia.\n${String(error?.message || error).slice(0, 240)}`)
+        return replyV1(`❌ Gagal mengambil kutipan saham/indeks.\n${String(error?.message || error).slice(0, 240)}\n\nFormat: ${prefix}ceksaham BBCA | AAPL | IHSG`);
     }
 }
 break
