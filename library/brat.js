@@ -479,6 +479,90 @@ async function createScrollingBratSticker(text) {
   }
 }
 
+async function createAnimeBratImage(text) {
+  const value = String(text || '').trim()
+  if (!value) throw new Error('Teks animebrat tidak boleh kosong.')
+  if (value.length > 240) throw new Error('Teks animebrat maksimal 240 karakter.')
+  const { createCanvas } = require('@napi-rs/canvas')
+  const width = 512
+  const height = 512
+  const canvas = createCanvas(width, height)
+  const ctx = canvas.getContext('2d')
+  const bg = ctx.createLinearGradient(0, 0, width, height)
+  bg.addColorStop(0, '#251044')
+  bg.addColorStop(0.48, '#a33ee8')
+  bg.addColorStop(1, '#ff82bd')
+  ctx.fillStyle = bg
+  ctx.fillRect(0, 0, width, height)
+
+  // Decorative anime-inspired sparkles; no third-party character artwork is used.
+  for (let i = 0; i < 34; i++) {
+    const x = (i * 137 + 41) % width
+    const y = (i * 83 + 19) % height
+    const r = 2 + (i % 4)
+    ctx.fillStyle = i % 3 === 0 ? 'rgba(255,255,255,.85)' : 'rgba(255,220,250,.42)'
+    ctx.beginPath()
+    ctx.arc(x, y, r, 0, Math.PI * 2)
+    ctx.fill()
+    if (i % 3 === 0) {
+      ctx.strokeStyle = 'rgba(255,255,255,.6)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.moveTo(x - r * 2.2, y)
+      ctx.lineTo(x + r * 2.2, y)
+      ctx.moveTo(x, y - r * 2.2)
+      ctx.lineTo(x, y + r * 2.2)
+      ctx.stroke()
+    }
+  }
+
+  ctx.fillStyle = 'rgba(18, 8, 35, .38)'
+  ctx.beginPath()
+  ctx.roundRect(28, 28, width - 56, height - 56, 34)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(255,255,255,.82)'
+  ctx.lineWidth = 3
+  ctx.beginPath()
+  ctx.roundRect(28, 28, width - 56, height - 56, 34)
+  ctx.stroke()
+
+  const words = value.split(/\s+/)
+  let fontSize = 64
+  let lines = []
+  const maxWidth = 408
+  while (fontSize >= 28) {
+    ctx.font = `900 ${fontSize}px Arial, sans-serif`
+    lines = []
+    let line = ''
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word
+      if (ctx.measureText(next).width <= maxWidth || !line) line = next
+      else { lines.push(line); line = word }
+    }
+    if (line) lines.push(line)
+    if (lines.every(item => ctx.measureText(item).width <= maxWidth) && lines.length <= 6 && lines.length * fontSize * 1.12 <= 352) break
+    fontSize -= 2
+  }
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  const lineHeight = fontSize * 1.12
+  const firstY = height / 2 - (lines.length - 1) * lineHeight / 2
+  lines.forEach((line, index) => {
+    const y = firstY + index * lineHeight
+    ctx.lineJoin = 'round'
+    ctx.lineWidth = Math.max(5, fontSize * 0.12)
+    ctx.strokeStyle = '#301047'
+    ctx.strokeText(line, width / 2, y, maxWidth)
+    ctx.fillStyle = '#fff7ff'
+    ctx.fillText(line, width / 2, y, maxWidth)
+  })
+  ctx.font = 'bold 13px Arial, sans-serif'
+  ctx.fillStyle = 'rgba(255,255,255,.78)'
+  ctx.textAlign = 'right'
+  ctx.fillText('XERYUU • ANIME BRAT STYLE', width - 42, height - 43)
+  return canvas.toBuffer('image/png')
+}
+
 module.exports = {
   MAX_TEXT_LENGTH,
   MAX_VIDEO_WORDS,
@@ -487,6 +571,7 @@ module.exports = {
   createLocalClassicBratImage,
   createFurinaStyleBrat,
   createTemplateBrat,
+  createAnimeBratImage,
   createBratVideoSticker,
   createScrollingBratSticker
 };
