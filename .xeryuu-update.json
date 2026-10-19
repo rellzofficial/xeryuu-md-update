@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261019054324",
-  "updatedAt": "2026-10-19T05:43:24.055Z",
+  "version": "v20261019084940",
+  "updatedAt": "2026-10-19T08:49:40.111Z",
   "branch": "main",
-  "previousVersion": "v20261019033636",
-  "previousCommitSha": "f9b910fa5fdc0fd107772599a6b0786d853a2194",
+  "previousVersion": "v20261019054324",
+  "previousCommitSha": "d0d5b58621f5d50623e95b4b633cc3acc4d63f61",
   "files": [
     {
       "path": "library/afk.js",
@@ -38,8 +38,8 @@
     },
     {
       "path": "library/brat.js",
-      "sha256": "4f6df597998652665c53f5a84f9b1ef9147e04c101e0e44e069091206fa06121",
-      "size": 20404
+      "sha256": "21f5f8ca180bf7c72ffaee28c3606a4739a94b219ad0e4715786a304a32fe379",
+      "size": 23289
     },
     {
       "path": "library/caklontong.js",
@@ -147,11 +147,6 @@
       "size": 15833
     },
     {
-      "path": "library/furina-v18-features.js",
-      "sha256": "fc3fa54d5e0e7938470cce024bbe879a048e1a29dd9418f119ba3374aea6d958",
-      "size": 22218
-    },
-    {
       "path": "library/games.js",
       "sha256": "c2acfe8848659d17c525d92e04a1399e30bb6dde47c17a2571122ddabc3f72c1",
       "size": 32913
@@ -178,13 +173,18 @@
     },
     {
       "path": "library/indonesia-tools.js",
-      "sha256": "3fb93fe828e3c6a252c764bbc6c2c5d38e8194834bdd43f7d7262c8da2a2a0b4",
-      "size": 21753
+      "sha256": "b1a5c42fdae476e4eba0038ce27d11f14652d71d9f16e04d5e9fb1239201d7cf",
+      "size": 25518
+    },
+    {
+      "path": "library/integrity-monitor-core.js",
+      "sha256": "807a1499ee704bde2423450ad4db9afff6989a497a64eb60084ac2754b620983",
+      "size": 2358
     },
     {
       "path": "library/jadibot.js",
-      "sha256": "d7a1cf94fe08338989d08aec131d4eacde76e736598e6c95ef59cd2519abc5c3",
-      "size": 37347
+      "sha256": "d7abce0d61711899bd139f7db4bd6602589fed63ec91ce30671ada8aad2fb913",
+      "size": 37380
     },
     {
       "path": "library/judi.js",
@@ -333,8 +333,8 @@
     },
     {
       "path": "library/scraper.js",
-      "sha256": "26977f7ee5aa3ea592138de98c97e2c59309ca8ea1d4eb953ead40a8b62a1cf4",
-      "size": 12468
+      "sha256": "4089e8070a1af0968f4abab4cb4bf53393058fe2cd53af927cd29d76b67f72db",
+      "size": 10968
     },
     {
       "path": "library/scrapr-downloader.js",
@@ -400,6 +400,16 @@
       "path": "library/werewolf.js",
       "sha256": "1484a19bd060d180d2ea3bb3fd65dad4bdc4e6c1627e1ba3574b6389d1698ca7",
       "size": 39055
+    },
+    {
+      "path": "library/xeryuu-extras.js",
+      "sha256": "0cb2cad34d32ea0b27e967eb62dbebf822507a94e820e18bef92b7a71f71a0ec",
+      "size": 14929
+    },
+    {
+      "path": "library/XeryuuV17.js",
+      "sha256": "fc3fa54d5e0e7938470cce024bbe879a048e1a29dd9418f119ba3374aea6d958",
+      "size": 22218
     },
     {
       "path": "media/buy.mp3",
@@ -518,8 +528,8 @@
     },
     {
       "path": "package.json",
-      "sha256": "068a59583f604e6f47648712b46dcaaf75b6e5abf98eba632b83cbb1798a4672",
-      "size": 2014
+      "sha256": "3595a60e45cef2c340a4a52fcbc79cc5f1bac82c56e8e5e01470a45d4bc23801",
+      "size": 2026
     },
     {
       "path": "source/database.js",
@@ -558,8 +568,13 @@
     },
     {
       "path": "tests/feature-integration.test.js",
-      "sha256": "c306e1f5d9f50e1beb69bd6c7e919af74c7675ee5a56077e0a811895adbe4580",
-      "size": 4255
+      "sha256": "f1a0d20ad003684d05b737b087b505e7f1d7a1b94d929abff86915cbfdd82d29",
+      "size": 4560
+    },
+    {
+      "path": "tests/integrity-monitor.test.js",
+      "sha256": "b3ba062831ce4f802ec9cfaad91c2bff2aa11511ff7b73793998812628d6cad4",
+      "size": 2346
     },
     {
       "path": "tests/richstalk.test.js",
@@ -582,14 +597,19 @@
       "size": 4334
     },
     {
+      "path": "tests/xeryuu-extras.test.js",
+      "sha256": "9a965f144fe37f5d6f6b585e809b532426669dbd9a0a6171499c4c313fea7a4e",
+      "size": 1129
+    },
+    {
       "path": "TqTo.md",
       "sha256": "3276cda8e047985f3a584d9f3aaf8cfd815bf638cbc9e3e7b8a356c2aede72ab",
       "size": 830
     },
     {
       "path": "xeryuu.js",
-      "sha256": "162c42c7deb150219e66367fb78728c4349df1f322c2885992187e0ed973687c",
-      "size": 1424356
+      "sha256": "a386f420d31eb974b027990128c4657430919ec9adb634b5a094f2b84d7b3058",
+      "size": 1454795
     }
   ]
 }
