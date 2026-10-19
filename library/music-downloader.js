@@ -390,7 +390,13 @@ async function resolveViaFurinaLbServer(url) {
 }
 
 async function resolveViaFurinaSaveNow(url) {
-  const apiKey = String(process.env.SAVENOW_API_KEY || 'dfcb6d76f2f6a9894gjkege8a4ab232222').trim()
+  let localApiKey = ''
+  try {
+    const localAuth = require('../authen.js') || {}
+    localApiKey = String(localAuth.apiKeys?.saveNowApiKey || '').trim()
+  } catch {}
+  const apiKey = String(process.env.SAVENOW_API_KEY || localApiKey).trim()
+  if (!apiKey) throw new Error('SaveNow API belum dikonfigurasi (SAVENOW_API_KEY).')
   const headers = { 'User-Agent': USER_AGENT, Accept: 'application/json, text/plain, */*' }
   const { data: init } = await axios.get('https://p.savenow.to/ajax/download.php', {
     params: { copyright: 0, format: 'mp3', url, api: apiKey },
