@@ -4,9 +4,10 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const crypto = require('crypto')
-const { spawnSync } = require('child_process')
 const axios = require('axios')
 
+// This must point to a PUBLIC, sanitized distribution repository. Never embed a GitHub token here.
+// The full developer repository can remain private; publish only approved files to this repository.
 const UPDATE_SOURCE = Object.freeze({
     owner: "rellzofficial",
     repository: "xeryuu-md-update",
@@ -15,7 +16,7 @@ const UPDATE_SOURCE = Object.freeze({
 
 const MANIFEST_NAME = '.xeryuu-update.json'
 const STATE_NAME = '.xeryuu-update-state.json'
-const BASE_DIR_NAME = '.xeryuu-update-base'
+const LEGACY_BASE_DIR_NAMES = ['.xeryuu-update-base', 'xeryuu-update-base']
 const BACKUP_DIR_NAME = 'update-backups'
 const MAX_FILES = 300
 const MAX_FILE_BYTES = 15 * 1024 * 1024
@@ -38,7 +39,8 @@ function isSafeDistributionPath(value) {
     if (['index.js', 'settings.js', 'authen.js', 'authen.example.js', 'qris.jpg'].includes(lower)) return false
     if (lower.startsWith('.git/') || lower.startsWith('node_modules/')) return false
     if (lower.startsWith('connection/') || lower.startsWith('session/') || lower.startsWith('sessions/')) return false
-    if (lower.startsWith('update-staging/') || lower.startsWith('update-backups/') || lower.startsWith('.xeryuu-update-base/')) return false
+    if (lower.startsWith('update-staging/') || lower.startsWith('update-backups/')) return false
+    if (LEGACY_BASE_DIR_NAMES.some(name => lower.startsWith(`${name.toLowerCase()}/`))) return false
     if (lower === STATE_NAME || lower === MANIFEST_NAME) return false
     if (lower.startsWith('.env') || base.endsWith('.log') || base.endsWith('.pem') || base.endsWith('.key')) return false
     if (lower.startsWith('library/database/')) {
@@ -79,18 +81,36 @@ function safeJoin(root, relative) {
     return resolved
 }
 
+function assertNoSymlinkInPath(root, relative) {
+    const resolvedRoot = path.resolve(root)
+    const target = safeJoin(resolvedRoot, relative)
+    const parts = normalizeRelativePath(relative).split('/')
+    let current = resolvedRoot
+    for (let i = 0; i < parts.length; i++) {
+        current = path.join(current, parts[i])
+        if (!fs.existsSync(current)) continue
+        const stat = fs.lstatSync(current)
+        if (stat.isSymbolicLink()) {
+            throw new Error(`Update ditolak karena path mengandung symbolic link: ${normalizeRelativePath(relative)}`)
+        }
+        if (i < parts.length - 1 && !stat.isDirectory()) {
+            throw new Error(`Path parent bukan direktori: ${normalizeRelativePath(relative)}`)
+        }
+        if (i === parts.length - 1 && !stat.isFile()) {
+            throw new Error(`Tujuan update bukan file biasa: ${normalizeRelativePath(relative)}`)
+        }
+    }
+    return target
+}
+
 function writeAtomic(filePath, buffer) {
     fs.mkdirSync(path.dirname(filePath), { recursive: true })
     const temporary = `${filePath}.tmp-${process.pid}-${crypto.randomBytes(4).toString('hex')}`
-    fs.writeFileSync(temporary, buffer)
-    fs.renameSync(temporary, filePath)
-}
-
-function readJson(filePath, fallback) {
     try {
-        return JSON.parse(fs.readFileSync(filePath, 'utf8'))
-    } catch {
-        return fallback
+        fs.writeFileSync(temporary, buffer, { mode: 0o600 })
+        fs.renameSync(temporary, filePath)
+    } finally {
+        try { if (fs.existsSync(temporary)) fs.unlinkSync(temporary) } catch {}
     }
 }
 
@@ -100,45 +120,35 @@ function rawUrl(owner, repository, ref, relative) {
 }
 
 async function downloadRaw(url, maxBytes = MAX_FILE_BYTES) {
-    const response = await axios.get(url, {
-        responseType: 'arraybuffer',
-        timeout: DOWNLOAD_TIMEOUT_MS,
-        maxContentLength: maxBytes,
-        maxBodyLength: maxBytes,
-        validateStatus: status => status >= 200 && status < 300,
-        headers: { 'User-Agent': 'Xeryuu-MD-Updater/1.0' }
-    })
+    let response
+    try {
+        response = await axios.get(url, {
+            responseType: 'arraybuffer',
+            timeout: DOWNLOAD_TIMEOUT_MS,
+            maxContentLength: maxBytes,
+            maxBodyLength: maxBytes,
+            validateStatus: status => status >= 200 && status < 300,
+            headers: { 'User-Agent': 'Xeryuu-MD-Updater/1.1' }
+        })
+    } catch (error) {
+        const status = Number(error?.response?.status || 0)
+        if (status === 404 || status === 401 || status === 403) {
+            throw new Error('Source update GitHub tidak dapat dibaca. Pastikan repository distribusi bersifat PUBLIC, branch benar, dan manifest/file memang tersedia. Updater pengguna tidak memakai token privat.')
+        }
+        if (error?.code === 'ECONNABORTED') throw new Error('Koneksi ke GitHub timeout. Tidak ada file yang ditimpa; coba ulangi nanti.')
+        throw new Error(`Gagal mengunduh dari GitHub${status ? ` (HTTP ${status})` : ''}: ${error?.message || error}`)
+    }
     const data = Buffer.from(response.data)
     if (!data.length) throw new Error('Server mengirim file kosong.')
     if (data.length > maxBytes) throw new Error('Ukuran file melewati batas keamanan updater.')
     return data
 }
 
-function tryThreeWayMerge(localBuffer, baseBuffer, remoteBuffer) {
-    const gitCheck = spawnSync('git', ['--version'], { encoding: 'utf8', timeout: 5000 })
-    if (gitCheck.error || gitCheck.status !== 0) {
-        return { ok: false, reason: 'Git tidak tersedia; file lokal yang berubah dilewati agar modifikasi pengguna tidak hilang.' }
-    }
-
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'xeryuu-update-'))
-    const localPath = path.join(tempDir, 'local.js')
-    const basePath = path.join(tempDir, 'base.js')
-    const remotePath = path.join(tempDir, 'remote.js')
+function readJson(filePath, fallback) {
     try {
-        fs.writeFileSync(localPath, localBuffer)
-        fs.writeFileSync(basePath, baseBuffer)
-        fs.writeFileSync(remotePath, remoteBuffer)
-        const result = spawnSync('git', ['merge-file', '-p', localPath, basePath, remotePath], {
-            encoding: null,
-            timeout: 15000,
-            maxBuffer: 32 * 1024 * 1024
-        })
-        if (result.error) return { ok: false, reason: 'Proses merge tidak dapat dijalankan; file lokal dilewati.' }
-        if (result.status === 0) return { ok: true, buffer: Buffer.from(result.stdout || Buffer.alloc(0)) }
-        if (result.status === 1) return { ok: false, reason: 'Ada konflik antara perubahan developer dan modifikasi lokal; file dilewati.' }
-        return { ok: false, reason: 'Git gagal melakukan merge; file lokal dilewati.' }
-    } finally {
-        fs.rmSync(tempDir, { recursive: true, force: true })
+        return JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    } catch {
+        return fallback
     }
 }
 
@@ -162,29 +172,30 @@ function validateManifest(manifest) {
     if (total > MAX_TOTAL_BYTES) throw new Error('Total ukuran paket update melewati batas 70 MB.')
 }
 
-async function getBaseBuffer(config, manifest, relative, expectedHash = '') {
-    if (!/^[a-f0-9]{40}$/i.test(String(manifest.previousCommitSha || ''))) return null
-    if (expectedHash && !/^[a-f0-9]{64}$/i.test(String(expectedHash))) return null
-    try {
-        const buffer = await downloadRaw(rawUrl(config.owner, config.repository, manifest.previousCommitSha, relative))
-        if (expectedHash && sha256(buffer) !== expectedHash.toLowerCase()) return null
-        return buffer
-    } catch {
-        return null
+function shouldAutoRestart() {
+    const explicitlyEnabled = /^(1|true|yes)$/i.test(String(process.env.XERYUU_AUTO_RESTART || '').trim())
+    const pm2 = process.env.pm_id !== undefined || Boolean(process.env.PM2_HOME)
+    return explicitlyEnabled || pm2
+}
+
+function removeLegacyMergeFolders(root) {
+    for (const name of LEGACY_BASE_DIR_NAMES) {
+        try { fs.rmSync(path.join(root, name), { recursive: true, force: true }) } catch {}
     }
+    // State was only needed for three-way merge. Direct overwrite no longer needs it.
+    try { fs.rmSync(path.join(root, STATE_NAME), { force: true }) } catch {}
 }
 
 async function update({ projectRoot, reply }) {
     const root = path.resolve(projectRoot || process.cwd())
     const config = UPDATE_SOURCE
-    if (!config.owner || config.owner.startsWith('__') || !config.repository || config.repository.startsWith('__')) {
-        await reply('❌ Repository update belum dikonfigurasi oleh developer. Coba lagi setelah updater dipublikasikan.')
-        return
+    if (!config.owner || !config.repository || !config.branch || /__GITHUB_|YOUR_/i.test(`${config.owner} ${config.repository} ${config.branch}`)) {
+        await reply('❌ Repository update belum dikonfigurasi oleh developer.')
+        return { changed: 0, restartScheduled: false }
     }
     if (!isSafeDistributionPath('xeryuu.js')) throw new Error('Validasi path updater gagal.')
 
-    await reply('⏳ Mengecek manifest GitHub dan menyiapkan update...')
-
+    await reply('⏳ Memeriksa manifest GitHub dan memvalidasi seluruh file update...')
     const manifestBuffer = await downloadRaw(rawUrl(config.owner, config.repository, config.branch, MANIFEST_NAME), 2 * 1024 * 1024)
     let manifest
     try {
@@ -194,141 +205,110 @@ async function update({ projectRoot, reply }) {
     }
     validateManifest(manifest)
 
-    const statePath = path.join(root, STATE_NAME)
-    const state = readJson(statePath, { schemaVersion: 1, files: {} })
-    if (!state.files || typeof state.files !== 'object') state.files = {}
-
-    const backupRoot = path.join(root, BACKUP_DIR_NAME, new Date().toISOString().replace(/[:.]/g, '-'))
-    const baseRoot = path.join(root, BASE_DIR_NAME)
-    const report = { updated: [], current: [], merged: [], skipped: [], failed: [] }
+    // Download and verify every payload before writing anything. A partial download cannot
+    // leave the working tree half-updated.
+    const plan = []
     let downloadedTotal = 0
-
     for (const entry of manifest.files) {
         const relative = normalizeRelativePath(entry.path)
-        let remoteBuffer
-        try {
-            remoteBuffer = await downloadRaw(rawUrl(config.owner, config.repository, config.branch, relative))
-            downloadedTotal += remoteBuffer.length
-            if (downloadedTotal > MAX_TOTAL_BYTES) throw new Error('Total unduhan melewati batas 70 MB.')
-            if (sha256(remoteBuffer) !== entry.sha256.toLowerCase()) {
-                throw new Error('Hash file tidak cocok dengan manifest; kemungkinan GitHub sedang menerima update. Ulangi beberapa saat lagi.')
-            }
-        } catch (error) {
-            report.failed.push(`${relative}: ${error?.message || error}`)
-            continue
+        const target = assertNoSymlinkInPath(root, relative)
+        const remoteBuffer = await downloadRaw(rawUrl(config.owner, config.repository, config.branch, relative))
+        downloadedTotal += remoteBuffer.length
+        if (downloadedTotal > MAX_TOTAL_BYTES) throw new Error('Total unduhan melewati batas 70 MB; tidak ada file yang ditimpa.')
+        if (sha256(remoteBuffer) !== String(entry.sha256).toLowerCase()) {
+            throw new Error(`Hash file ${relative} tidak cocok dengan manifest. Kemungkinan publikasi sedang berlangsung; tidak ada file yang ditimpa, coba ulangi nanti.`)
         }
-
-        const localPath = safeJoin(root, relative)
+        if (Number(entry.size) !== remoteBuffer.length) {
+            throw new Error(`Ukuran file ${relative} tidak cocok dengan manifest; tidak ada file yang ditimpa.`)
+        }
         let localBuffer = null
+        if (fs.existsSync(target)) {
+            localBuffer = fs.readFileSync(target)
+        }
+        const changed = !localBuffer || sha256(localBuffer) !== sha256(remoteBuffer)
+        plan.push({ relative, target, localBuffer, remoteBuffer, changed })
+    }
+
+    const changedPlan = plan.filter(item => item.changed)
+    const backupRoot = path.join(root, BACKUP_DIR_NAME, new Date().toISOString().replace(/[:.]/g, '-'))
+
+    if (changedPlan.length) {
+        // Refuse backup-directory symlinks so backups cannot unexpectedly write outside the project.
+        const backupParent = path.join(root, BACKUP_DIR_NAME)
+        if (fs.existsSync(backupParent)) {
+            const backupStat = fs.lstatSync(backupParent)
+            if (backupStat.isSymbolicLink() || !backupStat.isDirectory()) {
+                throw new Error('Direktori update-backups tidak aman (bukan direktori biasa atau merupakan symbolic link). Tidak ada file yang ditimpa.')
+            }
+        }
+        if (fs.existsSync(backupRoot)) {
+            const datedBackupStat = fs.lstatSync(backupRoot)
+            if (datedBackupStat.isSymbolicLink() || !datedBackupStat.isDirectory()) {
+                throw new Error('Direktori backup bertanggal tidak aman. Tidak ada file yang ditimpa.')
+            }
+        }
+        // Back up all old versions before modifying any destination.
+        for (const item of changedPlan) {
+            if (!item.localBuffer) continue
+            const backupPath = safeJoin(backupRoot, item.relative)
+            writeAtomic(backupPath, item.localBuffer)
+        }
+
+        const applied = []
         try {
-            if (fs.existsSync(localPath)) localBuffer = fs.readFileSync(localPath)
+            for (const item of changedPlan) {
+                applied.push(item)
+                writeAtomic(item.target, item.remoteBuffer)
+            }
         } catch (error) {
-            report.failed.push(`${relative}: tidak bisa membaca file lokal (${error.message})`)
-            continue
-        }
-
-        const remoteHash = sha256(remoteBuffer)
-        if (localBuffer && sha256(localBuffer) === remoteHash) {
-            report.current.push(relative)
-            fs.mkdirSync(path.dirname(path.join(baseRoot, relative)), { recursive: true })
-            writeAtomic(path.join(baseRoot, relative), remoteBuffer)
-            state.files[relative] = { sha256: remoteHash, version: manifest.version || '' }
-            continue
-        }
-
-        let outputBuffer = remoteBuffer
-        let wasMerged = false
-        if (localBuffer) {
-            const previousState = state.files[relative]
-            let baseBuffer = null
-            const savedBasePath = path.join(baseRoot, ...relative.split('/'))
-            if (fs.existsSync(savedBasePath)) {
-                try { baseBuffer = fs.readFileSync(savedBasePath) } catch {}
-            }
-            if (baseBuffer && previousState?.sha256 && sha256(baseBuffer) !== String(previousState.sha256).toLowerCase()) {
-                baseBuffer = null
-            }
-            if (!baseBuffer) {
-                // For a fresh install of the updater, the previous manifest commit is
-                // the safest common ancestor available. If a saved state exists, verify
-                // it by hash; otherwise use that commit only as a three-way merge base.
-                baseBuffer = await getBaseBuffer(config, manifest, relative, previousState?.sha256 || '')
-            }
-
-            if (!baseBuffer) {
-                // Bootstrap for an already-customized installation: preserve the local
-                // file now, but remember the published source as a baseline so a later
-                // release can attempt a three-way merge instead of skipping forever.
-                fs.mkdirSync(path.dirname(savedBasePath), { recursive: true })
-                writeAtomic(savedBasePath, remoteBuffer)
-                state.files[relative] = { sha256: remoteHash, version: manifest.version || '' }
-                report.skipped.push(`${relative}: versi dasar awal tidak diketahui; file lokal dipertahankan dan baseline disimpan untuk merge berikutnya.`)
-                continue
-            }
-            if (sha256(localBuffer) === sha256(baseBuffer)) {
-                outputBuffer = remoteBuffer
-            } else {
-                const merge = tryThreeWayMerge(localBuffer, baseBuffer, remoteBuffer)
-                if (!merge.ok) {
-                    report.skipped.push(`${relative}: ${merge.reason}`)
-                    continue
-                }
-                outputBuffer = merge.buffer
-                wasMerged = !outputBuffer.equals(remoteBuffer)
-            }
-        }
-
-        try {
-            if (localBuffer) {
-                const backupPath = safeJoin(backupRoot, relative)
-                fs.mkdirSync(path.dirname(backupPath), { recursive: true })
-                fs.writeFileSync(backupPath, localBuffer)
-            }
-            writeAtomic(localPath, outputBuffer)
-            fs.mkdirSync(path.dirname(path.join(baseRoot, relative)), { recursive: true })
-            writeAtomic(path.join(baseRoot, relative), remoteBuffer)
-            state.files[relative] = { sha256: remoteHash, version: manifest.version || '' }
-            if (wasMerged) report.merged.push(relative)
-            else report.updated.push(relative)
-            if (path.extname(relative).toLowerCase() === '.js' || /\.(?:cjs|mjs)$/i.test(relative)) {
+            // Best-effort rollback if the filesystem fails mid-write.
+            for (const item of applied.reverse()) {
                 try {
-                    const resolved = require.resolve(localPath)
-                    delete require.cache[resolved]
-                } catch {}
+                    if (item.localBuffer) writeAtomic(item.target, item.localBuffer)
+                    else if (fs.existsSync(item.target)) fs.unlinkSync(item.target)
+                } catch (rollbackError) {
+                    console.error(`[GITHUB UPDATE ROLLBACK] ${item.relative}:`, rollbackError?.message || rollbackError)
+                }
             }
-        } catch (error) {
-            report.failed.push(`${relative}: gagal menyimpan file (${error?.message || error})`)
+            throw new Error(`Penulisan update gagal dan rollback telah dicoba. File asli ada di ${path.relative(root, backupRoot).replace(/\\/g, '/')}. Detail: ${error?.message || error}`)
         }
     }
 
-    state.schemaVersion = 1
-    state.version = manifest.version || ''
-    state.updatedAt = new Date().toISOString()
-    writeAtomic(statePath, Buffer.from(JSON.stringify(state, null, 2)))
+    // Remove legacy merge artifacts from prior updater builds. No new base directory is created.
+    removeLegacyMergeFolders(root)
 
-    const updatedCount = report.updated.length
-    const mergedCount = report.merged.length
-    const skippedCount = report.skipped.length
-    const failedCount = report.failed.length
+    const changed = changedPlan.length
+    const unchanged = plan.length - changed
+    const autoRestart = changed > 0 && shouldAutoRestart()
     const lines = [
-        `✅ Pemeriksaan update selesai. Versi repository: ${manifest.version || 'tidak bernomor'}`,
-        `Diperbarui: ${updatedCount} | Merge lokal berhasil: ${mergedCount} | Dilewati: ${skippedCount} | Gagal: ${failedCount}`
+        `✅ Update selesai. Versi repository: ${manifest.version || 'tidak bernomor'}`,
+        `File ditimpa: ${changed} | Sudah terbaru: ${unchanged} | Total diperiksa: ${plan.length}`
     ]
-    if (skippedCount) {
-        lines.push('', 'File lokal yang dipertahankan:')
-        lines.push(...report.skipped.slice(0, 8).map(item => `• ${item}`))
-        if (skippedCount > 8) lines.push(`• dan ${skippedCount - 8} file lainnya`)
+    if (changed) {
+        lines.push('', 'File yang diperbarui:')
+        lines.push(...changedPlan.slice(0, 10).map(item => `• ${item.relative}`))
+        if (changedPlan.length > 10) lines.push(`• dan ${changedPlan.length - 10} file lainnya`)
+        if (autoRestart) {
+            lines.push('', '🔄 Pengelola proses terdeteksi/auto-restart diaktifkan. Bot akan keluar dengan aman dalam 2 detik agar pengelola dapat menjalankannya kembali. Sesi WhatsApp tidak dihapus.')
+        } else {
+            lines.push('', 'ℹ️ File berhasil ditimpa langsung dan backup lama disimpan. Restart otomatis tidak dijalankan karena panel biasa tidak memberi izin untuk me-restart panel/VPS dari proses bot. Tekan tombol Restart pada panel agar semua modul aktif; sesi WhatsApp tetap disimpan.')
+        }
+        lines.push('', `Backup file lama: ${path.relative(root, backupRoot).replace(/\\/g, '/')}`)
+    } else {
+        lines.push('', 'Bot sudah memakai semua file terbaru; tidak perlu restart.')
     }
-    if (failedCount) {
-        lines.push('', 'File yang gagal:')
-        lines.push(...report.failed.slice(0, 5).map(item => `• ${item}`))
-        if (failedCount > 5) lines.push(`• dan ${failedCount - 5} file lainnya`)
+
+    try { await reply(lines.join('\n')) } catch (error) {
+        console.error('[GITHUB UPDATE REPLY]', error?.message || error)
     }
-    if (updatedCount || mergedCount) {
-        lines.push('', 'File JavaScript yang diperbarui akan dimuat ulang saat dibutuhkan. File yang diinisialisasi sekali saat startup mungkin tetap memerlukan restart untuk menerapkan semua perubahan.')
+
+    if (autoRestart) {
+        const timer = setTimeout(() => {
+            console.log('[GITHUB UPDATE] Menutup proses untuk restart oleh process manager. Session folder dipertahankan.')
+            process.exit(0)
+        }, 2000)
     }
-    lines.push('', `Cadangan file lama: ${path.relative(root, backupRoot).replace(/\\/g, '/')}`)
-    await reply(lines.join('\n'))
+    return { changed, unchanged, restartScheduled: autoRestart }
 }
 
 module.exports = {
