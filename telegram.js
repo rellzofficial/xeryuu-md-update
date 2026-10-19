@@ -5085,7 +5085,6 @@ function start(connection) {
     })
 
     bot.command('update', async ctx => {
-        if (!privateChat(ctx)) return commandOutput(ctx, 'Gunakan /update melalui chat pribadi bot.')
         try {
             await githubUpdateUser.update({
                 projectRoot: __dirname,
