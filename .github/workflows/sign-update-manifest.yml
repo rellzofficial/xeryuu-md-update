@@ -1,1 +1,52 @@
+name: Sign Xeryuu Update Manifest
 
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sign-manifest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check signing configuration
+        env:
+          SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Repository secret UPDATE_SIGNING_PRIVATE_KEY belum diatur."
+            exit 1
+          fi
+
+          if [ ! -f .xeryuu-update.json ]; then
+            echo "::error::File .xeryuu-update.json belum tersedia."
+            exit 1
+          fi
+
+          if [ ! -f .github/scripts/sign-update-manifest.js ]; then
+            echo "::error::Script penandatanganan belum tersedia."
+            exit 1
+          fi
+
+      - name: Sign manifest
+        env:
+          SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+        run: node .github/scripts/sign-update-manifest.js
+
+      - name: Publish signature
+        run: |
+          if [ ! -f .xeryuu-update.sig ]; then
+            echo "::error::File tanda tangan tidak berhasil dibuat."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .xeryuu-update.sig
+          git diff --cached --quiet || git commit -m "Sign Xeryuu update manifest"
+          git push
