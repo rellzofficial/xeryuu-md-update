@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261019033636",
-  "updatedAt": "2026-10-19T03:36:36.584Z",
+  "version": "v20261019054324",
+  "updatedAt": "2026-10-19T05:43:24.055Z",
   "branch": "main",
-  "previousVersion": "v20261019013118",
-  "previousCommitSha": "d1185f15a223b5c621e743ea383596ad32aaa00b",
+  "previousVersion": "v20261019033636",
+  "previousCommitSha": "f9b910fa5fdc0fd107772599a6b0786d853a2194",
   "files": [
     {
       "path": "library/afk.js",
@@ -543,8 +543,8 @@
     },
     {
       "path": "telegram.js",
-      "sha256": "ea40d5cc95d116e0c045406fe178d66c6120dca4162dee09bb65c632d37e6399",
-      "size": 320827
+      "sha256": "486385853558ad95ec71c00e3c08fd3f26d9429cf7f8410cdcbee27813ca64de",
+      "size": 320725
     },
     {
       "path": "tests/channel-monitor.test.js",
@@ -588,8 +588,8 @@
     },
     {
       "path": "xeryuu.js",
-      "sha256": "5f01e8d4a3f673bbce83c9258a4b5145a39fab3586c9f5b4baafef9b294aafb5",
-      "size": 1424442
+      "sha256": "162c42c7deb150219e66367fb78728c4349df1f322c2885992187e0ed973687c",
+      "size": 1424356
     }
   ]
 }
