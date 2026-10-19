@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261018092729",
-  "updatedAt": "2026-10-18T09:27:29.315Z",
+  "version": "v20261019013118",
+  "updatedAt": "2026-10-19T01:31:18.016Z",
   "branch": "main",
-  "previousVersion": null,
-  "previousCommitSha": null,
+  "previousVersion": "v20261018092729",
+  "previousCommitSha": "16d162397e567fc534461e1027b1ca8af0eb1893",
   "files": [
     {
       "path": "library/afk.js",
@@ -158,8 +158,8 @@
     },
     {
       "path": "library/github-update-user.js",
-      "sha256": "89cbeb38b70c4404bb5e876ea9b901f42747e5fdf9f1980cf9a58d4403c1d545",
-      "size": 15775
+      "sha256": "46f97f704440bf8e444c9b211d3876213f91ee55580acdd76eabe71c8f5346ef",
+      "size": 15195
     },
     {
       "path": "library/global-database.js",
@@ -203,8 +203,8 @@
     },
     {
       "path": "library/music-downloader.js",
-      "sha256": "a440b7711b1cf256751193385f349b04c6e78d8777121f2fc857a9412f45043c",
-      "size": 58192
+      "sha256": "865ec30326e0596dfdda6c45ddea0a540e880a1e0faebd4a0200bca5895f2c8e",
+      "size": 58420
     },
     {
       "path": "library/nokos.js",
@@ -492,14 +492,24 @@
       "size": 194642
     },
     {
+      "path": "media/XeryuMd-thumbnail.jpg",
+      "sha256": "a029e29ec49247eed56a7566730212083cae6015afc014ee669f258ad4aad27c",
+      "size": 18148
+    },
+    {
+      "path": "media/XeryuMd.jpg",
+      "sha256": "e3d9f3ac509e834a16fa421681edb2d8e3cfd27f4645fc98f3208854a8425506",
+      "size": 747307
+    },
+    {
       "path": "media/Xeryuu-MD V15 @xnalz.webp",
       "sha256": "2933972b6344f911de276e8e1ff0854216351eacba38d8786ebcd6c929615454",
       "size": 336768
     },
     {
-      "path": "media/xeryuu.jpg",
-      "sha256": "f670466f06446cee68f7f74c96acd0ddb456ba7e595d5021e03bbd45759d6b6f",
-      "size": 363258
+      "path": "media/xeryuu.png",
+      "sha256": "89e0fbecf82dcf3d9098b76ea782d44ecff97d212f1d643caf9898b2b5f9c635",
+      "size": 1803647
     },
     {
       "path": "media/xnalz.png",
@@ -578,8 +588,8 @@
     },
     {
       "path": "xeryuu.js",
-      "sha256": "b98b210bcb8996c92bc77f0fd52f10be7cc0e657d190341bb711d8974bdd5f9a",
-      "size": 1421279
+      "sha256": "5f01e8d4a3f673bbce83c9258a4b5145a39fab3586c9f5b4baafef9b294aafb5",
+      "size": 1424442
     }
   ]
 }
