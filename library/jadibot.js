@@ -395,6 +395,7 @@ async function openSession(meta, requestCode = false) {
         force: Number(meta.waAttempt) > 0
     })
     const socket = makeWASocket(makeOptions(state, store, resolvedVersion.version))
+    socket.__xeryuuStore = store
     socket.__xeryuuRole = 'JADIBOT'
     socket.isConnected = false
     socket.__xeryuuOpenedAt = 0
