@@ -50,11 +50,14 @@ test('Indonesian plate check validates common formats without claiming owner dat
   assert.equal(tools.parseIndonesianPlate('NOT A PLATE').validFormat, false)
 })
 
-test('stock symbol parser scopes requests to Indonesian (.JK) tickers', () => {
+test('stock symbol parser supports Indonesian, international and IHSG tickers', () => {
   assert.equal(tools.normalizeStockSymbol('bbca'), 'BBCA.JK')
   assert.equal(tools.normalizeStockSymbol('TLKM.JK'), 'TLKM.JK')
-  assert.equal(tools.normalizeStockSymbol('AAPL'), 'AAPL.JK', 'pencarian tetap diarahkan ke ticker BEI; server akan menolak jika kode tersebut tidak terdaftar di IDX')
-  assert.throws(() => tools.normalizeStockSymbol('BBCA;rm'), /Masukkan kode saham BEI/)
+  assert.equal(tools.normalizeStockSymbol('AAPL'), 'AAPL')
+  assert.equal(tools.normalizeStockSymbol('MSFT'), 'MSFT')
+  assert.equal(tools.normalizeStockSymbol('IHSG'), '^JKSE')
+  assert.equal(tools.normalizeStockSymbol('^JKSE'), '^JKSE')
+  assert.throws(() => tools.normalizeStockSymbol('BBCA;rm'), /Kode saham tidak valid/)
 })
 
 test('Cak Lontong dataset validation ignores incomplete records and normalizes answers', () => {
@@ -74,8 +77,10 @@ test('script diagnostics finds syntax, missing local require and invalid static 
   fs.writeFileSync(path.join(root, 'index.js'), 'require(' + "'./missing-module'" + ')\n')
   fs.writeFileSync(path.join(root, 'bad.js'), 'const invalid = ;\n')
   fs.writeFileSync(path.join(root, 'settings.json'), '{ invalid json')
+  fs.writeFileSync(path.join(root, 'optional-auth.js'), "try { require('./authen.js') } catch {}\n")
   const report = await tools.diagnoseProject(root)
   assert.ok(report.issueCount >= 3)
+  assert.equal(report.issues.some(issue => issue.file.endsWith('optional-auth.js') && issue.detail === './authen.js'), false)
   assert.ok(report.issues.some(issue => issue.type === 'Syntax JavaScript'))
   assert.ok(report.issues.some(issue => issue.type === 'Require lokal tidak ditemukan'))
   assert.ok(report.issues.some(issue => issue.type === 'JSON tidak valid'))
