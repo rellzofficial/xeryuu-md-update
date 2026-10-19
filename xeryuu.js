@@ -25874,7 +25874,6 @@ break
 case 'update':
 case 'updatelist':
 if (command === 'update' && !q.includes('|')) {
-    if (m.isGroup) return replyV1('Gunakan command update melalui chat pribadi bot.')
     try {
         await githubUpdateUser.update({
             projectRoot: __dirname,
