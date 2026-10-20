@@ -44,7 +44,7 @@ const GAME_DEFINITIONS = Object.freeze({
         aliases: ['fchess', 'chessultimate', 'richchess2'],
         file: 'chess-ultimate.html',
         local: true,
-        title: 'Chess Furina Ultimate ♟️',
+        title: 'Chess Xeryuu Ultimate ♟️',
         trustedSources: []
     },
     tetromino: {
@@ -413,7 +413,7 @@ async function sendRichHtmlGame(conn, chat, gameKey) {
     const { definition, html } = await loadGameHtml(gameKey)
     let certificateChain = null
 
-    // Game hasil port dari FURINA tidak membutuhkan fetch certificate eksternal.
+    // Game hasil port dari XERYUU tidak membutuhkan fetch certificate eksternal.
     // Game lama V16 tetap memakai certificate chain seperti sebelumnya.
     if (!definition.local) {
         certificateChain = await loadCertificateChain()
