@@ -584,7 +584,7 @@ button{
         <div class="brand">
             <div class="logo">♟</div>
             <div>
-                <div class="title">CHESS <span>Furina</span></div>
+                <div class="title">CHESS <span>Xeryuu</span></div>
                 <div class="subtitle">FAST ENGINE • SMART PLAY</div>
             </div>
         </div>
@@ -606,7 +606,7 @@ button{
         <div class="player ai" id="aiCard">
             <div class="avatar">♟</div>
             <div>
-                <div class="pname">Furina AI</div>
+                <div class="pname">Xeryuu AI</div>
                 <div class="pcolor" id="aiColor">BLACK</div>
             </div>
             <div class="dot"></div>
@@ -851,7 +851,7 @@ let searchStop=false;
 const TT=new Map();
 
 try{
-    best=parseInt(localStorage.getItem('Furina_chess_ultimate_best_v2')||'0')||0;
+    best=parseInt(localStorage.getItem('Xeryuu_chess_ultimate_best_v2')||'0')||0;
 }catch(e){}
 bestScoreEl.textContent=best;
 
@@ -1475,17 +1475,17 @@ function checkEnd(){
         if(winner===playerColor){
             resultIcon.textContent='🏆';
             resultTitle.textContent='CHECKMATE!';
-            resultText.textContent='Kamu mengalahkan Furina AI di level '+level+' — '+LEVELS[level].name+'.';
+            resultText.textContent='Kamu mengalahkan Xeryuu AI di level '+level+' — '+LEVELS[level].name+'.';
             winSound();
             const score=moveNumber*12+level*60;
             if(score>best){
                 best=score; bestScoreEl.textContent=best;
-                try{ localStorage.setItem('Furina_chess_ultimate_best_v2',best); }catch(e){}
+                try{ localStorage.setItem('Xeryuu_chess_ultimate_best_v2',best); }catch(e){}
             }
         }else{
             resultIcon.textContent='🤖';
             resultTitle.textContent='CHECKMATE';
-            resultText.textContent='Furina AI memenangkan permainan. Coba lagi dengan strategi baru!';
+            resultText.textContent='Xeryuu AI memenangkan permainan. Coba lagi dengan strategi baru!';
             loseSound();
         }
     }else{
@@ -1510,7 +1510,7 @@ function newGame(){
     if(playerColor==='w'){ setStatus('♙ Giliran kamu','good'); }
     else{
         thinking=true; render();
-        setStatus('🤖 Furina membuka permainan...','good');
+        setStatus('🤖 Xeryuu membuka permainan...','good');
         setTimeout(aiTurn,80);
     }
 }
