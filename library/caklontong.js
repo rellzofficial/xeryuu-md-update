@@ -106,21 +106,31 @@ function clearSession(key) {
   sessions.delete(key);
 }
 
+async function sendTextReply(ctx, text, options = {}) {
+  if (typeof ctx?.reply === 'function') return ctx.reply(String(text ?? ''), options);
+  const conn = ctx?.conn;
+  const chat = options.chatOverride || ctx?.m?.chat;
+  if (!conn || !chat) throw new Error('Konteks balasan Cak Lontong tidak lengkap.');
+  const quoted = Object.prototype.hasOwnProperty.call(options, 'quoted') ? options.quoted : ctx?.m;
+  const sendOptions = quoted ? { quoted } : {};
+  return conn.sendMessage(chat, { text: String(text ?? '') }, sendOptions);
+}
+
 async function start(ctx) {
   const { conn, m } = ctx || {};
   if (!conn || !m) throw new Error('Konteks pesan tidak lengkap.');
   if (!m.isGroup) {
-    await ctx.reply('Game Cak Lontong hanya dapat dimainkan di grup, sesuai alur Furina V18.');
+    await sendTextReply(ctx, 'Game Cak Lontong hanya dapat dimainkan di grup.');
     return false;
   }
 
   const key = sessionKey(m.chat, m.sender);
   if (sessions.has(key)) {
-    await ctx.reply('Kamu masih memiliki sesi Cak Lontong yang belum selesai. Jawab soal sebelumnya terlebih dahulu.');
+    await sendTextReply(ctx, 'Kamu masih memiliki sesi Cak Lontong yang belum selesai. Jawab soal sebelumnya terlebih dahulu.');
     return true;
   }
   if (sessions.size >= MAX_ACTIVE_SESSIONS) {
-    await ctx.reply('Sesi Cak Lontong sedang penuh. Coba lagi setelah beberapa sesi selesai.');
+    await sendTextReply(ctx, 'Sesi Cak Lontong sedang penuh. Coba lagi setelah beberapa sesi selesai.');
     return true;
   }
 
@@ -136,15 +146,14 @@ async function start(ctx) {
     description: question.deskripsi,
     startMessage: m,
     expiresAt: Date.now() + SESSION_TIMEOUT_MS,
-    timer: null
+    timer: null,
+    reply: typeof ctx.reply === 'function' ? ctx.reply : null
   };
   if (!session.normalizedAnswer) throw new Error('Dataset memberikan jawaban kosong setelah dinormalisasi.');
 
   sessions.set(key, session);
   try {
-    await conn.sendMessage(m.chat, {
-      text: `🧠 *CAK LONTONG*\n\n❓ Soal:\n${session.question}\n\n⏳ Waktu: 60 detik\n\nBalas dengan jawaban langsung di grup.`
-    }, { quoted: m });
+    await sendTextReply(ctx, `🧠 *CAK LONTONG*\n\n❓ Soal:\n${session.question}\n\n⏳ Waktu: 60 detik\n\nBalas dengan jawaban langsung di grup.`);
   } catch (error) {
     clearSession(key);
     throw error;
@@ -154,9 +163,17 @@ async function start(ctx) {
     if (sessions.get(key) !== session) return;
     sessions.delete(key);
     try {
-      await conn.sendMessage(session.chat, {
-        text: `⏰ *WAKTU HABIS*\n\nJawaban: *${session.answer}*\n\nPenjelasan: ${session.description}`
-      }, { quoted: session.startMessage });
+      const timeoutText = `⏰ *WAKTU HABIS*\n\nJawaban: *${session.answer}*\n\nPenjelasan: ${session.description}`;
+      if (typeof session.reply === 'function') {
+        await session.reply(timeoutText, {
+          chatOverride: session.chat,
+          includeSenderMention: false,
+          quoted: session.startMessage,
+          fallbackQuoted: session.startMessage
+        });
+      } else {
+        await conn.sendMessage(session.chat, { text: timeoutText }, { quoted: session.startMessage });
+      }
     } catch (error) {
       console.error('[CAKLONTONG TIMEOUT SEND]', error?.message || error);
     }
@@ -173,18 +190,14 @@ async function processAnswer(ctx) {
   if (!session) return false;
   if (Date.now() >= session.expiresAt) {
     clearSession(key);
-    await conn.sendMessage(m.chat, {
-      text: `⏰ *WAKTU HABIS*\n\nJawaban: *${session.answer}*\n\nPenjelasan: ${session.description}`
-    }, { quoted: m });
+    await sendTextReply(ctx, `⏰ *WAKTU HABIS*\n\nJawaban: *${session.answer}*\n\nPenjelasan: ${session.description}`);
     return true;
   }
   const normalized = normalizeAnswer(body);
   if (!normalized || normalized !== session.normalizedAnswer) return false;
 
   clearSession(key);
-  await conn.sendMessage(m.chat, {
-    text: `✅ *JAWABAN BENAR!*\n\n❓ Soal: ${session.question}\n💡 Jawaban: *${session.answer}*\n📖 Penjelasan: ${session.description}`
-  }, { quoted: m });
+  await sendTextReply(ctx, `✅ *JAWABAN BENAR!*\n\n❓ Soal: ${session.question}\n💡 Jawaban: *${session.answer}*\n📖 Penjelasan: ${session.description}`);
   return true;
 }
 
