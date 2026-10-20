@@ -12,6 +12,7 @@ const fetch = require('node-fetch');
 const fs = require("fs");
 const FormData = require('form-data');
 const crypto = require("crypto");
+const { normalizePinterestSearchResults } = require('./pinterest-utils.js');
 
 async function tiktokDl(url) {
 	return new Promise(async (resolve, reject) => {
@@ -118,61 +119,98 @@ async function tiktokDl(url) {
 }
 
 
-async function pinterest(query) {
-	// Public Pinterest query search with no baked-in session cookies or account token.
-	// Session cookies are intentionally not embedded in source code: they can expire
-	// and may grant access to an account if redistributed.
-	const keyword = String(query || '').trim().slice(0, 160)
-	if (!keyword) return []
-	try {
-		const results = await pinterest2(keyword)
-		return (Array.isArray(results) ? results : [])
-			.map(item => item && typeof item.images_url === 'string' ? item.images_url : '')
-			.filter(url => /^https:\/\//i.test(url))
-	} catch (error) {
-		console.warn('[PINTEREST SEARCH]', error?.message || error)
-		return []
-	}
-}
+const PINTEREST_SEARCH_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
 
 async function pinterest2(query) {
-	return new Promise(async (resolve, reject) => {
-		const baseUrl = 'https://www.pinterest.com/resource/BaseSearchResource/get/';
-		const queryParams = {
-			source_url: '/search/pins/?q=' + encodeURIComponent(query),
-			data: JSON.stringify({
-				options: {
-					isPrefetch: false,
-					query,
-					scope: 'pins',
-					no_fetch_context_on_resource: false
-				},
-				context: {}
-			}),
-			_: Date.now()
-		};
-		const url = new URL(baseUrl);
-		Object.entries(queryParams).forEach(entry => url.searchParams.set(entry[0], entry[1]));
-		try {
-			const json = await (await fetch(url.toString())).json();
-			const results = json.resource_response?.data?.results?? [];
-			const result = results.map(item => ({
-				pin: 'https://www.pinterest.com/pin/' + item.id?? '',
-				link: item.link?? '',
-				created_at: (new Date(item.created_at)).toLocaleDateString('id-ID', {
-					day: 'numeric',
-					month: 'long',
-					year: 'numeric'
-				}) ?? '',
-				id: item.id?? '',
-				images_url: item.images?.['736x']?.url?? '',
-				grid_title: item.grid_title?? ''
-			}));
-			resolve(result);
-		} catch (e) {
-			reject([])
-		}
+	const keyword = String(query || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+	if (!keyword) return [];
+
+	const baseUrl = 'https://www.pinterest.com';
+	const sourcePath = `/search/pins/?q=${encodeURIComponent(keyword)}`;
+	const params = {
+		source_url: sourcePath,
+		data: JSON.stringify({ options: { isPrefetch: false, query: keyword, scope: 'pins', no_fetch_context_on_resource: false }, context: {} }),
+		_: Date.now()
+	};
+	const url = `${baseUrl}/resource/BaseSearchResource/get/`;
+	const response = await axios.get(url, {
+		params,
+		timeout: 18000,
+		maxRedirects: 3,
+		maxContentLength: 8 * 1024 * 1024,
+		headers: {
+			Accept: 'application/json, text/javascript, */*; q=0.01',
+			'Accept-Language': 'en-US,en;q=0.9,id;q=0.8',
+			'Cache-Control': 'no-cache',
+			Origin: baseUrl,
+			Referer: `${baseUrl}${sourcePath}`,
+			'User-Agent': PINTEREST_SEARCH_UA,
+			'X-Requested-With': 'XMLHttpRequest',
+			'x-pinterest-appstate': 'active',
+			'x-pinterest-pws-handler': 'www/search/[scope].js',
+			'x-pinterest-source-url': sourcePath
+		},
+		validateStatus: () => true
 	});
+	if (response.status === 429) {
+		const error = new Error('Pinterest membatasi permintaan sementara (HTTP 429). Coba lagi setelah jeda.');
+		error.status = 429;
+		throw error;
+	}
+	if (response.status < 200 || response.status >= 300) {
+		const error = new Error(`Pinterest menolak pencarian (HTTP ${response.status}). Fallback provider akan dicoba oleh pemanggil.`);
+		error.status = response.status;
+		throw error;
+	}
+	const results = normalizePinterestSearchResults(response.data, keyword, baseUrl);
+	return results;
+}
+
+async function pinterestSearch(query) {
+	const keyword = String(query || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+	if (!keyword) return [];
+	const errors = [];
+	try {
+		const direct = await pinterest2(keyword);
+		if (direct.length) return direct;
+	} catch (error) {
+		errors.push(error?.message || String(error));
+		console.warn('[PINTEREST SEARCH DIRECT]', error?.message || error);
+		// Don't hammer Pinterest after an explicit rate limit.
+		// Continue to an independent provider after a Pinterest-side limit; no further
+		// requests are sent to Pinterest in this invocation.
+	}
+
+	// Public third-party search fallback. This is a fallback, not a guarantee: if the
+	// provider itself returns 403/429 or changes schema, we report no results cleanly.
+	const fallbackUrl = String(process.env.XERYUU_PINTEREST_SEARCH_API || 'https://api.siputzx.my.id/api/s/pinterest').trim();
+	if (fallbackUrl) {
+		try {
+			const response = await axios.get(fallbackUrl, {
+				params: { query: keyword }, timeout: 18000, maxContentLength: 8 * 1024 * 1024,
+				headers: { Accept: 'application/json', 'User-Agent': PINTEREST_SEARCH_UA },
+				validateStatus: () => true
+			});
+			if (response.status === 429) {
+				console.warn('[PINTEREST SEARCH FALLBACK] Provider rate limited (HTTP 429).');
+				return [];
+			}
+			if (response.status < 200 || response.status >= 300) throw new Error(`Provider HTTP ${response.status}`);
+			const fallbackResults = normalizePinterestSearchResults(response.data, keyword);
+			if (fallbackResults.length) return fallbackResults;
+			errors.push('Provider fallback tidak mengembalikan item gambar yang valid.');
+		} catch (error) {
+			errors.push(error?.message || String(error));
+			console.warn('[PINTEREST SEARCH FALLBACK]', error?.message || error);
+		}
+	}
+	if (errors.length) console.warn('[PINTEREST SEARCH EMPTY]', errors.join(' | ').slice(0, 300));
+	return [];
+}
+
+async function pinterest(query) {
+	const results = await pinterestSearch(query);
+	return results.map(item => item.images_url).filter(url => typeof url === 'string' && /^https:\/\//i.test(url));
 }
 
 async function mediafire (query) {
@@ -317,4 +355,4 @@ async function ephoto(url, texk) {
   return build_server + data.image;
 }
 
-module.exports = { pinterest, pinterest2, remini, mediafire, tiktokDl, ephoto}
+module.exports = { pinterest, pinterest2, pinterestSearch, normalizePinterestSearchResults, remini, mediafire, tiktokDl, ephoto}
