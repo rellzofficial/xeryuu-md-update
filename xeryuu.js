@@ -11,6 +11,8 @@ require('./settings');
 const fs = require('fs');
 const path = require('path');
 const projectPath = (...parts) => path.join(__dirname, ...parts);
+const persistentGroupSettings = require('./library/persistent-group-settings.js');
+const scheduledBroadcastService = require('./library/scheduled-broadcast.js');
 const reportedProjectReadErrors = new Set();
 const projectAssetCache = new Map();
 function readProjectJson(filePath, fallback) {
@@ -85,9 +87,6 @@ const { Client } = require('ssh2');
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 
-// TikTok format choices are kept in memory for a few minutes. The opaque token
-// prevents very long URLs in WhatsApp button IDs and binds each choice to the
-// chat/sender that requested it.
 const TIKTOK_DOWNLOAD_SELECTIONS = new Map();
 const TIKTOK_DOWNLOAD_SELECTION_TTL = 5 * 60 * 1000;
 const TIKTOK_DOWNLOAD_SELECTION_MAX = 250;
@@ -425,7 +424,29 @@ function isXeryuuBroadcastSocketReady(socket) {
 
 function isXeryuuBroadcastConnectionError(error) {
     const message = String(error?.message || error || '')
-    return /connection\s*closed|connection\s+is\s+closed|websocket[^\n]*closed|socket[^\n]*closed|not connected|connection lost|timed?\s*out/i.test(message)
+    return /connection\s*closed|connection\s+is\s+closed|websocket[^\n]*closed|socket[^\n]*closed|not connected|connection lost|timed?\s*out|koneksi[^\n]*tidak pulih|econnreset|econnclosed/i.test(message)
+}
+
+function isXeryuuBroadcastRateLimitError(error) {
+    const message = String(error?.message || error?.data?.message || error || '')
+    const status = Number(error?.status || error?.statusCode || error?.output?.statusCode || error?.data)
+    return status === 429 || error?.data === 429 || /rate[-_ ]?overlimit|rate[-_ ]?limit|over[-_ ]?limit|too many requests|retry[- ]?after|\b429\b|slow down/i.test(message)
+}
+
+const XERYUU_BROADCAST_RATE_LIMIT_BACKOFF_MS = [30000, 60000, 120000, 240000]
+function xeryuuBroadcastRateLimitBackoffMs(retryIndex) {
+    const index = Math.max(0, Math.min(XERYUU_BROADCAST_RATE_LIMIT_BACKOFF_MS.length - 1, Number(retryIndex) || 0))
+    return XERYUU_BROADCAST_RATE_LIMIT_BACKOFF_MS[index]
+}
+
+async function waitXeryuuBroadcastDelay(ms, state) {
+    let elapsed = 0
+    while (elapsed < ms && !state?.stopRequested) {
+        const chunk = Math.min(250, ms - elapsed)
+        await new Promise(resolve => setTimeout(resolve, chunk))
+        elapsed += chunk
+    }
+    return !state?.stopRequested
 }
 
 async function waitForXeryuuBroadcastSocket(fallbackSocket, state, options = {}) {
@@ -451,6 +472,11 @@ async function waitForXeryuuBroadcastSocket(fallbackSocket, state, options = {})
 }
 
 async function fetchXeryuuBroadcastGroups(fallbackSocket, state) {
+    // Hindari memanggil endpoint daftar grup berulang saat blacklist menu atau scheduler
+    // baru saja mengambil daftar yang sama. Cache juga membantu saat endpoint sedang rate-limit.
+    const cached = global.__xeryuuBroadcastGroupsCache
+    if (cached?.groups && Date.now() - Number(cached.fetchedAt || 0) <= 5 * 60 * 1000) return cached.groups
+
     let previousSocket = null
     let reconnectRetries = 0
     while (!state?.stopRequested) {
@@ -463,8 +489,21 @@ async function fetchXeryuuBroadcastGroups(fallbackSocket, state) {
             throw new Error('Koneksi WhatsApp tidak pulih dalam 10 menit saat menyiapkan daftar grup.')
         }
         try {
-            return await ready.socket.groupFetchAllParticipating()
+            const groups = await ready.socket.groupFetchAllParticipating()
+            if (!groups || typeof groups !== 'object' || Array.isArray(groups)) throw new Error('Respons daftar grup tidak valid.')
+            global.__xeryuuBroadcastGroupsCache = { groups, fetchedAt: Date.now() }
+            return groups
         } catch (error) {
+            if (isXeryuuBroadcastRateLimitError(error)) {
+                const latestCache = global.__xeryuuBroadcastGroupsCache
+                if (latestCache?.groups && Date.now() - Number(latestCache.fetchedAt || 0) <= 60 * 60 * 1000) {
+                    console.warn('[BROADCAST] Daftar grup kena rate-limit; memakai cache berumur maksimal 60 menit.')
+                    return latestCache.groups
+                }
+                const limited = new Error('WhatsApp sedang membatasi permintaan daftar grup (rate-overlimit). Broadcast belum dimulai; tunggu beberapa menit lalu coba lagi.')
+                limited.cause = error
+                throw limited
+            }
             if (!isXeryuuBroadcastConnectionError(error) || reconnectRetries >= 3) throw error
             reconnectRetries++
             previousSocket = ready.socket
@@ -913,7 +952,7 @@ const Kata = async (content) => {
                 serverMessageId: -1
             },
             externalAdReply: {
-                title: "Xeryuu-Md V16 × Sendrich",
+                title: "Xeryuu-Md V17 × Sendrich",
                 body: "created by: XnalzNotDev",
                 thumbnail: readProjectAsset('media/xeryuu.png'),
                 mediaType: 1,
@@ -1766,7 +1805,7 @@ const tebak = async (teks) => {
             },
             externalAdReply: {
             showAdAttribution: false,
-            title: "Xeryuu-Md V16 × Sendrich",
+            title: "Xeryuu-Md V17 × Sendrich",
             body: "created by: XnalzNotDev",
             thumbnail: readProjectAsset('media/xeryuu.png'),
             mediaType: 1,
@@ -2203,7 +2242,7 @@ const KataAudio = async (content, audioUrl = null) => {
             },
             externalAdReply: {
             showAdAttribution: false,
-            title: "Xeryuu-Md V16 × Sendrich",
+            title: "Xeryuu-Md V17 × Sendrich",
             body: "WANT TO EXCECUTOR",
             thumbnail: readProjectAsset('media/xeryuu.png'),
             mediaType: 1,
@@ -2244,7 +2283,7 @@ const audio = async (content) => {
             },
             externalAdReply: {
             showAdAttribution: false,
-            title: "Xeryuu-Md V16 × Sendrich",
+            title: "Xeryuu-Md V17 × Sendrich",
             body: "created by: XnalzNotDev",
            thumbnailUrl: "https://img2.pixhost.to/images/7473/719259099_settomodders.jpg",
             mediaType: 1,
@@ -2410,7 +2449,7 @@ const sendXeryuuMenuArtwork = async (label, imagePath = 'media/xeryuu.png') => {
             image: imageBuffer,
             caption:
                 `╔─═⪩ 『 ${title} 』\n` +
-                `║ Xeryuu-MD V16 × Sendrich\n` +
+                `║ Xeryuu-MD V17 × Sendrich\n` +
                 `║ Created by: XnalzNotDev\n` +
                 `╚─═─═─═─═─═─═⪩\n\n` +
                 `Pilih fitur dari menu yang dikirim setelah gambar ini.`
@@ -2422,7 +2461,7 @@ const sendXeryuuMenuArtwork = async (label, imagePath = 'media/xeryuu.png') => {
     }
 }
 
-const sendWaQuickReplyMenu = async ({ text, footer = 'Xeryuu-Md V16 × Sendrich • Store', buttons = [], fallbackText = '', imageBuffer = null, imageTitle = 'XERYUU-MD V16 × SENDRICH' }) => {
+const sendWaQuickReplyMenu = async ({ text, footer = 'Xeryuu-Md V17 × Sendrich • Store', buttons = [], fallbackText = '', imageBuffer = null, imageTitle = 'XERYUU-MD V17 × SENDRICH' }) => {
     const menuButtons = buttons.slice(0, 10).map(button => {
         const url = String(button?.url || '').trim()
         if (/^https:\/\//i.test(url)) {
@@ -2468,7 +2507,7 @@ const sendWaQuickReplyMenu = async ({ text, footer = 'Xeryuu-Md V16 × Sendrich 
                     interactiveMessage: proto.Message.InteractiveMessage.fromObject({
                         ...(artworkMedia?.imageMessage ? {
                             header: proto.Message.InteractiveMessage.Header.fromObject({
-                                title: String(imageTitle || 'XERYUU-MD V16 × SENDRICH').slice(0, 60),
+                                title: String(imageTitle || 'XERYUU-MD V17 × SENDRICH').slice(0, 60),
                                 hasMediaAttachment: true,
                                 ...artworkMedia
                             })
@@ -2496,7 +2535,7 @@ const sendWaQuickReplyMenu = async ({ text, footer = 'Xeryuu-Md V16 × Sendrich 
 const sendWaListMenu = async ({
     text,
     title = 'Pilih layanan',
-    footer = 'Xeryuu-Md V16 × Sendrich • Store',
+    footer = 'Xeryuu-Md V17 × Sendrich • Store',
     sections = [],
     fallbackText = '',
     artworkKey = '',
@@ -2630,13 +2669,13 @@ const sendXeryuuCategoryPicker = async (page = 1) => {
         : [{ title: selectedPage === 2 ? 'Kategori Lainnya' : 'Kategori Tambahan', rows: selectedPage === 2 ? secondCategoryRows : thirdCategoryRows }]
     const title = selectedPage === 1 ? '📂 Lihat Kategori' : selectedPage === 2 ? '📂 Kategori Lainnya' : '📂 Kategori Tambahan'
     const body = selectedPage === 1
-        ? `👋 Hai ${pushname || 'pengguna'}!\n\nSelamat datang di *Xeryuu-MD V16 × Sendrich*.\nPilih kategori untuk membuka fitur yang kamu butuhkan.`
+        ? `👋 Hai ${pushname || 'pengguna'}!\n\nSelamat datang di *Xeryuu-MD V17 × Sendrich*.\nPilih kategori untuk membuka fitur yang kamu butuhkan.`
         : `📂 *KATEGORI MENU XERYUU-MD*\n\nPilih salah satu kategori di bawah. Kamu bisa kembali ke Menu Utama dari pilihan yang tersedia.`
     const fallbackRows = sections.flatMap(section => section.rows).map(row => `• ${row.title}: ${row.id}`).join('\n')
     return sendWaListMenu({
         text: body,
         title,
-        footer: 'Xeryuu-MD V16 • Created by XnalzNotDev',
+        footer: 'Xeryuu-MD V17 • Created by XnalzNotDev',
         sections,
         artworkKey: '',
         fallbackText: `${body}\n\n${fallbackRows}`
@@ -2651,24 +2690,37 @@ let broadcastGroupCacheAt = 0
 let broadcastGroupFetchPromise = null
 let broadcastGroupRetryAt = 0
 const getBroadcastGroups = async ({ force = false } = {}) => {
+    const publishCache = () => {
+        if (broadcastGroupCache) global.__xeryuuBroadcastGroupsCache = { groups: broadcastGroupCache, fetchedAt: broadcastGroupCacheAt }
+    }
     const now = Date.now()
-    if (!force && broadcastGroupCache && now - broadcastGroupCacheAt < BROADCAST_GROUP_CACHE_TTL_MS) return broadcastGroupCache
-    if (!force && now < broadcastGroupRetryAt && broadcastGroupCache) return broadcastGroupCache
+    if (!force && broadcastGroupCache && now - broadcastGroupCacheAt < BROADCAST_GROUP_CACHE_TTL_MS) {
+        publishCache()
+        return broadcastGroupCache
+    }
+    if (!force && now < broadcastGroupRetryAt && broadcastGroupCache) {
+        publishCache()
+        return broadcastGroupCache
+    }
     if (broadcastGroupFetchPromise) return broadcastGroupFetchPromise
     broadcastGroupFetchPromise = (async () => {
         try {
-            const fetched = await conn.groupFetchAllParticipating()
-            if (!fetched || typeof fetched !== 'object') throw new Error('Respons daftar grup tidak valid')
+            const activeSocket = global.__xeryuuMainSocket || conn
+            if (!activeSocket || typeof activeSocket.groupFetchAllParticipating !== 'function') throw new Error('Koneksi WhatsApp belum siap untuk memuat daftar grup.')
+            const fetched = await activeSocket.groupFetchAllParticipating()
+            if (!fetched || typeof fetched !== 'object' || Array.isArray(fetched)) throw new Error('Respons daftar grup tidak valid')
             broadcastGroupCache = fetched
             broadcastGroupCacheAt = Date.now()
             broadcastGroupRetryAt = 0
+            publishCache()
             return fetched
         } catch (error) {
             const message = String(error?.message || error)
-            if (/rate-overlimit|rate[ -]?limit|too many requests|\b429\b/i.test(message) || error?.data === 429) {
+            if (/rate-overlimit|rate[ -]?limit|over-limit|too many requests|\b429\b/i.test(message) || error?.data === 429) {
                 broadcastGroupRetryAt = Date.now() + 60 * 1000
                 console.warn('[BROADCAST BLACKLIST] WhatsApp rate-limit; memakai cache grup yang tersedia.')
             }
+            publishCache()
             if (broadcastGroupCache) return broadcastGroupCache
             throw error
         } finally {
@@ -2690,7 +2742,7 @@ const sendBlacklistBroadcastMenu = async (requestedPage = 1, notice = '') => {
     if (!groups.length) return sendXeryuuImageReply('❌ Bot belum tergabung di grup mana pun.')
     if (!global.db.groups || typeof global.db.groups !== 'object') global.db.groups = {}
 
-    const isBlocked = (jid) => Boolean(global.db.groups?.[jid]?.blacklistjpm || global.db.chats?.[jid]?.blacklistjpm)
+    const isBlocked = (jid) => persistentGroupSettings.isGroupBlacklisted(jid, 'blacklistjpm', global.db)
     const blockedCount = groups.filter(({ jid }) => isBlocked(jid)).length
     const pageSize = 7
     const totalPages = Math.max(1, Math.ceil(groups.length / pageSize))
@@ -2749,7 +2801,7 @@ const sendBlacklistBroadcastMenu = async (requestedPage = 1, notice = '') => {
     return sendWaListMenu({
         text: detail,
         title: 'Kelola blacklist',
-        footer: 'Xeryuu-MD V16 • Blacklist Broadcast',
+        footer: 'Xeryuu-MD V17 • Blacklist Broadcast',
         sections: [{ title: `Grup • halaman ${page}/${totalPages}`.slice(0, 24), rows }],
         imageBuffer: readProjectAsset('media/xeryuu.png'),
         fallbackText
@@ -2885,7 +2937,7 @@ const sendAdzanBlacklistMenu = async (requestedPage = 1, notice = '') => {
     if (!groups.length) return sendXeryuuImageReply('❌ Bot belum tergabung di grup mana pun.')
     if (!global.db.groups || typeof global.db.groups !== 'object') global.db.groups = {}
 
-    const isBlocked = jid => global.db.groups?.[jid]?.blacklistadzan === true || global.db.chats?.[jid]?.blacklistadzan === true
+    const isBlocked = jid => persistentGroupSettings.isGroupBlacklisted(jid, 'blacklistadzan', global.db)
     const blockedCount = groups.filter(({ jid }) => isBlocked(jid)).length
     const pageSize = 7
     const totalPages = Math.max(1, Math.ceil(groups.length / pageSize))
@@ -2942,7 +2994,7 @@ const sendAdzanBlacklistMenu = async (requestedPage = 1, notice = '') => {
     return sendWaListMenu({
         text: detail,
         title: 'Kelola filter adzan',
-        footer: 'Xeryuu-MD V16 • Filter Auto Adzan',
+        footer: 'Xeryuu-MD V17 • Filter Auto Adzan',
         sections: [{ title: `Grup • halaman ${page}/${totalPages}`.slice(0, 24), rows }],
         imageBuffer: readProjectAsset('media/xeryuu.png'),
         fallbackText
@@ -3034,7 +3086,7 @@ const makeXeryuuReplyContextInfo = () => ({
         serverMessageId: -1
     },
     externalAdReply: {
-        title: 'XERYUU-MD V16',
+        title: 'XERYUU-MD V17',
         body: 'created by: XnalzNotDev',
         thumbnail: readProjectAsset('media/xeryuu.png'),
         mediaType: 1,
@@ -3142,7 +3194,7 @@ const sendTransactionControlInteractive = async ({ text, footer, buttons = [], f
                         body: proto.Message.InteractiveMessage.Body.fromObject({ text: controlText }),
                         contextInfo: makeXeryuuReplyContextInfo(),
                         footer: proto.Message.InteractiveMessage.Footer.fromObject({
-                            text: String(footer || 'Xeryuu-Md V16 × Sendrich • Transaksi')
+                            text: String(footer || 'Xeryuu-Md V17 × Sendrich • Transaksi')
                         }),
                         nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
                             buttons: nativeButtons,
@@ -3215,7 +3267,7 @@ const sendDepositInteractive = async (tx, imageBuffer, captionText) => {
     const combinedMessage = await sendTransactionControlInteractive({
         text: combinedText,
         imageBuffer,
-        footer: 'Xeryuu-Md V16 × Sendrich • Deposit QRIS',
+        footer: 'Xeryuu-Md V17 × Sendrich • Deposit QRIS',
         buttons,
         fallbackText
     })
@@ -3243,7 +3295,7 @@ const sendStoreOrderInteractive = async (order, imageBuffer, captionText) => {
     const combinedMessage = await sendTransactionControlInteractive({
         text: combinedText,
         imageBuffer,
-        footer: 'Xeryuu-Md V16 × Sendrich • Store QRIS',
+        footer: 'Xeryuu-Md V17 × Sendrich • Store QRIS',
         buttons,
         fallbackText
     })
@@ -3646,7 +3698,7 @@ const sendConvertPulsaTransaction = async tx => {
     buttons.push({ title: '💱 Menu Convert', id: `${prefix}convertpulsa` })
     return sendConvertPulsaWaQuickReplyMenu({
         text,
-        footer: 'Xeryuu-MD V16 × Sendrich • PesanJasa',
+        footer: 'Xeryuu-MD V17 × Sendrich • PesanJasa',
         buttons,
         fallbackText: `${text}\n\nCek status: ${prefix}cpstatus ${tx.ref}`
     })
@@ -7956,7 +8008,7 @@ async function getLyrics(title, artist = '', album = '', duration = 0) {
                     params,
                     timeout,
                     headers: {
-                        'User-Agent': 'Xeryuu-Md V16 fix edition (lyrics feature)'
+                        'User-Agent': 'Xeryuu-Md V17 fix edition (lyrics feature)'
                     },
                     validateStatus: status => status >= 200 && status < 500
                 })
@@ -7974,7 +8026,7 @@ async function getLyrics(title, artist = '', album = '', duration = 0) {
                     params,
                     timeout,
                     headers: {
-                        'User-Agent': 'Xeryuu-Md V16 fix edition (lyrics feature)'
+                        'User-Agent': 'Xeryuu-Md V17 fix edition (lyrics feature)'
                     },
                     validateStatus: status => status >= 200 && status < 500
                 })
@@ -8167,7 +8219,7 @@ const sendPlayFormatMenu = async (track, stored) => {
                     messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
                     interactiveMessage: proto.Message.InteractiveMessage.fromObject({
                         body: proto.Message.InteractiveMessage.Body.fromObject({ text }),
-                        footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V16 × Sendrich • Music Downloader' }),
+                        footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V17 × Sendrich • Music Downloader' }),
                         header: proto.Message.InteractiveMessage.Header.fromObject({ title: '🎧 Pilih Format Download', hasMediaAttachment: false }),
                         nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
                             buttons,
@@ -8964,7 +9016,7 @@ async function sendRichGameMenu(page = 1) {
                 messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
                 interactiveMessage: proto.Message.InteractiveMessage.fromObject({
                     body: proto.Message.InteractiveMessage.Body.fromObject({ text: bodyText }),
-                    footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V16 × Sendrich • Rich HTML Games' }),
+                    footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V17 × Sendrich • Rich HTML Games' }),
                     header: proto.Message.InteractiveMessage.Header.fromObject({ title: '🎮 Pilih Rich Game', hasMediaAttachment: false }),
                     nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
                         buttons: [{
@@ -9053,7 +9105,7 @@ async function sendPurchaseMethodMenu(intent) {
                     messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
                     interactiveMessage: proto.Message.InteractiveMessage.fromObject({
                         body: proto.Message.InteractiveMessage.Body.fromObject({ text }),
-                        footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V16 × Sendrich • Pembayaran aman' }),
+                        footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V17 × Sendrich • Pembayaran aman' }),
                         nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({ buttons, messageParamsJson: '{}' })
                     })
                 }
@@ -9120,7 +9172,7 @@ Token: ${token}`)
         const combinedMessage = await sendTransactionControlInteractive({
             text: combinedText,
             imageBuffer: image,
-            footer: 'Xeryuu-Md V16 × Sendrich • QRIS Pembelian',
+            footer: 'Xeryuu-Md V17 × Sendrich • QRIS Pembelian',
             buttons: controlButtons,
             fallbackText
         })
@@ -9216,7 +9268,7 @@ const runHd2Enhancement = async (buffer, mime, option, quoteMessage = m) => {
             await conn.sendMessage(m.chat, {
                 image: result.buffer,
                 mimetype: 'image/jpeg',
-                caption: `✨ FOTO HD ${result.scale}x\n\n✅ Foto selesai diproses\n🧠 Metode: ${result.provider}\n🔎 Detail dan ketajaman ditingkatkan\n\nXeryuu-Md V16 × Sendrich`
+                caption: `✨ FOTO HD ${result.scale}x\n\n✅ Foto selesai diproses\n🧠 Metode: ${result.provider}\n🔎 Detail dan ketajaman ditingkatkan\n\nXeryuu-Md V17 × Sendrich`
             }, { quoted: quoteMessage || m });
         } else if (/^video\//.test(mime)) {
             const resolution = String(option || '1080').toLowerCase().replace(/p$/, '');
@@ -9229,7 +9281,7 @@ const runHd2Enhancement = async (buffer, mime, option, quoteMessage = m) => {
                 video: result.buffer,
                 mimetype: 'video/mp4',
                 fileName: `Xeryuu-HD-${result.resolution}p.mp4`,
-                caption: `🎬 VIDEO HD ${result.resolution}p\n\n✅ Video selesai diproses\n🛠️ Metode: ${result.provider}\n✨ Noise dikurangi, detail dan skala ditingkatkan\n\nXeryuu-Md V16 × Sendrich`
+                caption: `🎬 VIDEO HD ${result.resolution}p\n\n✅ Video selesai diproses\n🛠️ Metode: ${result.provider}\n✨ Noise dikurangi, detail dan skala ditingkatkan\n\nXeryuu-Md V17 × Sendrich`
             }, { quoted: quoteMessage || m });
         } else {
             return replyV1('❌ Format media tidak dikenal. Balas foto atau video yang didukung.');
@@ -9783,7 +9835,7 @@ case 'storyfilm': {
             video: result.video,
             mimetype: 'video/mp4',
             fileName: `Xeryuu-StoryEdit-${Date.now()}.mp4`,
-            caption: `🎬 *XERYUU STORY EDIT*\n\n✦ Tema: ${headline}\n✦ Objek: ${safeTitle}\n✦ Lokasi: ${location || safeTitle}\n✦ Typography: ${typography || 'satz'}\n${device ? `✦ Device: ${device}\n` : ''}✦ Durasi: ${result.duration} detik\n✦ Resolusi: 720 × 1280 (vertikal)\n✦ 3 foto diperindah, perpindahan langsung tanpa fade in/out\n${song ? `✦ Lagu diminta: ${song}\n` : ''}${play ? `✦ Cue: ${play}\n` : ''}${result.audioIncluded ? (audioBuffer ? '✦ Audio: musik pilihan pengguna' : '✦ Audio: musik ambient original') : '✦ Audio: tidak tersedia; balas pesan audio dengan .storyedit untuk menambahkan musik'}\n${lyric ? `✦ Teks lirik dari pengguna: ${lyric}\n` : ''}\nDibuat otomatis oleh Xeryuu-Md V16 × Sendrich.`,
+            caption: `🎬 *XERYUU STORY EDIT*\n\n✦ Tema: ${headline}\n✦ Objek: ${safeTitle}\n✦ Lokasi: ${location || safeTitle}\n✦ Typography: ${typography || 'satz'}\n${device ? `✦ Device: ${device}\n` : ''}✦ Durasi: ${result.duration} detik\n✦ Resolusi: 720 × 1280 (vertikal)\n✦ 3 foto diperindah, perpindahan langsung tanpa fade in/out\n${song ? `✦ Lagu diminta: ${song}\n` : ''}${play ? `✦ Cue: ${play}\n` : ''}${result.audioIncluded ? (audioBuffer ? '✦ Audio: musik pilihan pengguna' : '✦ Audio: musik ambient original') : '✦ Audio: tidak tersedia; balas pesan audio dengan .storyedit untuk menambahkan musik'}\n${lyric ? `✦ Teks lirik dari pengguna: ${lyric}\n` : ''}\nDibuat otomatis oleh Xeryuu-Md V17 × Sendrich.`,
         }, { quoted: m })
     } catch (sendError) {
         console.error('[STORYEDIT SEND VIDEO]', sendError?.stack || sendError)
@@ -11744,7 +11796,7 @@ case 'me': {
             ctx.fillStyle = '#83efff'; ctx.font = '900 44px Arial'; ctx.textAlign = 'center'; ctx.fillText(name.trim().charAt(0).toUpperCase() || 'U', 129, 141)
         }
         ctx.restore(); ctx.beginPath(); ctx.arc(129, 126, 56, 0, Math.PI * 2); ctx.strokeStyle = '#33dfff'; ctx.lineWidth = 4; ctx.stroke()
-        ctx.textAlign = 'left'; ctx.fillStyle = '#70eaff'; ctx.font = '800 15px Arial'; ctx.fillText('XERYUU USER CARD  /  V16', 220, 91)
+        ctx.textAlign = 'left'; ctx.fillStyle = '#70eaff'; ctx.font = '800 15px Arial'; ctx.fillText('XERYUU USER CARD  /  V17', 220, 91)
         ctx.fillStyle = '#f4fbff'; ctx.font = '900 38px Arial'; ctx.fillText(name.slice(0, 26), 220, 138)
         ctx.fillStyle = '#9bb7cb'; ctx.font = '600 18px Arial'; ctx.fillText(`@${m.sender.split('@')[0]}`.slice(0, 38), 220, 171)
         const accent = role === 'Developer' ? '#f5c65b' : role === 'Owner' ? '#ffb46c' : role === 'Premium' ? '#b79bff' : '#53dfb5'
@@ -13661,7 +13713,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
                     footer: {
                         text: `
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -13669,7 +13721,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
 > 彡 *Feature* » Multy&Bug 🌟
 ╚─═─═─═─═─═─═─═─═─═⪩
 
-\`🤖 AI & CHAT\`
+\`🤖 乂 𝐚 𝐢 & 𝐜 𝐡 𝐚 𝐭 乂\`
  ⪩ .autorespesan *<on/off>*
  ⪩ .xnalzAirespon *<on/off>*
  ⪩ .ttsanime *<text>*
@@ -13678,13 +13730,13 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .xnalz *<pertanyaan>*
  ⪩ .google *<google search>*
 
-\`🎵 TIKTOK\`
+\`🎵 乂 𝐭 𝐢 𝐤 𝐭 𝐨 𝐤 乂\`
  ⪩ .tiktokslide *<tiktok photo>*
  ⪩ .tiktok *<link tiktok>*
  ⪩ .tiktokmp3 *<link tiktok>*
  ⪩ .tiktokptv 
 
-\`📱 SOCIAL MEDIA\`
+\`📱 乂 𝐬 𝐨 𝐜 𝐢 𝐚 𝐥 - 𝐦 𝐞 𝐝 𝐢 𝐚 乂\`
  ⪩ .facebook *<link fb>*
  ⪩ .Instagram *<link ig>*
  ⪩ .twitter *<link twitter>*
@@ -13697,7 +13749,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .tumblr *<link/url>*
  ⪩ .bluesky *<link/url>*
 
-\`🎬 VIDEO PLATFORM\`
+\`🎬 乂 𝐯 𝐢 𝐝 𝐞 𝐨 - 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 乂\`
  ⪩ .capcut *<link capcut>*
  ⪩ .espn *<link/url>*
  ⪩ .dailymotion *<link/url>*
@@ -13705,7 +13757,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .blibli *<link/url>*
  ⪩ .sina *<link/url>*
 
-\`🎵 MUSIC\`
+\`🎵 乂 𝐦 𝐮 𝐬 𝐢 𝐜 乂\`
  ⪩ .spotify *<link/url>*
  ⪩ .rspotify *<link/url/query>* 
  ⪩ .applesearch *<judul/title>*
@@ -13721,12 +13773,12 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .soundcloud *<link/url>*
  ⪩ .mixcloud *<link/url>*
 
-\`📌 LAINNYA\`
+\`📌 乂 𝐥 𝐚 𝐢 𝐧 𝐧 𝐲 𝐚 乂\`
  ⪩ .pin *<query> [jumlah]* 
  ⪩ .mediafire *>link MediaFire>*
  ⪩ *[.downloadmenu untuk lainnya]*
 
-\`🖼️ STICKER & CONVERT\`
+\`🖼️ 乂 𝐬 𝐭 𝐢 𝐜 𝐤 𝐞 𝐫 & 𝐜 𝐨 𝐧 𝐯 𝐞 𝐫 𝐭 乂\`
  ⪩ .toimg *<convert stiker>*
  ⪩ .tgsticker *<telegram sticker>*
  ⪩ .sticker *<reply media>*
@@ -13736,19 +13788,19 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .take *<get wm stk>*
  ⪩ .smeme *<reply gambar>*
 
-\`✍️ TEXT STYLE\`
+\`✍️ 乂 𝐭 𝐞 𝐱 𝐭 - 𝐬 𝐭 𝐲 𝐥 𝐞 乂\`
  ⪩ .iqccustom *<iphone quote>*
  ⪩ .iqc *<iphone quote>*
  ⪩ .bratjalan *<text jalan>*
  ⪩ .brat *<text>*
  ⪩ .bratvid *<text>*
 
-\`💬 QUOTE & SEARCH\`
+\`💬 乂 𝐪 𝐮 𝐨 𝐭 𝐞 & 𝐬 𝐞 𝐚 𝐫 𝐜 𝐡 乂\`
  ⪩ .createquote *<quote custom>*
  ⪩ .qc *<quick chat>*
  ⪩ .searchsticker
 
-\`📱 MESSAGE & GROUP\`
+\`📱 乂 𝐦 𝐞 𝐬 𝐬 𝐚 𝐠 𝐞 & 𝐠 𝐫 𝐨 𝐮 𝐩 乂\`
  ⪩ .swgrup2 *<via id>*
  ⪩ .delswgc 
  ⪩ .swgc *<upswgc>*
@@ -13761,7 +13813,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .tag *<spam tag user>*
  ⪩ .totag *<pesan>*
 
-\`🎞️ MEDIA\`
+\`🎞️ 乂 𝐦 𝐞 𝐝 𝐢 𝐚 乂\`
  ⪩ .tomedia
  ⪩ .anon *<anonymous chat>*
  ⪩ .polling *<custom polling>*
@@ -13779,11 +13831,11 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .xeryuubrat <teks>
  ⪩ .bratbahlil <teks>
 
-\`🔗 LINK & UTILITY\`
+\`🔗 乂 𝐥 𝐢 𝐧 𝐤 & 𝐮 𝐭 𝐢 𝐥 𝐢 𝐭 𝐲 乂\`
  ⪩ .translate *<penerjemah>*
  ⪩ .conves 
  ⪩ .getlinkgc *<didalam group>*
- ⪩ .upch *id saluran/recomend>*
+ ⪩ .upch *<id saluran/recomend>*
  ⪩ .upch2 *<disettings dulu>*
  ⪩ .tourl *<Catbox + penyedia cadangan>*
  ⪩ .tourl2 *<Pixhost> + Rich Preview*
@@ -13791,16 +13843,31 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .readmore *<teks>*
  ⪩ .idtolink *<konversi>*
 
-\`🌤️ INFORMATION\`
- ⪩ .cekcuaca *<kota>*
- ⪩ .cekjarak
- ⪩ .fact *<random facts>*
- ⪩ .fakta *<fakta random>*
- ⪩ .motivasi *<random>*
- ⪩ .dongeng *<random>*
- ⪩ .cekgempa *<funmenu>*
+\`🌤️ 乂 𝐠 𝐚 𝐦 𝐞 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .tebakanml
+ ⪩ .tebakgame
+ ⪩ .tebaklogo
+ ⪩ .tebaksurah
+ ⪩ .blackjack
+ ⪩ .tebakkata
+ ⪩ .tebaktebakan
+ ⪩ .tebaklirik
+ ⪩ .tebakgambar
+ ⪩ .tebaklagu
+ ⪩ .tebakkimia
+ ⪩ .asahotak
+ ⪩ .siapaaku
+ ⪩ .susunkata
+ ⪩ .tekateki
+ ⪩ .tebakbendera
+ ⪩ .tebakbenderav2
+ ⪩ .tebakkabupaten
+ ⪩ .caklontong
+ ⪩ .family100
+ ⪩ .werewolf
+ ⪩ .nyerah
 
-\`🎭 FUN & SEARCH\`
+\`🎭 乂 𝐟 𝐮 𝐧 & 𝐬 𝐞 𝐚 𝐫 𝐜 𝐡 乂\`
  ⪩ .roasting *number*
  ⪩ .cogan *<search>*
  ⪩ .cecan *<search>*
@@ -13812,7 +13879,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .cekwaras *<funmenu>*
  ⪩ .jodoh *<funmenu>*
 
-\`🎨 IMAGE & BOT\`
+\`🎨 乂 𝐢 𝐦 𝐚 𝐠 𝐞 & 𝐛 𝐨 𝐭 乂\`
  ⪩ .quoteimg *<image+quote>*
  ⪩ .balogo *<bikin logo>*
  ⪩ .animefind *<reply foto>*
@@ -13827,7 +13894,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .qris *<payment>*
  ⪩ .donasi *<support developer>*
 
-\`🛡️ ANTI & SECURITY\`
+\`🛡️ 乂 𝐚 𝐧 𝐭 𝐢 & 𝐬 𝐞 𝐜 𝐮 𝐫 𝐢 𝐭 𝐲 乂\`
  ⪩ .antilinkall *<on/off>*
  ⪩ .antilinkch *<on/off>*
  ⪩ .antilinkig *<on/off>*
@@ -13843,7 +13910,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .antibot *<on/off>*
  ⪩ .ban *<tag/reply user>*
 
-\`👥 MEMBER & ADMIN\`
+\`👥 乂 𝐦 𝐞 𝐦 𝐛 𝐞 𝐫 & 𝐚 𝐝 𝐦 𝐢 𝐧 乂\`
  ⪩ .setppgc *<change pp grup>*
  ⪩ .cekjawa *<nama>*
  ⪩ .cekcantik *<nama>*
@@ -13866,7 +13933,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .pinpesan *<reply pesan>*
  ⪩ .unpin *<reply pesan>*
 
-\`🔒 GROUP CONTROL\`
+\`🔒 乂 𝐠 𝐫 𝐨 𝐮 𝐩 - 𝐜 𝐨 𝐧 𝐭 𝐫 𝐨 𝐥 乂\`
  ⪩ .open *<buka group>*
  ⪩ .close *<tutup group>*
  ⪩ .closetime *<waktu tutup>*
@@ -13891,7 +13958,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .unblacklist *<tag @user>*
  ⪩ .blacklist *<tag @user>*
 
-\`📢 TAG & LIST\`
+\`📢 乂 𝐭 𝐚 𝐠 & 𝐥 𝐢 𝐬 𝐭 乂\`
  ⪩ .hidetag *<sebut anggota>*
  ⪩ .tagall 
  ⪩ .totag *<pesan + mention>*
@@ -13901,19 +13968,19 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .addlist *<tambah list>*
  ⪩ .dellist *<hapus list>*
 
-\`⚔️ ACTION & FUN\`
+\`⚔️ 乂 𝐚 𝐜 𝐭 𝐢 𝐨 𝐧 & 𝐟 𝐮 𝐧 乂\`
  ⪩ .kudeta *<kick semua member>*
  ⪩ .couple *<funmenu group>*
  ⪩ .roastmem *<roasting member>*
  ⪩ .warcall *<judul panggilan>*
  ⪩ .setprefix *<prefix>*
 
-\`🛒 STORE\`
+\`🛒 乂 𝐬 𝐭 𝐨 𝐫 𝐞 乂\`
  ⪩ .listproduk *<setting.js>*
  ⪩ .proses *<store>*
  ⪩ .done *<store>*
 
-\`📢 CHANNEL JPM\`
+\`📢 乂 𝐜 𝐡 𝐚 𝐧 𝐧 𝐞 𝐥 - 𝐣 𝐩 𝐦 乂\`
  ⪩ .cekidch *<link saluran>*
  ⪩ .addidch *<link saluran jpm>*
  ⪩ .delidch 
@@ -13922,7 +13989,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .jpm2 *<jpm video>*
  ⪩ .jpm3 *<jpm foto>*
 
-\`📣 BROADCAST GRUP\`
+\`📣 乂 𝐛 𝐫 𝐨 𝐚 𝐝 𝐜 𝐚 𝐬 𝐭 - 𝐠 𝐫 𝐮 𝐩 乂\`
  ⪩ .broadcast *<jumlah> <pesan>* 
  ⪩ .broadcast *<pesan>*
  ⪩ .stopbroadcast 
@@ -13930,11 +13997,11 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .blacklistbroadcast 
  ⪩ .blacklistadzan 
 
-\`👥 KONTAK\`
+\`👥 乂 𝐤 𝐨 𝐧 𝐭 𝐚 𝐤 乂\`
  ⪩ .savekontak *<savekontak group>*
  ⪩ .pushkontak 
 
-\`🎮 TOP UP GAME\`
+\`🎮 乂 𝐭 𝐨 𝐩 - 𝐮 𝐩 - 𝐠 𝐚 𝐦 𝐞 乂\`
  ⪩ .topup *<menu top up>*
  ⪩ .ff *<ID> <nominal>*
  ⪩ .ml *<ID> <server> <nominal>*
@@ -13944,14 +14011,14 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .topupstatus *<ref transaksi>*
  ⪩ .cekstatus *<ref transaksi>*
 
-\`💳 DEPOSIT QRIS\`
+\`💳 乂 𝐝 𝐞 𝐩 𝐨 𝐬 𝐢 𝐭 - 𝐪 𝐫 𝐢 𝐬 乂\`
  ⪩ .deposit *<jumlah>*
  ⪩ .depo *<jumlah>*
  ⪩ .depositstatus *<ref deposit>*
  ⪩ .cekdeposit *<ref deposit>*
  ⪩ .depositcancel *<ref deposit>*
 
-\`📱 NOKOS OTP\`
+\`📱 乂 𝐧 𝐨 𝐤 𝐨 𝐬 - 𝐨 𝐭 𝐩 乂\`
  ⪩ .nokos *<menu nokos>*
  ⪩ .nokosorder *<service> <country>*
  ⪩ .nokosprice *<service> <country>*
@@ -13959,14 +14026,14 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .nokosstatus *<ref order>*
  ⪩ .nokoscancel *<ref order>*
 
-\`🛒 PANEL / SEWA BOT\`
+\`🛒 乂 𝐩 𝐚 𝐧 𝐞 𝐥 / 𝐬 𝐞 𝐰 𝐚 - 𝐛 𝐨 𝐭 乂\`
  ⪩ .listproduk *<daftar produk>*
  ⪩ .belistore *<kode produk>*
  ⪩ .orderstatus *<ref order>*
  ⪩ .ordercancel *<ref order>*
  ⪩ .ceksewa *<status sewa>*
 
-\`🌐 WEBSITE PROJECT\`
+\`🌐 乂 𝐰 𝐞 𝐛 𝐬 𝐢 𝐭 𝐞 - 𝐩 𝐫 𝐨 𝐣 𝐞 𝐜 𝐭 乂\`
  ⪩ .gethtml *<link/domain>*
  ⪩ .enchtml *<lock html>*
  ⪩ .deployweb *<reply html/zip>*
@@ -13976,7 +14043,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .infoweb *<info project>*
  ⪩ .cekweb *<cek project>*
 
-\`🛠️ FILE & CODE\`
+\`🛠️ 乂 𝐟 𝐢 𝐥 𝐞 & 𝐜 𝐨 𝐝 𝐞 乂\`
  ⪩ .gethtml *<link/domain>*
  ⪩ .addcase2 *<reply case>*
  ⪩ .addcase *<add fitur>*
@@ -13984,13 +14051,13 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .getcode *<message>*
  ⪩ .tobase64 *<text>*
 
-\`🎵 AUDIO & MEDIA\`
+\`🎵 乂 𝐚 𝐮 𝐝 𝐢 𝐨 & 𝐦 𝐞 𝐝 𝐢 𝐚 乂\`
  ⪩ .toaudio *<mp4 to mp3>*
  ⪩ .mp4toaudio *<mp4 to mp3>*
  ⪩ .audiotourl *<mp3 url>*
  ⪩ .toptv 
 
-\`🔎 SEARCH & INFO\`
+\`🔎 乂 𝐬 𝐞 𝐚 𝐫 𝐜 𝐡 & 𝐢 𝐧 𝐟 𝐨 乂\`
  ⪩ .cekcuaca *<kota>*
  ⪩ .swdl *<ambilsw>*
  ⪩ .getpp *<ambil profil user>*
@@ -14000,7 +14067,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .school-track
  ⪩ .nik-information *<nik>*
 
-\`🖥️ PANEL\`
+\`🖥️ 乂 𝐩 𝐚 𝐧 𝐞 𝐥 乂\`
  ⪩ .Cpanel
  ⪩ .Cadmin
  ⪩ .Lispanel
@@ -14013,7 +14080,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .Delpanel-v2
  ⪩ .Deladmin-v2
 
-\`💻 CASE & DEVELOPER\`
+\`💻 乂 𝐜 𝐚 𝐬 𝐞 & 𝐝 𝐞 𝐯 𝐞 𝐥 𝐨 𝐩 𝐞 𝐫 乂\`
  ⪩ .gethtml *<link/domain>*
  ⪩ .Getcase *<ambil case>*
  ⪩ .Addcase2 *<reply case>*
@@ -14022,7 +14089,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .Panduan *<information>*
  ⪩ .totalgc *<totalgc bot>*
 
-\`⚙️ BOT MODE\`
+\`⚙️ 乂 𝐛 𝐨 𝐭 - 𝐦 𝐨 𝐝 𝐞 乂\`
  ⪩ .Public *<publik mode>*
  ⪩ .Self *<pribadi mode>*
  ⪩ .anticall *<on/off>*
@@ -14034,7 +14101,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .owneroffmode *<on/off>*
  ⪩ .maintenance *<on/off/status>*
 
-\`👑 OWNER & SELLER\`
+\`👑 乂 𝐨 𝐰 𝐧 𝐞 𝐫 & 𝐬 𝐞 𝐥 𝐥 𝐞 𝐫 乂\`
  ⪩ .Addowner 
  ⪩ .DelOwner
  ⪩ .Listowner
@@ -14042,7 +14109,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .Delseller
  ⪩ .Listseller
 
-\`🔧 SYSTEM\`
+\`🔧 乂 𝐬 𝐲 𝐬 𝐭 𝐞 𝐦 乂\`
  ⪩ .Restart 
  ⪩ .Ping
  ⪩ .Clearchat
@@ -14051,7 +14118,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .cekerror (owner)
  ⪩ .terminal (owner)
 
-\`🧠 TEBAK & QUIS\`
+\`🧠 乂 𝐭 𝐞 𝐛 𝐚 𝐤 & 𝐪 𝐮 𝐢 𝐬 乂\`
  ⪩ .tebakkata
  ⪩ .asahotak
  ⪩ .susunkata
@@ -14064,12 +14131,12 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .siapaaku
  ⪩ .cepattepat
 
-\`⚔️ PVP\`
+\`⚔️ 乂 𝐩 𝐯 𝐩 乂\`
  ⪩ .ttt *<PvP @user>*
  ⪩ .suit *<PvP @user>*
  ⪩ .connect4 *<PvP @user>*
 
-\`🎲 MINI GAME\`
+\`🎲 乂 𝐦 𝐢 𝐧 𝐢 - 𝐠 𝐚 𝐦 𝐞 乂\`
  ⪩ .tebakangka *<angka 1-100>*
  ⪩ .dadu *<sisi> <jumlah>*
  ⪩ .highlow *<high/low>*
@@ -14077,19 +14144,19 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .speedtype *<jawaban>*
  ⪩ .mathbattle *<jawaban>*
  
-\`🎰 JUDI\` 
+\`🎰 乂 𝐣 𝐮 𝐝 𝐢 乂\` 
  ⪩ .judi <jumlah
  ⪩ .judipvp @user <jumlah>
  ⪩ .terimajudi
  ⪩ .tolakjudi
  ⪩ .judistats
 
-\`🏆 STATISTIK\`
+\`🏆 乂 𝐬 𝐭 𝐚 𝐭 𝐢 𝐬 𝐭 𝐢 𝐤 乂\`
  ⪩ .gamestats *<statistikmu>*
  ⪩ .gamerank *<ranking>*
  ⪩ .gamehelp *<panduan>*
  
-\`💰 ECONOMY\`
+\`💰 乂 𝐞 𝐜 𝐨 𝐧 𝐨 𝐦 𝐲 乂\`
  ⪩ .me *<kartu profil> *
  ⪩ .profile
  ⪩ .saldo
@@ -14110,14 +14177,14 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .berburu
  ⪩ .rest
 
-\`🛒 SHOP & INVENTORY\`
+\`🛒 乂 𝐬 𝐡 𝐨 𝐩 & 𝐢 𝐧 𝐯 𝐞 𝐧 𝐭 𝐨 𝐫 𝐲 乂\`
  ⪩ .shop
  ⪩ .buy <item> <jumlah>
  ⪩ .sell <item> <jumlah>
  ⪩ .inventory
  ⪩ .use <item>
 
-\`🌾 FARM & BUSINESS\`
+\`🌾 乂 𝐟 𝐚 𝐫 𝐦 & 𝐛 𝐮 𝐬 𝐢 𝐧 𝐞 𝐬 𝐬 乂\`
  ⪩ .farm
  ⪩ .tanam <jumlah>
  ⪩ .panen
@@ -14125,24 +14192,24 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .belibisnis <type>
  ⪩ .claimbisnis
 
-\`🎯 MISSION & ACHIEVEMENT\`
+\`🎯 乂 𝐦 𝐢 𝐬 𝐬 𝐢 𝐨 𝐧 & 𝐚 𝐜 𝐡 𝐢 𝐞 𝐯 𝐞 𝐦 𝐞 𝐧 𝐭 乂\`
  ⪩ .misi
  ⪩ .claimmisi
  ⪩ .achievement
  ⪩ .leaderboard
 
-\`💳 HUTANG\`
+\`💳 乂 𝐡 𝐮 𝐭 𝐚 𝐧 𝐠 乂\`
  ⪩ .pinjam <jumlah>
  ⪩ .bayarhutang <jumlah>
 
-\`⚔️ ADVENTURE & COMBAT\`
+\`⚔️ 乂 𝐚 𝐝 𝐯 𝐞 𝐧 𝐭 𝐮 𝐫 𝐞 & 𝐜 𝐨 𝐦 𝐛 𝐚 𝐭 乂\`
  ⪩ .adventure
  ⪩ .berburu
  ⪩ .merampok
  ⪩ .werewolf
  ⪩ .repair
 
-\`💰 ECONOMY\`
+\`💰 乂 𝐞 𝐜 𝐨 𝐧 𝐨 𝐦 𝐲 乂\`
  ⪩ .beli
  ⪩ .bank
  ⪩ .shop
@@ -14152,7 +14219,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .transfer
  ⪩ .dompet
 
-\`🎒 CHARACTER\`
+\`🎒 乂 𝐜 𝐡 𝐚 𝐫 𝐚 𝐜 𝐭 𝐞 𝐫 乂\`
  ⪩ .crafting
  ⪩ .heal
  ⪩ .inventory
@@ -14162,7 +14229,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .tidur
  ⪩ .mengaji
 
-\`🌱 ACTIVITY\`
+\`🌱 乂 𝐚 𝐜 𝐭 𝐢 𝐯 𝐢 𝐭 𝐲 乂\`
  ⪩ .nyampah
  ⪩ .memancing
  ⪩ .mining
@@ -14173,17 +14240,76 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .yearly
  ⪩ .ngojek
 
-\`🚀 SPECIAL\`
+\`🚀 乂 𝐬 𝐩 𝐞 𝐜 𝐢 𝐚 𝐥 乂\`
  ⪩ .polisi
  ⪩ .roket
  ⪩ .wikwik (dinonaktifkan)
- ⪩ .ewe-paksa
+ ⪩ .ewe-paksa (dinonaktifkan)
  ⪩ .open-bo (dinonaktifkan)
  ⪩ .joinrpg
  ⪩ .exitrpg
  ⪩ .atmall
+ 
+\`乂 𝐫 𝐩 𝐠 - 𝐦 𝐞 𝐧 𝐮 乂\`
 
-\`🔮 RAMALAN\`
+ ⪩ .kerja
+ ⪩ .fightnaga
+ ⪩ .fightkucing
+ ⪩ .fightphonix
+ ⪩ .fightgriffin
+ ⪩ .fightkyubi
+ ⪩ .fightcentaur
+ ⪩ .nabung
+ ⪩ .mining
+ ⪩ .bankcek
+ ⪩ .maling
+ ⪩ .banknabung
+ ⪩ .banktarik
+ ⪩ .berkebon
+ ⪩ .crafting
+ ⪩ .bet
+ ⪩ .bonus
+ ⪩ .buah
+ ⪩ .nebang
+ ⪩ .bekerja
+ ⪩ .bansos
+ ⪩ .taxy
+ ⪩ .mulung
+ ⪩ .berburu
+ ⪩ .polisi
+ ⪩ .berdagang
+ ⪩ .rampok
+ ⪩ .bunuh
+ ⪩ .collect
+ ⪩ .mancing
+ ⪩ .repair
+ ⪩ .feed
+ ⪩ .fight
+ ⪩ .gajian
+ ⪩ .upgrade
+ ⪩ .transfer
+ ⪩ .shop
+ ⪩ .selectskill
+ ⪩ .sampah
+ ⪩ .roket
+ ⪩ .ojek
+ ⪩ .nguli
+ ⪩ .pasar
+ ⪩ .rob
+ ⪩ .referal
+ ⪩ .petshop
+ ⪩ .kolam
+ ⪩ .koboy
+ ⪩ .leaderboard
+ ⪩ .casino
+ ⪩ .ewe-paksa
+ ⪩ .duel
+ ⪩ .petualang
+ ⪩ .perangsarung
+ ⪩ .ulartangga
+ ⪩ .slot
+
+\`🔮 乂 𝐫 𝐚 𝐦 𝐚 𝐥 𝐚 𝐧 乂\`
  ⪩ .artinama
  ⪩ .artimimpi
  ⪩ .ramaljodoh
@@ -14194,7 +14320,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .suamiistri
  ⪩ .jadiannikah
 
-\`💼 NASIB & KEHIDUPAN\`
+\`💼 乂 𝐧 𝐚 𝐬 𝐢 𝐛 & 𝐤 𝐞 𝐡 𝐢 𝐝 𝐮 𝐩 𝐚 𝐧 乂\`
  ⪩ .sifatusaha
  ⪩ .rezeki
  ⪩ .pekerjaan
@@ -14203,7 +14329,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .keberuntungan
  ⪩ .peruntungan
  
- \`🪬 TRADISI\`
+ \`🪬 乂 𝐭 𝐫 𝐚 𝐝 𝐢 𝐬 𝐢 乂\`
  ⪩ .tarot
  ⪩ .fengshui
  ⪩ .haribaik
@@ -14218,7 +14344,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .zodiak
  ⪩ .shio
 
-\`🎨 BASIC EDITING\`
+\`🎨 乂 𝐛 𝐚 𝐬 𝐢 𝐜 - 𝐞 𝐝 𝐢 𝐭 𝐢 𝐧 𝐠 乂\`
  ⪩ .putihkan
  ⪩ .hitamkan
  ⪩ .edit
@@ -14226,7 +14352,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .tovintage 
  ⪩ .toanime
 
-\`👤 FACE & STYLE\`
+\`👤 乂 𝐟 𝐚 𝐜 𝐞 & 𝐬 𝐭 𝐲 𝐥 𝐞 乂\`
  ⪩ .tobersama
  ⪩ .toblonde
  ⪩ .tobotak
@@ -14237,7 +14363,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .tochibi
  ⪩ .tokacamata
  
-\`🧩 ART & CHARACTER\`
+\`🧩 乂 𝐚 𝐫 𝐭 & 𝐜 𝐡 𝐚 𝐫 𝐚 𝐜 𝐭 𝐞 𝐫 乂\`
  ⪩ .tofigura
  ⪩ .tovigurav2
  ⪩ .tofigurav3
@@ -14249,14 +14375,14 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .tomoai
  ⪩ .toreal
 
-\`✨ EFFECT\`
+\`✨ 乂 𝐞 𝐟 𝐟 𝐞 𝐜 𝐭 乂\`
  ⪩ .tosdmtinggi
  ⪩ .tosatan
  ⪩ .tosad
  ⪩ .tosexy
  ⪩ .tobugil
 
-\`🔎 SOCIAL STALK\`
+\`🔎 乂 𝐬 𝐨 𝐜 𝐢 𝐚 𝐥 - 𝐬 𝐭 𝐚 𝐥 𝐤 乂\`
  ⪩ .stalkig 
  ⪩ .stalktt
  ⪩ .stalktele
@@ -14264,7 +14390,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .stalkroblox
  ⪩ .stalkml
 
-\`📰 NEWS\`
+\`📰 乂 𝐧 𝐞 𝐰 𝐬 乂\`
  ⪩ .antara
  ⪩ .cnbc
  ⪩ .cnn
@@ -14273,7 +14399,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .sindonews
  ⪩ .suara
 
-\`✍️ TEXT EFFECT\`
+\`✍️ 乂 𝐭 𝐞 𝐱 𝐭 - 𝐞 𝐟 𝐟 𝐞 𝐜 𝐭 乂\`
  ⪩ .glitchtext
  ⪩ .writetext
  ⪩ .advancedglow
@@ -14287,7 +14413,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .underwatertext
  ⪩ .gradienttext
 
-\`🎀 LOGO & STYLE\`
+\`🎀 乂 𝐥 𝐨 𝐠 𝐨 & 𝐬 𝐭 𝐲 𝐥 𝐞 乂\`
  ⪩ .blackpinkstyle
  ⪩ .blackpinklogo
  ⪩ .logomaker
@@ -14296,7 +14422,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .watercolortext
  ⪩ .effectclouds
 
-\`🌌 WALLPAPER & SPECIAL\`
+\`🌌 乂 𝐰 𝐚 𝐥 𝐥 𝐩 𝐚 𝐩 𝐞 𝐫 & 𝐬 𝐩 𝐞 𝐜 𝐢 𝐚 𝐥 乂\`
  ⪩ .summerbeach
  ⪩ .luxurygold
  ⪩ .multicoloyellowneon
@@ -14309,23 +14435,23 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .galaxystyle
  ⪩ .lighteffects
 
-\`🕌 IBADAH\`
+\`🕌 乂 𝐢 𝐛 𝐚 𝐝 𝐚 𝐡 乂\`
  ⪩ .jadwalsholat
  ⪩ .niatsholat
  ⪩ .surah
  ⪩ .berdoa
  ⪩ .ayatkursi
 
-\`📖 AL-QURAN\`
+\`📖 乂 𝐚 𝐥 - 𝐪 𝐮 𝐫 𝐚 𝐧 乂\`
  ⪩ .alquran
  ⪩ .asmaulhusna
  ⪩ .gislam
 
-\`☪️ ISLAMIC CONTENT\`
+\`☪️ 乂 𝐢 𝐬 𝐥 𝐚 𝐦 𝐢 𝐜 - 𝐜 𝐨 𝐧 𝐭 𝐞 𝐧 𝐭 乂\`
  ⪩ .kataislam
  ⪩ .pantunislam
 
-\`💭 QUOTES\`
+\`💭 乂 𝐪 𝐮 𝐨 𝐭 𝐞 𝐬 乂\`
  ⪩ .faktaunik
  ⪩ .katailham
  ⪩ .katasenja
@@ -14338,7 +14464,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .quotesdilan
  ⪩ .quotesislamic
 
-\`🎵 AUDIO EFFECT\`
+\`🎵 乂 𝐚 𝐮 𝐝 𝐢 𝐨 - 𝐞 𝐟 𝐟 𝐞 𝐜 𝐭 乂\`
  ⪩ .bass
  ⪩ .blown
  ⪩ .deep
@@ -14352,7 +14478,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .smooth
  ⪩ .tupai
 
-\`🎲 RANDOM\`
+\`🎲 乂 𝐫 𝐚 𝐧 𝐝 𝐨 𝐦 乂\`
  ⪩ .apakah
  ⪩ .bisakah
  ⪩ .kapankah
@@ -14372,7 +14498,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .rate
  ⪩ .top
 
-\`💘 RELATIONSHIP\`
+\`💘 乂 𝐫 𝐞 𝐥 𝐚 𝐭 𝐢 𝐨 𝐧 𝐬 𝐡 𝐢 𝐩 乂\`
  ⪩ .cekganteng
  ⪩ .cekcantik
  ⪩ .cekgay
@@ -14385,7 +14511,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .putus
  ⪩ .cekpasangan
 
-\`😂 FUN WORDS\`
+\`😂 乂 𝐟 𝐮 𝐧 - 𝐰 𝐨 𝐫 𝐝 𝐬 乂\`
  ⪩ .bego
  ⪩ .goblok
  ⪩ .janda
@@ -14429,7 +14555,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .yatim
  ⪩ .piatu
 
- \`🎨 CREATIVE\`
+ \`🎨 乂 𝐜 𝐫 𝐞 𝐚 𝐭 𝐢 𝐯 𝐞 乂\`
  ⪩ .animegirl
  ⪩ .carbonify
  ⪩ .fakecall
@@ -14443,7 +14569,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .fakestory *<reply foto + username|caption>*
 
 
- \`HOW TO USE\` 
+ \`乂 𝐡 𝐨 𝐰 - 𝐭 𝐨 - 𝐮 𝐬 𝐞 乂\` 
  ⪩ .allmenu     < show all fitur >
  ⪩ .bugmenu   < show fitur bug >
  ⪩ .request     < show and req>
@@ -14452,22 +14578,22 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .owner  < contact wa dev >
  ⪩ .developer   < creator script >
 
- \`POPULAR MENU\` 
+ \`乂 𝐩 𝐨 𝐩 𝐮 𝐥 𝐚 𝐫 - 𝐦 𝐞 𝐧 𝐮 乂\` 
  ⪩ .polling *<custom polling>*
  ⪩ .bugmenu   < main script >
  ⪩ .addcase   <  add fitur >
  ⪩ .upch   < upedia ke ch >
  ⪩ .swdl    < status downloader >
  ⪩ .swgrup   < up story in group >
- ⪩ .delswgc < hapus sw grup >
+ ⪩ .delswgc < hapus sw grup terakhir >
  ⪩ .sticker  < img to sticker >
- ⪩ .brat   < text to sticker >
- ⪩ .getpp    < get pp user >
+ ⪩ .brat    < text to sticker >
+ ⪩ .getpp     < get pp user >
  ⪩ .payment  < setting payment >
  ⪩ .ytmp3   < dl audio youtube >
  ⪩ .tagall  < mention all user gb >
- ⪩ .play     < search youtube >
- ⪩ .music    < search/download music >
+ ⪩ .play      < search youtube >
+ ⪩ .music     < search/download music >
  ⪩ .spsearch  < search Spotify >
  ⪩ .spdl      < download Spotify >
  ⪩ .play2     < Rich music player >
@@ -14696,7 +14822,7 @@ text: menu
 footer: {
 text: `
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -14704,7 +14830,7 @@ text: `
 > 彡 *Feature* » Multy&Bug 🌟
 ╚─═─═─═─═─═─═─═─═─═⪩
 
-\`🤖 AI & CHAT\`
+\`🤖 乂 𝐚 𝐢 & 𝐜 𝐡 𝐚 𝐭 乂\`
  ⪩ .autorespesan *<on/off>*
  ⪩ .xnalzAirespon *<on/off>*
  ⪩ .ttsanime *<text>*
@@ -14713,13 +14839,13 @@ text: `
  ⪩ .xnalz *<pertanyaan>*
  ⪩ .google *<google search>*
 
-\`🎵 TIKTOK\`
+\`🎵 乂 𝐭 𝐢 𝐤 𝐭 𝐨 𝐤 乂\`
  ⪩ .tiktokslide *<tiktok photo>*
  ⪩ .tiktok *<link tiktok>*
  ⪩ .tiktokmp3 *<link tiktok>*
  ⪩ .tiktokptv 
 
-\`📱 SOCIAL MEDIA\`
+\`📱 乂 𝐬 𝐨 𝐜 𝐢 𝐚 𝐥 - 𝐦 𝐞 𝐝 𝐢 𝐚 乂\`
  ⪩ .facebook *<link fb>*
  ⪩ .Instagram *<link ig>*
  ⪩ .twitter *<link twitter>*
@@ -14732,7 +14858,7 @@ text: `
  ⪩ .tumblr *<link/url>*
  ⪩ .bluesky *<link/url>*
 
-\`🎬 VIDEO PLATFORM\`
+\`🎬 乂 𝐯 𝐢 𝐝 𝐞 𝐨 - 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 乂\`
  ⪩ .capcut *<link capcut>*
  ⪩ .espn *<link/url>*
  ⪩ .dailymotion *<link/url>*
@@ -14740,7 +14866,7 @@ text: `
  ⪩ .blibli *<link/url>*
  ⪩ .sina *<link/url>*
 
-\`🎵 MUSIC\`
+\`🎵 乂 𝐦 𝐮 𝐬 𝐢 𝐜 乂\`
  ⪩ .spotify *<link/url>*
  ⪩ .rspotify *<link/url/query>* 
  ⪩ .applesearch *<judul/title>*
@@ -14756,12 +14882,12 @@ text: `
  ⪩ .soundcloud *<link/url>*
  ⪩ .mixcloud *<link/url>*
 
-\`📌 LAINNYA\`
+\`📌 乂 𝐥 𝐚 𝐢 𝐧 𝐧 𝐲 𝐚 乂\`
  ⪩ .pin *<query> [jumlah]* 
  ⪩ .mediafire *>link MediaFire>*
  ⪩ *[.downloadmenu untuk lainnya]*
 
-\`🖼️ STICKER & CONVERT\`
+\`🖼️ 乂 𝐬 𝐭 𝐢 𝐜 𝐤 𝐞 𝐫 & 𝐜 𝐨 𝐧 𝐯 𝐞 𝐫 𝐭 乂\`
  ⪩ .toimg *<convert stiker>*
  ⪩ .tgsticker *<telegram sticker>*
  ⪩ .sticker *<reply media>*
@@ -14771,19 +14897,19 @@ text: `
  ⪩ .take *<get wm stk>*
  ⪩ .smeme *<reply gambar>*
 
-\`✍️ TEXT STYLE\`
+\`✍️ 乂 𝐭 𝐞 𝐱 𝐭 - 𝐬 𝐭 𝐲 𝐥 𝐞 乂\`
  ⪩ .iqccustom *<iphone quote>*
  ⪩ .iqc *<iphone quote>*
  ⪩ .bratjalan *<text jalan>*
  ⪩ .brat *<text>*
  ⪩ .bratvid *<text>*
 
-\`💬 QUOTE & SEARCH\`
+\`💬 乂 𝐪 𝐮 𝐨 𝐭 𝐞 & 𝐬 𝐞 𝐚 𝐫 𝐜 𝐡 乂\`
  ⪩ .createquote *<quote custom>*
  ⪩ .qc *<quick chat>*
  ⪩ .searchsticker
 
-\`📱 MESSAGE & GROUP\`
+\`📱 乂 𝐦 𝐞 𝐬 𝐬 𝐚 𝐠 𝐞 & 𝐠 𝐫 𝐨 𝐮 𝐩 乂\`
  ⪩ .swgrup2 *<via id>*
  ⪩ .delswgc 
  ⪩ .swgc *<upswgc>*
@@ -14796,7 +14922,7 @@ text: `
  ⪩ .tag *<spam tag user>*
  ⪩ .totag *<pesan>*
 
-\`🎞️ MEDIA\`
+\`🎞️ 乂 𝐦 𝐞 𝐝 𝐢 𝐚 乂\`
  ⪩ .tomedia
  ⪩ .anon *<anonymous chat>*
  ⪩ .polling *<custom polling>*
@@ -14814,11 +14940,11 @@ text: `
  ⪩ .xeryuubrat <teks>
  ⪩ .bratbahlil <teks>
 
-\`🔗 LINK & UTILITY\`
+\`🔗 乂 𝐥 𝐢 𝐧 𝐤 & 𝐮 𝐭 𝐢 𝐥 𝐢 𝐭 𝐲 乂\`
  ⪩ .translate *<penerjemah>*
  ⪩ .conves 
  ⪩ .getlinkgc *<didalam group>*
- ⪩ .upch *id saluran/recomend>*
+ ⪩ .upch *<id saluran/recomend>*
  ⪩ .upch2 *<disettings dulu>*
  ⪩ .tourl *<Catbox + penyedia cadangan>*
  ⪩ .tourl2 *<Pixhost> + Rich Preview*
@@ -14826,16 +14952,31 @@ text: `
  ⪩ .readmore *<teks>*
  ⪩ .idtolink *<konversi>*
 
-\`🌤️ INFORMATION\`
- ⪩ .cekcuaca *<kota>*
- ⪩ .cekjarak
- ⪩ .fact *<random facts>*
- ⪩ .fakta *<fakta random>*
- ⪩ .motivasi *<random>*
- ⪩ .dongeng *<random>*
- ⪩ .cekgempa *<funmenu>*
+\`🌤️ 乂 𝐠 𝐚 𝐦 𝐞 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .tebakanml
+ ⪩ .tebakgame
+ ⪩ .tebaklogo
+ ⪩ .tebaksurah
+ ⪩ .blackjack
+ ⪩ .tebakkata
+ ⪩ .tebaktebakan
+ ⪩ .tebaklirik
+ ⪩ .tebakgambar
+ ⪩ .tebaklagu
+ ⪩ .tebakkimia
+ ⪩ .asahotak
+ ⪩ .siapaaku
+ ⪩ .susunkata
+ ⪩ .tekateki
+ ⪩ .tebakbendera
+ ⪩ .tebakbenderav2
+ ⪩ .tebakkabupaten
+ ⪩ .caklontong
+ ⪩ .family100
+ ⪩ .werewolf
+ ⪩ .nyerah
 
-\`🎭 FUN & SEARCH\`
+\`🎭 乂 𝐟 𝐮 𝐧 & 𝐬 𝐞 𝐚 𝐫 𝐜 𝐡 乂\`
  ⪩ .roasting *number*
  ⪩ .cogan *<search>*
  ⪩ .cecan *<search>*
@@ -14847,7 +14988,7 @@ text: `
  ⪩ .cekwaras *<funmenu>*
  ⪩ .jodoh *<funmenu>*
 
-\`🎨 IMAGE & BOT\`
+\`🎨 乂 𝐢 𝐦 𝐚 𝐠 𝐞 & 𝐛 𝐨 𝐭 乂\`
  ⪩ .quoteimg *<image+quote>*
  ⪩ .balogo *<bikin logo>*
  ⪩ .animefind *<reply foto>*
@@ -14862,7 +15003,7 @@ text: `
  ⪩ .qris *<payment>*
  ⪩ .donasi *<support developer>*
 
-\`🛡️ ANTI & SECURITY\`
+\`🛡️ 乂 𝐚 𝐧 𝐭 𝐢 & 𝐬 𝐞 𝐜 𝐮 𝐫 𝐢 𝐭 𝐲 乂\`
  ⪩ .antilinkall *<on/off>*
  ⪩ .antilinkch *<on/off>*
  ⪩ .antilinkig *<on/off>*
@@ -14878,7 +15019,7 @@ text: `
  ⪩ .antibot *<on/off>*
  ⪩ .ban *<tag/reply user>*
 
-\`👥 MEMBER & ADMIN\`
+\`👥 乂 𝐦 𝐞 𝐦 𝐛 𝐞 𝐫 & 𝐚 𝐝 𝐦 𝐢 𝐧 乂\`
  ⪩ .setppgc *<change pp grup>*
  ⪩ .cekjawa *<nama>*
  ⪩ .cekcantik *<nama>*
@@ -14901,7 +15042,7 @@ text: `
  ⪩ .pinpesan *<reply pesan>*
  ⪩ .unpin *<reply pesan>*
 
-\`🔒 GROUP CONTROL\`
+\`🔒 乂 𝐠 𝐫 𝐨 𝐮 𝐩 - 𝐜 𝐨 𝐧 𝐭 𝐫 𝐨 𝐥 乂\`
  ⪩ .open *<buka group>*
  ⪩ .close *<tutup group>*
  ⪩ .closetime *<waktu tutup>*
@@ -14926,7 +15067,7 @@ text: `
  ⪩ .unblacklist *<tag @user>*
  ⪩ .blacklist *<tag @user>*
 
-\`📢 TAG & LIST\`
+\`📢 乂 𝐭 𝐚 𝐠 & 𝐥 𝐢 𝐬 𝐭 乂\`
  ⪩ .hidetag *<sebut anggota>*
  ⪩ .tagall 
  ⪩ .totag *<pesan + mention>*
@@ -14936,19 +15077,19 @@ text: `
  ⪩ .addlist *<tambah list>*
  ⪩ .dellist *<hapus list>*
 
-\`⚔️ ACTION & FUN\`
+\`⚔️ 乂 𝐚 𝐜 𝐭 𝐢 𝐨 𝐧 & 𝐟 𝐮 𝐧 乂\`
  ⪩ .kudeta *<kick semua member>*
  ⪩ .couple *<funmenu group>*
  ⪩ .roastmem *<roasting member>*
  ⪩ .warcall *<judul panggilan>*
  ⪩ .setprefix *<prefix>*
 
-\`🛒 STORE\`
+\`🛒 乂 𝐬 𝐭 𝐨 𝐫 𝐞 乂\`
  ⪩ .listproduk *<setting.js>*
  ⪩ .proses *<store>*
  ⪩ .done *<store>*
 
-\`📢 CHANNEL JPM\`
+\`📢 乂 𝐜 𝐡 𝐚 𝐧 𝐧 𝐞 𝐥 - 𝐣 𝐩 𝐦 乂\`
  ⪩ .cekidch *<link saluran>*
  ⪩ .addidch *<link saluran jpm>*
  ⪩ .delidch 
@@ -14957,7 +15098,7 @@ text: `
  ⪩ .jpm2 *<jpm video>*
  ⪩ .jpm3 *<jpm foto>*
 
-\`📣 BROADCAST GRUP\`
+\`📣 乂 𝐛 𝐫 𝐨 𝐚 𝐝 𝐜 𝐚 𝐬 𝐭 - 𝐠 𝐫 𝐮 𝐩 乂\`
  ⪩ .broadcast *<jumlah> <pesan>* 
  ⪩ .broadcast *<pesan>*
  ⪩ .stopbroadcast 
@@ -14965,11 +15106,11 @@ text: `
  ⪩ .blacklistbroadcast 
  ⪩ .blacklistadzan 
 
-\`👥 KONTAK\`
+\`👥 乂 𝐤 𝐨 𝐧 𝐭 𝐚 𝐤 乂\`
  ⪩ .savekontak *<savekontak group>*
  ⪩ .pushkontak 
 
-\`🎮 TOP UP GAME\`
+\`🎮 乂 𝐭 𝐨 𝐩 - 𝐮 𝐩 - 𝐠 𝐚 𝐦 𝐞 乂\`
  ⪩ .topup *<menu top up>*
  ⪩ .ff *<ID> <nominal>*
  ⪩ .ml *<ID> <server> <nominal>*
@@ -14979,14 +15120,14 @@ text: `
  ⪩ .topupstatus *<ref transaksi>*
  ⪩ .cekstatus *<ref transaksi>*
 
-\`💳 DEPOSIT QRIS\`
+\`💳 乂 𝐝 𝐞 𝐩 𝐨 𝐬 𝐢 𝐭 - 𝐪 𝐫 𝐢 𝐬 乂\`
  ⪩ .deposit *<jumlah>*
  ⪩ .depo *<jumlah>*
  ⪩ .depositstatus *<ref deposit>*
  ⪩ .cekdeposit *<ref deposit>*
  ⪩ .depositcancel *<ref deposit>*
 
-\`📱 NOKOS OTP\`
+\`📱 乂 𝐧 𝐨 𝐤 𝐨 𝐬 - 𝐨 𝐭 𝐩 乂\`
  ⪩ .nokos *<menu nokos>*
  ⪩ .nokosorder *<service> <country>*
  ⪩ .nokosprice *<service> <country>*
@@ -14994,14 +15135,14 @@ text: `
  ⪩ .nokosstatus *<ref order>*
  ⪩ .nokoscancel *<ref order>*
 
-\`🛒 PANEL / SEWA BOT\`
+\`🛒 乂 𝐩 𝐚 𝐧 𝐞 𝐥 / 𝐬 𝐞 𝐰 𝐚 - 𝐛 𝐨 𝐭 乂\`
  ⪩ .listproduk *<daftar produk>*
  ⪩ .belistore *<kode produk>*
  ⪩ .orderstatus *<ref order>*
  ⪩ .ordercancel *<ref order>*
  ⪩ .ceksewa *<status sewa>*
 
-\`🌐 WEBSITE PROJECT\`
+\`🌐 乂 𝐰 𝐞 𝐛 𝐬 𝐢 𝐭 𝐞 - 𝐩 𝐫 𝐨 𝐣 𝐞 𝐜 𝐭 乂\`
  ⪩ .gethtml *<link/domain>*
  ⪩ .enchtml *<lock html>*
  ⪩ .deployweb *<reply html/zip>*
@@ -15011,7 +15152,7 @@ text: `
  ⪩ .infoweb *<info project>*
  ⪩ .cekweb *<cek project>*
 
-\`🛠️ FILE & CODE\`
+\`🛠️ 乂 𝐟 𝐢 𝐥 𝐞 & 𝐜 𝐨 𝐝 𝐞 乂\`
  ⪩ .gethtml *<link/domain>*
  ⪩ .addcase2 *<reply case>*
  ⪩ .addcase *<add fitur>*
@@ -15019,13 +15160,13 @@ text: `
  ⪩ .getcode *<message>*
  ⪩ .tobase64 *<text>*
 
-\`🎵 AUDIO & MEDIA\`
+\`🎵 乂 𝐚 𝐮 𝐝 𝐢 𝐨 & 𝐦 𝐞 𝐝 𝐢 𝐚 乂\`
  ⪩ .toaudio *<mp4 to mp3>*
  ⪩ .mp4toaudio *<mp4 to mp3>*
  ⪩ .audiotourl *<mp3 url>*
  ⪩ .toptv 
 
-\`🔎 SEARCH & INFO\`
+\`🔎 乂 𝐬 𝐞 𝐚 𝐫 𝐜 𝐡 & 𝐢 𝐧 𝐟 𝐨 乂\`
  ⪩ .cekcuaca *<kota>*
  ⪩ .swdl *<ambilsw>*
  ⪩ .getpp *<ambil profil user>*
@@ -15035,7 +15176,7 @@ text: `
  ⪩ .school-track
  ⪩ .nik-information *<nik>*
 
-\`🖥️ PANEL\`
+\`🖥️ 乂 𝐩 𝐚 𝐧 𝐞 𝐥 乂\`
  ⪩ .Cpanel
  ⪩ .Cadmin
  ⪩ .Lispanel
@@ -15048,7 +15189,7 @@ text: `
  ⪩ .Delpanel-v2
  ⪩ .Deladmin-v2
 
-\`💻 CASE & DEVELOPER\`
+\`💻 乂 𝐜 𝐚 𝐬 𝐞 & 𝐝 𝐞 𝐯 𝐞 𝐥 𝐨 𝐩 𝐞 𝐫 乂\`
  ⪩ .gethtml *<link/domain>*
  ⪩ .Getcase *<ambil case>*
  ⪩ .Addcase2 *<reply case>*
@@ -15057,7 +15198,7 @@ text: `
  ⪩ .Panduan *<information>*
  ⪩ .totalgc *<totalgc bot>*
 
-\`⚙️ BOT MODE\`
+\`⚙️ 乂 𝐛 𝐨 𝐭 - 𝐦 𝐨 𝐝 𝐞 乂\`
  ⪩ .Public *<publik mode>*
  ⪩ .Self *<pribadi mode>*
  ⪩ .anticall *<on/off>*
@@ -15069,7 +15210,7 @@ text: `
  ⪩ .owneroffmode *<on/off>*
  ⪩ .maintenance *<on/off/status>*
 
-\`👑 OWNER & SELLER\`
+\`👑 乂 𝐨 𝐰 𝐧 𝐞 𝐫 & 𝐬 𝐞 𝐥 𝐥 𝐞 𝐫 乂\`
  ⪩ .Addowner 
  ⪩ .DelOwner
  ⪩ .Listowner
@@ -15077,7 +15218,7 @@ text: `
  ⪩ .Delseller
  ⪩ .Listseller
 
-\`🔧 SYSTEM\`
+\`🔧 乂 𝐬 𝐲 𝐬 𝐭 𝐞 𝐦 乂\`
  ⪩ .Restart 
  ⪩ .Ping
  ⪩ .Clearchat
@@ -15086,7 +15227,7 @@ text: `
  ⪩ .cekerror (owner)
  ⪩ .terminal (owner)
 
-\`🧠 TEBAK & QUIS\`
+\`🧠 乂 𝐭 𝐞 𝐛 𝐚 𝐤 & 𝐪 𝐮 𝐢 𝐬 乂\`
  ⪩ .tebakkata
  ⪩ .asahotak
  ⪩ .susunkata
@@ -15099,12 +15240,12 @@ text: `
  ⪩ .siapaaku
  ⪩ .cepattepat
 
-\`⚔️ PVP\`
+\`⚔️ 乂 𝐩 𝐯 𝐩 乂\`
  ⪩ .ttt *<PvP @user>*
  ⪩ .suit *<PvP @user>*
  ⪩ .connect4 *<PvP @user>*
 
-\`🎲 MINI GAME\`
+\`🎲 乂 𝐦 𝐢 𝐧 𝐢 - 𝐠 𝐚 𝐦 𝐞 乂\`
  ⪩ .tebakangka *<angka 1-100>*
  ⪩ .dadu *<sisi> <jumlah>*
  ⪩ .highlow *<high/low>*
@@ -15112,19 +15253,19 @@ text: `
  ⪩ .speedtype *<jawaban>*
  ⪩ .mathbattle *<jawaban>*
  
-\`🎰 JUDI\` 
+\`🎰 乂 𝐣 𝐮 𝐝 𝐢 乂\` 
  ⪩ .judi <jumlah
  ⪩ .judipvp @user <jumlah>
  ⪩ .terimajudi
  ⪩ .tolakjudi
  ⪩ .judistats
 
-\`🏆 STATISTIK\`
+\`🏆 乂 𝐬 𝐭 𝐚 𝐭 𝐢 𝐬 𝐭 𝐢 𝐤 乂\`
  ⪩ .gamestats *<statistikmu>*
  ⪩ .gamerank *<ranking>*
  ⪩ .gamehelp *<panduan>*
  
-\`💰 ECONOMY\`
+\`💰 乂 𝐞 𝐜 𝐨 𝐧 𝐨 𝐦 𝐲 乂\`
  ⪩ .me *<kartu profil> *
  ⪩ .profile
  ⪩ .saldo
@@ -15145,14 +15286,14 @@ text: `
  ⪩ .berburu
  ⪩ .rest
 
-\`🛒 SHOP & INVENTORY\`
+\`🛒 乂 𝐬 𝐡 𝐨 𝐩 & 𝐢 𝐧 𝐯 𝐞 𝐧 𝐭 𝐨 𝐫 𝐲 乂\`
  ⪩ .shop
  ⪩ .buy <item> <jumlah>
  ⪩ .sell <item> <jumlah>
  ⪩ .inventory
  ⪩ .use <item>
 
-\`🌾 FARM & BUSINESS\`
+\`🌾 乂 𝐟 𝐚 𝐫 𝐦 & 𝐛 𝐮 𝐬 𝐢 𝐧 𝐞 𝐬 𝐬 乂\`
  ⪩ .farm
  ⪩ .tanam <jumlah>
  ⪩ .panen
@@ -15160,24 +15301,24 @@ text: `
  ⪩ .belibisnis <type>
  ⪩ .claimbisnis
 
-\`🎯 MISSION & ACHIEVEMENT\`
+\`🎯 乂 𝐦 𝐢 𝐬 𝐬 𝐢 𝐨 𝐧 & 𝐚 𝐜 𝐡 𝐢 𝐞 𝐯 𝐞 𝐦 𝐞 𝐧 𝐭 乂\`
  ⪩ .misi
  ⪩ .claimmisi
  ⪩ .achievement
  ⪩ .leaderboard
 
-\`💳 HUTANG\`
+\`💳 乂 𝐡 𝐮 𝐭 𝐚 𝐧 𝐠 乂\`
  ⪩ .pinjam <jumlah>
  ⪩ .bayarhutang <jumlah>
 
-\`⚔️ ADVENTURE & COMBAT\`
+\`⚔️ 乂 𝐚 𝐝 𝐯 𝐞 𝐧 𝐭 𝐮 𝐫 𝐞 & 𝐜 𝐨 𝐦 𝐛 𝐚 𝐭 乂\`
  ⪩ .adventure
  ⪩ .berburu
  ⪩ .merampok
  ⪩ .werewolf
  ⪩ .repair
 
-\`💰 ECONOMY\`
+\`💰 乂 𝐞 𝐜 𝐨 𝐧 𝐨 𝐦 𝐲 乂\`
  ⪩ .beli
  ⪩ .bank
  ⪩ .shop
@@ -15187,7 +15328,7 @@ text: `
  ⪩ .transfer
  ⪩ .dompet
 
-\`🎒 CHARACTER\`
+\`🎒 乂 𝐜 𝐡 𝐚 𝐫 𝐚 𝐜 𝐭 𝐞 𝐫 乂\`
  ⪩ .crafting
  ⪩ .heal
  ⪩ .inventory
@@ -15197,7 +15338,7 @@ text: `
  ⪩ .tidur
  ⪩ .mengaji
 
-\`🌱 ACTIVITY\`
+\`🌱 乂 𝐚 𝐜 𝐭 𝐢 𝐯 𝐢 𝐭 𝐲 乂\`
  ⪩ .nyampah
  ⪩ .memancing
  ⪩ .mining
@@ -15208,7 +15349,7 @@ text: `
  ⪩ .yearly
  ⪩ .ngojek
 
-\`🚀 SPECIAL\`
+\`🚀 乂 𝐬 𝐩 𝐞 𝐜 𝐢 𝐚 𝐥 乂\`
  ⪩ .polisi
  ⪩ .roket
  ⪩ .wikwik (dinonaktifkan)
@@ -15217,92 +15358,67 @@ text: `
  ⪩ .joinrpg
  ⪩ .exitrpg
  ⪩ .atmall
+ 
+\`乂 𝐫 𝐩 𝐠 - 𝐦 𝐞 𝐧 𝐮 乂\`
 
-┏『 乂 ɢ ᴀ ᴍ ᴇ - ᴍ ᴇ ɴ ᴜ 乂 』─✦
-│⦿ 〔 ${prefix}tebakanml
-│⦿ 〔 ${prefix}tebakgame
-│⦿ 〔 ${prefix}tebaklogo
-│⦿ 〔 ${prefix}tebaksurah
-│⦿ 〔 ${prefix}blackjack
-│⦿ 〔 ${prefix}tebakkata
-│⦿ 〔 ${prefix}tebaktebakan
-│⦿ 〔 ${prefix}tebaklirik
-│⦿ 〔 ${prefix}tebakgambar
-│⦿ 〔 ${prefix}tebaklagu
-│⦿ 〔 ${prefix}tebakkimia
-│⦿ 〔 ${prefix}asahotak
-│⦿ 〔 ${prefix}siapaaku
-│⦿ 〔 ${prefix}susunkata
-│⦿ 〔 ${prefix}tekateki
-│⦿ 〔 ${prefix}tebakbendera
-│⦿ 〔 ${prefix}tebakbenderav2
-│⦿ 〔 ${prefix}tebakkabupaten
-│⦿ 〔 ${prefix}caklontong
-│⦿ 〔 ${prefix}family100
-│⦿ 〔 ${prefix}werewolf
-│⦿ 〔 ${prefix}nyerah
-◣──────────❈
+ ⪩ .kerja
+ ⪩ .fightnaga
+ ⪩ .fightkucing
+ ⪩ .fightphonix
+ ⪩ .fightgriffin
+ ⪩ .fightkyubi
+ ⪩ .fightcentaur
+ ⪩ .nabung
+ ⪩ .mining
+ ⪩ .bankcek
+ ⪩ .maling
+ ⪩ .banknabung
+ ⪩ .banktarik
+ ⪩ .berkebon
+ ⪩ .crafting
+ ⪩ .bet
+ ⪩ .bonus
+ ⪩ .buah
+ ⪩ .nebang
+ ⪩ .bekerja
+ ⪩ .bansos
+ ⪩ .taxy
+ ⪩ .mulung
+ ⪩ .berburu
+ ⪩ .polisi
+ ⪩ .berdagang
+ ⪩ .rampok
+ ⪩ .bunuh
+ ⪩ .collect
+ ⪩ .mancing
+ ⪩ .repair
+ ⪩ .feed
+ ⪩ .fight
+ ⪩ .gajian
+ ⪩ .upgrade
+ ⪩ .transfer
+ ⪩ .shop
+ ⪩ .selectskill
+ ⪩ .sampah
+ ⪩ .roket
+ ⪩ .ojek
+ ⪩ .nguli
+ ⪩ .pasar
+ ⪩ .rob
+ ⪩ .referal
+ ⪩ .petshop
+ ⪩ .kolam
+ ⪩ .koboy
+ ⪩ .leaderboard
+ ⪩ .casino
+ ⪩ .ewe-paksa
+ ⪩ .duel
+ ⪩ .petualang
+ ⪩ .perangsarung
+ ⪩ .ulartangga
+ ⪩ .slot
 
-┏『 乂 ʀ ᴘ ɢ - ᴍ ᴇ ɴ ᴜ 乂 』─✦
-│⦿ 〔 ${prefix}kerja
-│⦿ 〔 ${prefix}fightnaga
-│⦿ 〔 ${prefix}fightkucing
-│⦿ 〔 ${prefix}fightphonix
-│⦿ 〔 ${prefix}fightgriffin
-│⦿ 〔 ${prefix}fightkyubi
-│⦿ 〔 ${prefix}fightcentaur
-│⦿ 〔 ${prefix}nabung
-│⦿ 〔 ${prefix}mining
-│⦿ 〔 ${prefix}bankcek
-│⦿ 〔 ${prefix}maling
-│⦿ 〔 ${prefix}banknabung
-│⦿ 〔 ${prefix}banktarik
-│⦿ 〔 ${prefix}berkebon
-│⦿ 〔 ${prefix}crafting
-│⦿ 〔 ${prefix}bet
-│⦿ 〔 ${prefix}bonus
-│⦿ 〔 ${prefix}buah
-│⦿ 〔 ${prefix}nebang
-│⦿ 〔 ${prefix}bekerja
-│⦿ 〔 ${prefix}bansos
-│⦿ 〔 ${prefix}taxy
-│⦿ 〔 ${prefix}mulung
-│⦿ 〔 ${prefix}berburu
-│⦿ 〔 ${prefix}polisi
-│⦿ 〔 ${prefix}berdagang
-│⦿ 〔 ${prefix}rampok
-│⦿ 〔 ${prefix}bunuh
-│⦿ 〔 ${prefix}collect
-│⦿ 〔 ${prefix}mancing
-│⦿ 〔 ${prefix}repair
-│⦿ 〔 ${prefix}feed
-│⦿ 〔 ${prefix}fight
-│⦿ 〔 ${prefix}gajian
-│⦿ 〔 ${prefix}upgrade
-│⦿ 〔 ${prefix}transfer
-│⦿ 〔 ${prefix}shop
-│⦿ 〔 ${prefix}selectskill
-│⦿ 〔 ${prefix}sampah
-│⦿ 〔 ${prefix}roket
-│⦿ 〔 ${prefix}ojek
-│⦿ 〔 ${prefix}nguli
-│⦿ 〔 ${prefix}pasar
-│⦿ 〔 ${prefix}rob
-│⦿ 〔 ${prefix}referal
-│⦿ 〔 ${prefix}petshop
-│⦿ 〔 ${prefix}kolam
-│⦿ 〔 ${prefix}koboy
-│⦿ 〔 ${prefix}leaderboard
-│⦿ 〔 ${prefix}casino
-│⦿ 〔 ${prefix}ewe-paksa (dinonaktifkan)
-│⦿ 〔 ${prefix}duel
-│⦿ 〔 ${prefix}petualang
-│⦿ 〔 ${prefix}perangsarung
-│⦿ 〔 ${prefix}ulartangga
-│⦿ 〔 ${prefix}slot
-◣──────────❈
-
-\`🔮 RAMALAN\`
+\`🔮 乂 𝐫 𝐚 𝐦 𝐚 𝐥 𝐚 𝐧 乂\`
  ⪩ .artinama
  ⪩ .artimimpi
  ⪩ .ramaljodoh
@@ -15313,7 +15429,7 @@ text: `
  ⪩ .suamiistri
  ⪩ .jadiannikah
 
-\`💼 NASIB & KEHIDUPAN\`
+\`💼 乂 𝐧 𝐚 𝐬 𝐢 𝐛 & 𝐤 𝐞 𝐡 𝐢 𝐝 𝐮 𝐩 𝐚 𝐧 乂\`
  ⪩ .sifatusaha
  ⪩ .rezeki
  ⪩ .pekerjaan
@@ -15322,7 +15438,7 @@ text: `
  ⪩ .keberuntungan
  ⪩ .peruntungan
  
- \`🪬 TRADISI\`
+ \`🪬 乂 𝐭 𝐫 𝐚 𝐝 𝐢 𝐬 𝐢 乂\`
  ⪩ .tarot
  ⪩ .fengshui
  ⪩ .haribaik
@@ -15337,7 +15453,7 @@ text: `
  ⪩ .zodiak
  ⪩ .shio
 
-\`🎨 BASIC EDITING\`
+\`🎨 乂 𝐛 𝐚 𝐬 𝐢 𝐜 - 𝐞 𝐝 𝐢 𝐭 𝐢 𝐧 𝐠 乂\`
  ⪩ .putihkan
  ⪩ .hitamkan
  ⪩ .edit
@@ -15345,7 +15461,7 @@ text: `
  ⪩ .tovintage 
  ⪩ .toanime
 
-\`👤 FACE & STYLE\`
+\`👤 乂 𝐟 𝐚 𝐜 𝐞 & 𝐬 𝐭 𝐲 𝐥 𝐞 乂\`
  ⪩ .tobersama
  ⪩ .toblonde
  ⪩ .tobotak
@@ -15356,7 +15472,7 @@ text: `
  ⪩ .tochibi
  ⪩ .tokacamata
  
-\`🧩 ART & CHARACTER\`
+\`🧩 乂 𝐚 𝐫 𝐭 & 𝐜 𝐡 𝐚 𝐫 𝐚 𝐜 𝐭 𝐞 𝐫 乂\`
  ⪩ .tofigura
  ⪩ .tovigurav2
  ⪩ .tofigurav3
@@ -15368,14 +15484,14 @@ text: `
  ⪩ .tomoai
  ⪩ .toreal
 
-\`✨ EFFECT\`
+\`✨ 乂 𝐞 𝐟 𝐟 𝐞 𝐜 𝐭 乂\`
  ⪩ .tosdmtinggi
  ⪩ .tosatan
  ⪩ .tosad
  ⪩ .tosexy
  ⪩ .tobugil
 
-\`🔎 SOCIAL STALK\`
+\`🔎 乂 𝐬 𝐨 𝐜 𝐢 𝐚 𝐥 - 𝐬 𝐭 𝐚 𝐥 𝐤 乂\`
  ⪩ .stalkig 
  ⪩ .stalktt
  ⪩ .stalktele
@@ -15383,7 +15499,7 @@ text: `
  ⪩ .stalkroblox
  ⪩ .stalkml
 
-\`📰 NEWS\`
+\`📰 乂 𝐧 𝐞 𝐰 𝐬 乂\`
  ⪩ .antara
  ⪩ .cnbc
  ⪩ .cnn
@@ -15392,7 +15508,7 @@ text: `
  ⪩ .sindonews
  ⪩ .suara
 
-\`✍️ TEXT EFFECT\`
+\`✍️ 乂 𝐭 𝐞 𝐱 𝐭 - 𝐞 𝐟 𝐟 𝐞 𝐜 𝐭 乂\`
  ⪩ .glitchtext
  ⪩ .writetext
  ⪩ .advancedglow
@@ -15406,7 +15522,7 @@ text: `
  ⪩ .underwatertext
  ⪩ .gradienttext
 
-\`🎀 LOGO & STYLE\`
+\`🎀 乂 𝐥 𝐨 𝐠 𝐨 & 𝐬 𝐭 𝐲 𝐥 𝐞 乂\`
  ⪩ .blackpinkstyle
  ⪩ .blackpinklogo
  ⪩ .logomaker
@@ -15415,7 +15531,7 @@ text: `
  ⪩ .watercolortext
  ⪩ .effectclouds
 
-\`🌌 WALLPAPER & SPECIAL\`
+\`🌌 乂 𝐰 𝐚 𝐥 𝐥 𝐩 𝐚 𝐩 𝐞 𝐫 & 𝐬 𝐩 𝐞 𝐜 𝐢 𝐚 𝐥 乂\`
  ⪩ .summerbeach
  ⪩ .luxurygold
  ⪩ .multicoloyellowneon
@@ -15428,23 +15544,23 @@ text: `
  ⪩ .galaxystyle
  ⪩ .lighteffects
 
-\`🕌 IBADAH\`
+\`🕌 乂 𝐢 𝐛 𝐚 𝐝 𝐚 𝐡 乂\`
  ⪩ .jadwalsholat
  ⪩ .niatsholat
  ⪩ .surah
  ⪩ .berdoa
  ⪩ .ayatkursi
 
-\`📖 AL-QURAN\`
+\`📖 乂 𝐚 𝐥 - 𝐪 𝐮 𝐫 𝐚 𝐧 乂\`
  ⪩ .alquran
  ⪩ .asmaulhusna
  ⪩ .gislam
 
-\`☪️ ISLAMIC CONTENT\`
+\`☪️ 乂 𝐢 𝐬 𝐥 𝐚 𝐦 𝐢 𝐜 - 𝐜 𝐨 𝐧 𝐭 𝐞 𝐧 𝐭 乂\`
  ⪩ .kataislam
  ⪩ .pantunislam
 
-\`💭 QUOTES\`
+\`💭 乂 𝐪 𝐮 𝐨 𝐭 𝐞 𝐬 乂\`
  ⪩ .faktaunik
  ⪩ .katailham
  ⪩ .katasenja
@@ -15457,7 +15573,7 @@ text: `
  ⪩ .quotesdilan
  ⪩ .quotesislamic
 
-\`🎵 AUDIO EFFECT\`
+\`🎵 乂 𝐚 𝐮 𝐝 𝐢 𝐨 - 𝐞 𝐟 𝐟 𝐞 𝐜 𝐭 乂\`
  ⪩ .bass
  ⪩ .blown
  ⪩ .deep
@@ -15471,7 +15587,7 @@ text: `
  ⪩ .smooth
  ⪩ .tupai
 
-\`🎲 RANDOM\`
+\`🎲 乂 𝐫 𝐚 𝐧 𝐝 𝐨 𝐦 乂\`
  ⪩ .apakah
  ⪩ .bisakah
  ⪩ .kapankah
@@ -15491,7 +15607,7 @@ text: `
  ⪩ .rate
  ⪩ .top
 
-\`💘 RELATIONSHIP\`
+\`💘 乂 𝐫 𝐞 𝐥 𝐚 𝐭 𝐢 𝐨 𝐧 𝐬 𝐡 𝐢 𝐩 乂\`
  ⪩ .cekganteng
  ⪩ .cekcantik
  ⪩ .cekgay
@@ -15504,7 +15620,7 @@ text: `
  ⪩ .putus
  ⪩ .cekpasangan
 
-\`😂 FUN WORDS\`
+\`😂 乂 𝐟 𝐮 𝐧 - 𝐰 𝐨 𝐫 𝐝 𝐬 乂\`
  ⪩ .bego
  ⪩ .goblok
  ⪩ .janda
@@ -15548,7 +15664,7 @@ text: `
  ⪩ .yatim
  ⪩ .piatu
 
- \`🎨 CREATIVE\`
+ \`🎨 乂 𝐜 𝐫 𝐞 𝐚 𝐭 𝐢 𝐯 𝐞 乂\`
  ⪩ .animegirl
  ⪩ .carbonify
  ⪩ .fakecall
@@ -15562,7 +15678,7 @@ text: `
  ⪩ .fakestory *<reply foto + username|caption>*
 
 
- \`HOW TO USE\` 
+ \`乂 𝐡 𝐨 𝐰 - 𝐭 𝐨 - 𝐮 𝐬 𝐞 乂\` 
  ⪩ .allmenu     < show all fitur >
  ⪩ .bugmenu   < show fitur bug >
  ⪩ .request     < show and req>
@@ -15571,7 +15687,7 @@ text: `
  ⪩ .owner  < contact wa dev >
  ⪩ .developer   < creator script >
 
- \`POPULAR MENU\` 
+ \`乂 𝐩 𝐨 𝐩 𝐮 𝐥 𝐚 𝐫 - 𝐦 𝐞 𝐧 𝐮 乂\` 
  ⪩ .polling *<custom polling>*
  ⪩ .bugmenu   < main script >
  ⪩ .addcase   <  add fitur >
@@ -15899,7 +16015,7 @@ case "acaaacantipp": {
 Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup, dan berbagai fitur lainnya. Gunakan bot dengan bijak; tanggung jawab penggunaan ada pada pengguna. 
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -16039,47 +16155,47 @@ case 'menucategories3': {
 break
 case 'aimenu': {
     return replyV1(
-        `╭━━━〔 🤖 MENU AI & CHAT 〕━━━╮\n` +
-        `│ ${prefix}autorespesan <on/off>\n` +
-        `│ ${prefix}xnalzAirespon <on/off>\n` +
-        `│ ${prefix}ttsanime <teks>\n` +
-        `│ ${prefix}tts <teks>\n` +
-        `│ ${prefix}chatgpt <pertanyaan>\n` +
-        `│ ${prefix}xnalz <pertanyaan>\n` +
-        `│ ${prefix}google <pencarian>\n` +
+        `╭━━━〔 🤖 乂 𝐚 𝐢 & 𝐜 𝐡 𝐚 𝐭 - 𝐦 𝐞 𝐧 𝐮 乂 〕━━━╮\n` +
+        `│ .autorespesan <on/off>\n` +
+        `│ .xnalzAirespon <on/off>\n` +
+        `│ .ttsanime <teks>\n` +
+        `│ .tts <teks>\n` +
+        `│ .chatgpt <pertanyaan>\n` +
+        `│ .xnalz <pertanyaan>\n` +
+        `│ .google <pencarian>\n` +
         `╰━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-        `Pilih perintah sesuai kebutuhan. Untuk melihat kategori lain, ketik ${prefix}menukategori.`
+        `Pilih perintah sesuai kebutuhan. Untuk melihat kategori lain, ketik .menukategori.`
     )
 }
 break
 case 'animemenu': {
     return replyV1(
-        `╭━━━〔 🎌 MENU ANIME 〕━━━╮\n` +
-        `│ ${prefix}animegirl\n` +
-        `│ ${prefix}animefind <reply foto>\n` +
-        `│ ${prefix}toanime <reply foto>\n` +
-        `│ ${prefix}waifu\n` +
+        `╭━━━〔 🎌 乂 𝐚 𝐧 𝐢 𝐦 𝐞 - 𝐦 𝐞 𝐧 𝐮 乂 〕━━━╮\n` +
+        `│ .animegirl\n` +
+        `│ .animefind <reply foto>\n` +
+        `│ .toanime <reply foto>\n` +
+        `│ .waifu\n` +
         `╰━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-        `Untuk kembali ke daftar kategori, ketik ${prefix}menukategori.`
+        `Untuk kembali ke daftar kategori, ketik .menukategori.`
     )
 }
 break
 case 'antilinkmenu': {
     return replyV1(
-        `╭━━━〔 🛡️ MENU ANTILINK & SECURITY 〕━━━╮\n` +
-        `│ ${prefix}antilinkall <on/off>\n` +
-        `│ ${prefix}antilinkch <on/off>\n` +
-        `│ ${prefix}antilinkig <on/off>\n` +
-        `│ ${prefix}antilinktele <on/off>\n` +
-        `│ ${prefix}antiwame <on/off>\n` +
-        `│ ${prefix}antitagsw <on/off>\n` +
-        `│ ${prefix}antispam <on/off>\n` +
-        `│ ${prefix}antikudeta <on/off>\n` +
-        `│ ${prefix}antipromosi <on/off>\n` +
-        `│ ${prefix}antivirtex <on/off>\n` +
-        `│ ${prefix}antibot <on/off>\n` +
+        `╭━━━〔 🛡️ 乂 𝐚 𝐧 𝐭 𝐢 𝐥 𝐢 𝐧 𝐤 & 𝐬 𝐞 𝐜 𝐮 𝐫 𝐢 𝐭 𝐲 - 𝐦 𝐞 𝐧 𝐮 乂 〕━━━╮\n` +
+        `│ .antilinkall <on/off>\n` +
+        `│ .antilinkch <on/off>\n` +
+        `│ .antilinkig <on/off>\n` +
+        `│ .antilinktele <on/off>\n` +
+        `│ .antiwame <on/off>\n` +
+        `│ .antitagsw <on/off>\n` +
+        `│ .antispam <on/off>\n` +
+        `│ .antikudeta <on/off>\n` +
+        `│ .antipromosi <on/off>\n` +
+        `│ .antivirtex <on/off>\n` +
+        `│ .antibot <on/off>\n` +
         `╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-        `Pengaturan anti-fitur tertentu membutuhkan hak admin grup. Ketik ${prefix}menukategori untuk kembali ke kategori.`
+        `Pengaturan anti-fitur tertentu membutuhkan hak admin grup. Ketik .menukategori untuk kembali ke kategori.`
     )
 }
 break
@@ -16175,7 +16291,7 @@ case 'audiotourl': {
 
     // cek apakah file audio atau dokumen
     if (!/audio|ogg|mp3|m4a|opus/.test(mimetype)) {
-        return replyV1(`❌ Kirim atau reply audio/voice note untuk diubah jadi URL dengan *${usedPrefix + command}*`);
+        return replyV1(`❌ Kirim atau reply audio/voice note untuk diubah jadi URL dengan *${prefix + command}*`);
     }
 
     try {
@@ -16335,7 +16451,7 @@ case "aio": {
                  messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
                  interactiveMessage: proto.Message.InteractiveMessage.fromObject({
                    body: proto.Message.InteractiveMessage.Body.fromObject({ text: `🎧 *Hasil Spotify untuk:* ${spotifyInput.slice(0, 120)}\n\nPilih track yang ingin diunduh.` }),
-                   footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V16 × Sendrich • Spotify Downloader' }),
+                   footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V17 × Sendrich • Spotify Downloader' }),
                    header: proto.Message.InteractiveMessage.Header.fromObject({ title: '🎶 Pilih Track', hasMediaAttachment: false }),
                    nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({ buttons: [{ name: 'single_select', buttonParamsJson: JSON.stringify({ title: 'Pilih track', sections: [{ title: 'Hasil Spotify', rows }] }) }], messageParamsJson: '{}' })
                  })
@@ -16685,7 +16801,7 @@ case 'downloadmenu': {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`ABOUT SCRIPT\` 』
-║ 彡 *Name Bot* » Xeryuu-Md V16 × Sendrich
+║ 彡 *Name Bot* » Xeryuu-Md V17 × Sendrich
 ║ 彡 *Developer* » *XnalzNotDev*
 ║ 彡 *Version* » 16.0
 ║ 彡 *Language* » JavaScript
@@ -16712,8 +16828,8 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`DOWNLOAD MENU\` 』
-║ \`🎬 VIDEO PLATFORM\`
+╔─═⪩ 『 \`乂 𝐝 𝐨 𝐰 𝐧 𝐥 𝐨 𝐚 𝐝 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
+║ \`🎬 乂 𝐯 𝐢 𝐝 𝐞 𝐨 - 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 乂\`
 ║ ⪩ .youtube
 ║ ⪩ .twitter
 ║ ⪩ .bilibili
@@ -16725,7 +16841,7 @@ footer: `
 ║ ⪩ .febspot
 ║ ⪩ .cted
 ║
-║\`📱 SOCIAL MEDIA\`
+║\`📱 乂 𝐬 𝐨 𝐜 𝐢 𝐚 𝐥 - 𝐦 𝐞 𝐝 𝐢 𝐚 乂\`
 ║ ⪩ .capcut
 ║ ⪩ .instagram
 ║ ⪩ .tiktok
@@ -16741,13 +16857,13 @@ footer: `
 ║ ⪩ .likee
 ║ ⪩ .bluesky
 ║
-║\`🖼 IMAGE / GIF\`
+║\`🖼 乂 𝐢 𝐦 𝐚 𝐠 𝐞 / 𝐠 𝐢 𝐟 乂\`
 ║ ⪩ .pinterest
 ║ ⪩ .imgur
 ║ ⪩ .ifunny
 ║ ⪩ .9gag
 ║
-║\`🌏 CHINA PLATFORM\`
+║\`🌏 乂 𝐜 𝐡 𝐢 𝐧 𝐚 - 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 乂\`
 ║ ⪩ .xiaohongshu
 ║ ⪩ .ixigua
 ║ ⪩ .weibo
@@ -16758,7 +16874,7 @@ footer: `
 ║ ⪩ .sina
 ║ ⪩ .sohutv
 ║
-║\`🎵 MUSIC\`
+║\`🎵 乂 𝐦 𝐮 𝐬 𝐢 𝐜 乂\`
 ║ ⪩ .soundcloud
 ║ ⪩ .mixcloud
 ║ ⪩ .spotify
@@ -16767,7 +16883,7 @@ footer: `
 ║ ⪩ .bandcamp
 ║ ⪩ .applemusic
 ║
-║\`📦 FILE / LINK RESOLVER\`
+║\`📦 乂 𝐟 𝐢 𝐥 𝐞 / 𝐥 𝐢 𝐧 𝐤 - 𝐫 𝐞 𝐬 𝐨 𝐥 𝐯 𝐞 𝐫 乂\`
 ║ ⪩ .terabox
 ║ ⪩ .sfile
 ║ ⪩ .safelinku
@@ -16776,16 +16892,16 @@ footer: `
 ║ ⪩ .unshorten
 ║ ⪩ .scrapr <url> (deteksi otomatis)
 ║
-║\`🎨 PLATFORM TAMBAHAN\`
+║\`🎨 乂 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 - 𝐭 𝐚 𝐦 𝐛 𝐚 𝐡 𝐚 𝐧 乂\`
 ║ ⪩ .pixiv
 ║ ⪩ .rednote
 ║
-║\`🔞 ADULT\`
+║\`🔞 乂 𝐚 𝐝 𝐮 𝐥 𝐭 乂\`
 ║ ⪩ .pornbox
 ║ ⪩ .xvideos
 ║ ⪩ .xnxx
 ║
-║\`⚙️ OTHER\`
+║\`⚙️ 乂 𝐨 𝐭 𝐡 𝐞 𝐫 乂\`
 ║ ⪩ .qq
 ║ ⪩ .espn
 ║ ⪩ .imdb
@@ -16834,7 +16950,7 @@ case 'gamemenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -16860,7 +16976,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`GAME MENU\` 』
+╔─═⪩ 『 \`乂 𝐠 𝐚 𝐦 𝐞 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .tebakkata
 ║ ⪩ .asahotak
 ║ ⪩ .susunkata
@@ -16926,7 +17042,7 @@ case 'rpgmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -16952,7 +17068,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`RPG MENU\` 』
+╔─═⪩ 『 \`乂 𝐫 𝐩 𝐠 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .adventure
 ║ ⪩ .beli
 ║ ⪩ .bank
@@ -17039,7 +17155,7 @@ case 'primbonmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -17065,7 +17181,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`PRIMBON MENU\` 』
+╔─═⪩ 『 \`乂 𝐩 𝐫 𝐢 𝐦 𝐛 𝐨 𝐧 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .artinama
 ║ ⪩ .artimimpi
 ║ ⪩ .ramaljodoh
@@ -17142,7 +17258,7 @@ case 'editingmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -17168,7 +17284,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`EDITING MENU\` 』
+╔─═⪩ 『 \`乂 𝐞 𝐝 𝐢 𝐭 𝐢 𝐧 𝐠 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .putihkan
 ║ ⪩ .hitamkan
 ║ ⪩ .edit
@@ -17246,7 +17362,7 @@ case 'stalkmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -17272,7 +17388,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`STALK MENU\` 』
+╔─═⪩ 『 \`乂 𝐬 𝐭 𝐚 𝐥 𝐤 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .stalkig
 ║ ⪩ .stalktt
 ║ ⪩ .stalktele
@@ -17325,7 +17441,7 @@ case 'beritamenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -17351,7 +17467,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`BERITA MENU\` 』
+╔─═⪩ 『 \`乂 𝐛 𝐞 𝐫 𝐢 𝐭 𝐚 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .antara
 ║ ⪩ .cnbc
 ║ ⪩ .cnn
@@ -17405,7 +17521,7 @@ case 'ephotomenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -17431,7 +17547,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`EPHOTO MENU\` 』
+╔─═⪩ 『 \`乂 𝐞 𝐩 𝐡 𝐨 𝐭 𝐨 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .glitchtext
 ║ ⪩ .writetext
 ║ ⪩ .advancedglow
@@ -17509,7 +17625,7 @@ case 'islamicmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -17535,7 +17651,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`ISLAMIC MENU\` 』
+╔─═⪩ 『 \`乂 𝐢 𝐬 𝐥 𝐚 𝐦 𝐢 𝐜 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .jadwalsholat
 ║ ⪩ .alquran
 ║ ⪩ .asmaulhusna
@@ -17593,7 +17709,7 @@ case 'quotesmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -17619,7 +17735,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`QUOTES MENU\` 』
+╔─═⪩ 『 \`乂 𝐪 𝐮 𝐨 𝐭 𝐞 𝐬 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .faktaunik
 ║ ⪩ .katailham
 ║ ⪩ .katasenja
@@ -17678,7 +17794,7 @@ case 'convertmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -17704,7 +17820,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`CONVERT MENU\` 』
+╔─═⪩ 『 \`乂 𝐜 𝐨 𝐧 𝐯 𝐞 𝐫 𝐭 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .bass
 ║ ⪩ .blown
 ║ ⪩ .deep
@@ -17764,7 +17880,7 @@ case 'funmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -17790,7 +17906,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`FUN MENU\` 』
+╔─═⪩ 『 \`乂 𝐟 𝐮 𝐧 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .apakah
 ║ ⪩ .bisakah
 ║ ⪩ .kapankah
@@ -17909,7 +18025,7 @@ case 'makermenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -17935,7 +18051,7 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`MAKER MENU\` 』
+╔─═⪩ 『 \`乂 𝐦 𝐚 𝐤 𝐞 𝐫 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
 ║ ⪩ .animegirl
 ║ ⪩ .carbonify
 ║ ⪩ .fakecall
@@ -18131,18 +18247,17 @@ case 'togglebroadcastblacklist': {
         if (!global.db.groups || typeof global.db.groups !== 'object') global.db.groups = {}
         if (!global.db.groups[groupJid] || typeof global.db.groups[groupJid] !== 'object') global.db.groups[groupJid] = {}
 
-        const wasBlocked = Boolean(global.db.groups[groupJid].blacklistjpm || global.db.chats?.[groupJid]?.blacklistjpm)
-        const nowBlocked = !wasBlocked
-        global.db.groups[groupJid].blacklistjpm = nowBlocked
-        // Keep legacy chat-state synchronized when it exists, avoiding stale true flags.
-        if (global.db.chats?.[groupJid] && typeof global.db.chats[groupJid] === 'object') {
-            global.db.chats[groupJid].blacklistjpm = nowBlocked
-        }
-        saveDB(global.db)
-
         const cachedMeta = broadcastGroupCache?.[groupJid]
         const groupName = String(cachedMeta?.subject || cachedMeta?.name || global.db.groups[groupJid]?.subject || global.db.chats?.[groupJid]?.subject || groupJid)
             .replace(/[\r\n]+/g, ' ').trim()
+        const wasBlocked = persistentGroupSettings.isGroupBlacklisted(groupJid, 'blacklistjpm', global.db)
+        const nowBlocked = !wasBlocked
+        global.db.groups[groupJid].blacklistjpm = nowBlocked
+        if (global.db.chats?.[groupJid] && typeof global.db.chats[groupJid] === 'object') {
+            global.db.chats[groupJid].blacklistjpm = nowBlocked
+        }
+        persistentGroupSettings.setGroupBlacklist(groupJid, 'blacklistjpm', nowBlocked, { db: global.db, subject: groupName })
+        saveDB(global.db)
         const notice =
             `${nowBlocked ? '🚫 BLACKLIST DIAKTIFKAN' : '✅ BLACKLIST DINONAKTIFKAN'}\n` +
             `Grup: ${groupName}\n` +
@@ -18192,16 +18307,16 @@ case 'toggleadzanblacklist': {
         if (!global.db.groups || typeof global.db.groups !== 'object') global.db.groups = {}
         if (!global.db.groups[groupJid] || typeof global.db.groups[groupJid] !== 'object') global.db.groups[groupJid] = {}
 
-        const wasBlocked = global.db.groups[groupJid].blacklistadzan === true || global.db.chats?.[groupJid]?.blacklistadzan === true
+        const groupName = String(groups[groupJid]?.subject || groups[groupJid]?.name || 'Grup tanpa nama')
+            .replace(/[\r\n]+/g, ' ').trim()
+        const wasBlocked = persistentGroupSettings.isGroupBlacklisted(groupJid, 'blacklistadzan', global.db)
         const nowBlocked = !wasBlocked
         global.db.groups[groupJid].blacklistadzan = nowBlocked
         if (global.db.chats?.[groupJid] && typeof global.db.chats[groupJid] === 'object') {
             global.db.chats[groupJid].blacklistadzan = nowBlocked
         }
+        persistentGroupSettings.setGroupBlacklist(groupJid, 'blacklistadzan', nowBlocked, { db: global.db, subject: groupName })
         saveDB(global.db)
-
-        const groupName = String(groups[groupJid]?.subject || groups[groupJid]?.name || 'Grup tanpa nama')
-            .replace(/[\r\n]+/g, ' ').trim()
         const notice =
             `${nowBlocked ? '🚫 FILTER ADZAN DIAKTIFKAN' : '✅ FILTER ADZAN DINONAKTIFKAN'}\n` +
             `Grup: ${groupName}\n` +
@@ -18245,7 +18360,9 @@ case 'bcstatus': {
             ? '🟠 Sedang dihentikan'
             : state.status === 'waiting-connection'
                 ? '🟡 Menunggu koneksi WhatsApp pulih'
-                : '🟢 Sedang berjalan')
+                : state.status === 'rate-limited-wait'
+                    ? '🟠 Menunggu cooldown rate-limit WhatsApp'
+                    : '🟢 Sedang berjalan')
         : (state.status === 'stopped' ? '🛑 Dihentikan' : state.status === 'completed' ? '✅ Selesai' : state.status === 'failed' ? '❌ Gagal' : '⚪ Tidak aktif')
     return sendXeryuuImageReply(
         `📊 STATUS BROADCAST\n\n` +
@@ -18266,6 +18383,74 @@ case 'bcvideo':
 case 'broadcast':
 case 'bc': {
     if (!isCreator) return replyV1(mess.owner)
+
+    const scheduledBroadcastCommand = command === 'broadcast' || command === 'bc'
+    const firstBroadcastArg = String(args[0] || '').trim()
+    if (scheduledBroadcastCommand && /^(jadwal|schedule|list)$/i.test(firstBroadcastArg)) {
+        const schedules = scheduledBroadcastService.listSchedules()
+        const lines = schedules.map(item =>
+            `• Slot ${item.id.replace('slot-', '')} — *${item.time} WIB* ${item.enabled ? '🟢' : '🔴'}\n  ${item.message.replace(/[\r\n]+/g, ' ').slice(0, 95)}`
+        )
+        return replyV1(
+            `🕒 *JADWAL BROADCAST OTOMATIS*\n\n` +
+            `${lines.length ? lines.join('\n\n') : 'Belum ada jadwal tersimpan.'}\n\n` +
+            `Zona waktu: WIB (Asia/Jakarta)\n` +
+            `Slot terpakai: ${schedules.length}/5\n\n` +
+            `Tambah/ubah: ${prefix}broadcast 15.00 Pesan broadcast\n` +
+            `Hapus slot: ${prefix}broadcast hapus 1\n` +
+            `Ulangi jadwal: ${prefix}broadcast ulang 1\n` +
+            `Lihat daftar: ${prefix}broadcast jadwal\n\n` +
+            `Jadwal berjalan setiap hari. Bot harus online saat waktu jadwal.`
+        )
+    }
+    if (scheduledBroadcastCommand && /^(hapus|delete|remove|del)$/i.test(firstBroadcastArg)) {
+        const selector = String(args[1] || '').trim()
+        if (!selector) return replyV1(`Format: ${prefix}broadcast hapus <nomor-slot|HH.MM>\nContoh: ${prefix}broadcast hapus 1`)
+        const removed = scheduledBroadcastService.removeSchedule(selector)
+        if (!removed) return replyV1('❌ Slot jadwal tidak ditemukan. Gunakan .broadcast jadwal untuk melihat daftar.')
+        return replyV1(`✅ Jadwal slot ${removed.id.replace('slot-', '')} (${removed.time} WIB) berhasil dihapus.`)
+    }
+    if (scheduledBroadcastCommand && /^(ulang|retry|run)$/i.test(firstBroadcastArg)) {
+        const selector = String(args[1] || '').trim()
+        if (!selector) return replyV1(`Format: ${prefix}broadcast ulang <nomor-slot|HH.MM>\nContoh: ${prefix}broadcast ulang 15.30`)
+        const retried = scheduledBroadcastService.retrySchedule(selector)
+        if (!retried) return replyV1('❌ Jadwal tidak ditemukan. Gunakan .broadcast jadwal untuk melihat daftar.')
+        return replyV1(
+            `🔁 *JADWAL DIMASUKKAN ULANG KE ANTREAN*\n\n` +
+            `🕒 Slot ${retried.id.replace('slot-', '')} — ${retried.time} WIB\n` +
+            `Jika waktunya sudah lewat hari ini, bot akan mencoba lagi dalam beberapa detik. Jika belum, jadwal tetap menunggu jam tersebut.\n\n` +
+            `Catatan: bila progres dari percobaan lama tidak tersedia, pengulangan dimulai dari awal dan grup yang sempat menerima pesan mungkin menerima duplikat.`
+        )
+    }
+    const scheduledTime = scheduledBroadcastService.normalizeTime(firstBroadcastArg)
+    if (scheduledBroadcastCommand && scheduledTime) {
+        const inlineMessage = args.slice(1).join(' ').trim()
+        const quotedMessage = String(m.quoted?.text || m.quoted?.body || m.quoted?.caption || '').trim()
+        const scheduledMessage = inlineMessage || quotedMessage
+        if (!scheduledMessage) {
+            return replyV1(
+                `🕒 *ATUR BROADCAST TERJADWAL*\n\n` +
+                `Tambahkan isi pesan setelah jam, contoh:\n` +
+                `${prefix}broadcast ${scheduledTime} Informasi dari owner\n\n` +
+                `Atau balas pesan teks lalu kirim: ${prefix}broadcast ${scheduledTime}\n\n` +
+                `Maksimal 5 jadwal aktif. Gunakan ${prefix}broadcast jadwal untuk melihat daftar.`
+            )
+        }
+        try {
+            const saved = scheduledBroadcastService.saveSchedule({ time: scheduledTime, message: scheduledMessage, notifyJid: m.sender })
+            return replyV1(
+                `✅ *BROADCAST TERJADWAL TERSIMPAN*\n\n` +
+                `🗓️ Slot: ${saved.id.replace('slot-', '')}/5\n` +
+                `🕒 Jam: *${saved.time} WIB* (Asia/Jakarta)\n` +
+                `🔁 Pengulangan: setiap hari\n` +
+                `📝 Pesan: ${saved.message.replace(/[\r\n]+/g, ' ').slice(0, 180)}\n\n` +
+                `Gunakan ${prefix}broadcast jadwal untuk melihat semua jadwal atau ${prefix}broadcast hapus ${saved.id.replace('slot-', '')} untuk menghapus slot ini.`
+            )
+        } catch (error) {
+            return replyV1(`❌ Gagal menyimpan jadwal: ${error?.message || error}`)
+        }
+    }
+
     const broadcastMediaType = command === 'bcimage' ? 'image' : command === 'bcvideo' ? 'video' : 'text'
     if (!text && broadcastMediaType === 'text') {
         return sendXeryuuImageReply(
@@ -18280,7 +18465,13 @@ case 'bc': {
             `• ${prefix}stopbroadcast\n` +
             `  Menghentikan broadcast aktif tanpa restart panel.\n\n` +
             `• ${prefix}broadcaststatus\n` +
-            `  Melihat progres broadcast.`
+            `  Melihat progres broadcast.\n\n` +
+            `• ${prefix}broadcast 15.00 Pesan otomatis\n` +
+            `  Menjadwalkan broadcast harian (maksimal 5 slot).\n` +
+            `• ${prefix}broadcast jadwal / ${prefix}broadcast hapus 1\n` +
+            `  Melihat atau menghapus jadwal tersimpan.\n` +
+            `• ${prefix}broadcast ulang 1\n` +
+            `  Memasukkan ulang jadwal yang gagal atau terlewat.`
         )
     }
 
@@ -18401,7 +18592,7 @@ case 'bc': {
 
         if (!global.db.groups || typeof global.db.groups !== 'object') global.db.groups = {}
         const allIds = Object.keys(groups || {})
-        const blockedIds = allIds.filter(jid => Boolean(global.db.groups[jid]?.blacklistjpm || global.db.chats?.[jid]?.blacklistjpm))
+        const blockedIds = allIds.filter(jid => persistentGroupSettings.isGroupBlacklisted(jid, 'blacklistjpm', global.db))
         const blockedSet = new Set(blockedIds)
         const eligibleIds = allIds.filter(jid => !blockedSet.has(jid))
         const ids = requestedLimit === null ? eligibleIds : eligibleIds.slice(0, requestedLimit)
@@ -18432,8 +18623,8 @@ case 'bc': {
             `Ketik ${prefix}broadcaststatus untuk melihat progres.`
         )
 
-        // Jeda minimum 4 detik mengurangi tekanan pada socket; setelan yang lebih tinggi tetap dihormati.
-        const delayMs = Math.max(4000, Number(global.delayJpm || 5000))
+        // Jeda minimum 8 detik mengurangi tekanan pada socket; setelan yang lebih tinggi tetap dihormati.
+        const delayMs = Math.max(8000, Number(global.delayJpm || 8000))
         let fatalError = ''
         for (let index = 0; index < ids.length; index++) {
             if (state.stopRequested) break
@@ -18441,6 +18632,7 @@ case 'bc': {
             state.currentJid = jid
             let delivered = false
             let connectionRetries = 0
+            let rateLimitRetries = 0
 
             while (!delivered && !state.stopRequested) {
                 const ready = await waitForXeryuuBroadcastSocket(conn, state, { timeoutMs: 10 * 60 * 1000 })
@@ -18466,6 +18658,22 @@ case 'bc': {
                     state.status = 'running'
                 } catch (error) {
                     const message = String(error?.message || error || 'Unknown error')
+                    if (isXeryuuBroadcastRateLimitError(error)) {
+                        if (rateLimitRetries >= XERYUU_BROADCAST_RATE_LIMIT_BACKOFF_MS.length) {
+                            fatalError = `WhatsApp masih membatasi pengiriman (rate-overlimit) setelah ${rateLimitRetries} percobaan. Broadcast dihentikan agar tidak memperparah pembatasan. Target saat ini belum terkonfirmasi; coba lanjutkan nanti.`
+                            state.failed++
+                            state.lastError = fatalError
+                            console.warn('[BROADCAST RATE LIMIT]', jid, message)
+                            break
+                        }
+                        const waitMs = xeryuuBroadcastRateLimitBackoffMs(rateLimitRetries)
+                        rateLimitRetries++
+                        state.status = 'rate-limited-wait'
+                        state.lastError = `WhatsApp rate-limit. Percobaan ${rateLimitRetries}/${XERYUU_BROADCAST_RATE_LIMIT_BACKOFF_MS.length}; menunggu ${Math.ceil(waitMs / 1000)} detik.`
+                        console.warn(`[BROADCAST RATE LIMIT] ${jid}: jeda ${waitMs}ms (${rateLimitRetries}/${XERYUU_BROADCAST_RATE_LIMIT_BACKOFF_MS.length}).`)
+                        if (!(await waitXeryuuBroadcastDelay(waitMs, state))) break
+                        continue
+                    }
                     if (isXeryuuBroadcastConnectionError(error) || sendSocket.isConnected === false) {
                         if (connectionRetries >= 3) {
                             fatalError = `Koneksi berulang kali tertutup ketika mengirim ke ${jid}. Broadcast dihentikan untuk mencegah percobaan tanpa akhir.`
@@ -18515,7 +18723,7 @@ case 'bc': {
         state.lastError = fatalError || ''
         state.currentJid = ''
         const finalHeading = fatalError
-            ? '⚠️ BROADCAST TERHENTI KARENA KONEKSI'
+            ? '⚠️ BROADCAST TERHENTI KARENA ERROR / RATE-LIMIT'
             : stopped ? '🛑 BROADCAST DIHENTIKAN' : '✅ BROADCAST SELESAI'
         return await sendBroadcastNotice(
             `${finalHeading}\n\n` +
@@ -23532,8 +23740,8 @@ case "buysc":{
 ───────────────────
 \`HARGA SC : 35k\`
 ───────────────────
-彡 Name SC : Xeryuu-Md V16 × Sendrich
-彡 Version SC : *V16.0.0*
+彡 Name SC : Xeryuu-Md V17 × Sendrich
+彡 Version SC : *V17.0.0*
 彡 Feature : MD X TOPUP
 彡 Main : Whatsapp
 
@@ -23552,7 +23760,7 @@ case "buysc":{
         nativeFlowMessage: {
             messageParamsJson: JSON.stringify({
                 limited_time_offer: {
-                    text: "Xeryuu-Md V16 × Sendrich",
+                    text: "Xeryuu-Md V17 × Sendrich",
                     url: "https://wa.me/6283116282076",
                     copy_code: "35.000 IDR",
                     expiration_time: Date.now() * 999
@@ -23582,7 +23790,7 @@ case "bugmenu":{
     let bug = `*${greeting()}* ${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda
 
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -26888,7 +27096,7 @@ case 'supportdev': {
   }
 
   const body = '╭─═⪩ 💝 SUPPORT DEVELOPER ⪨═─╮\n' +
-    '│ Terima kasih sudah menggunakan Xeryuu-MD V16 × Sendrich.\n' +
+    '│ Terima kasih sudah menggunakan Xeryuu-MD V17 × Sendrich.\n' +
     '│ Donasi bersifat sukarela dan diproses langsung oleh Saweria.\n' +
     '│ Bot tidak meminta PIN, OTP, atau data perbankan.\n' +
     '╰─═─═─═─═─═─═⪩\n\nDukungan kamu membantu biaya server, perawatan, dan pengembangan fitur.'
@@ -27592,7 +27800,7 @@ case 'conves': {
 }
 break
 case 'ytmp2': {
- try { if (!args[0]) return replyV1(`Gunakan: ${usedPrefix + command} <url>`)
+ try { if (!args[0]) return replyV1(`Gunakan: ${prefix + command} <url>`)
  
 await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } })
  
@@ -30740,7 +30948,7 @@ case 'rtourl': {
         return replyV1(
             `❌ TOURL2 saat ini menggunakan Pixhost, yang hanya menerima gambar.\n` +
             `Format yang didukung: JPG/JPEG, PNG, GIF, WebP, dan AVIF (maksimal 10 MB).\n\n` +
-            `Kirim atau reply sebuah gambar, lalu ketik *${usedPrefix + command}*.`
+            `Kirim atau reply sebuah gambar, lalu ketik *${prefix + command}*.`
         )
     }
     if (!tourlService.isPixhostImageType(mimetype)) {
@@ -30845,7 +31053,7 @@ case 'spotifyfind': {
                         messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
                         interactiveMessage: proto.Message.InteractiveMessage.fromObject({
                             body: proto.Message.InteractiveMessage.Body.fromObject({ text: `🎧 *Hasil Spotify untuk:* ${query.slice(0, 120)}\n\nPilih track yang ingin diunduh.` }),
-                            footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V16 × Sendrich • Spotify Downloader' }),
+                            footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V17 × Sendrich • Spotify Downloader' }),
                             header: proto.Message.InteractiveMessage.Header.fromObject({ title: '🎶 Pilih Track', hasMediaAttachment: false }),
                             nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
                                 buttons: [{
@@ -30900,8 +31108,8 @@ case 'rspotify':
 case 'spotifyrich':
 case 'richspotify': {
     const input = String(text || '').trim()
-    if (!input) return replyV1(`Contoh: ${usedPrefix + command} https://open.spotify.com/track/ID
-atau: ${usedPrefix + command} nama lagu`)
+    if (!input) return replyV1(`Contoh: ${prefix + command} https://open.spotify.com/track/ID
+atau: ${prefix + command} nama lagu`)
     try {
         await conn.sendMessage(m.chat, { react: { text: '🟢', key: m.key } })
         await sendRichSpotify(conn, m.chat, /^https?:\/\//i.test(input) || /^spotify:/i.test(input) ? { url: input } : { query: input })
@@ -31233,7 +31441,7 @@ try {
                     messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
                     interactiveMessage: proto.Message.InteractiveMessage.fromObject({
                         body: proto.Message.InteractiveMessage.Body.fromObject({ text: teks }),
-                        footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V16 × Sendrich • Music Downloader' }),
+                        footer: proto.Message.InteractiveMessage.Footer.fromObject({ text: 'Xeryuu-Md V17 × Sendrich • Music Downloader' }),
                         header: proto.Message.InteractiveMessage.Header.fromObject({ title: '🎧 Pilih Lagu', hasMediaAttachment: false }),
                         nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
                             buttons: [{
@@ -34546,7 +34754,7 @@ case 'cpanel': {
   let pe = `${greeting()} ${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda
     
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V16 × Sendrich 🍁
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
 > 彡 Version » 16.0 ✨
 > 彡 Language » JavaScript 🌎
@@ -34611,7 +34819,7 @@ thumbnail: "https://files.catbox.moe/7ch0i4.jpg",
 nativeFlowMessage: {
 messageParamsJson: JSON.stringify({
 limited_time_offer: {
-text: "Xeryuu-Md V16 × Sendrich",
+text: "Xeryuu-Md V17 × Sendrich",
 url: "https://wa.me/6283116282076",
 copy_code: "35.000 IDR",
 expiration_time: Date.now() * 999
@@ -36061,7 +36269,7 @@ case "deployweb": {
 
     // 🔥 DEPLOY
     await edit('🚀 Mengupload & deploy...')
-    const res = await fetch('https://api.vercel.com/V16/deployments', {
+    const res = await fetch('https://api.vercel.com/V17/deployments', {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -36261,7 +36469,7 @@ case 'tt': {
         const fallbackText = `${menuText}\n\nTombol tidak muncul? Ketik manual:\n${prefix}ttaudio ${token}\n${prefix}ttvideo ${token}`;
         await sendWaQuickReplyMenu({
             text: menuText,
-            footer: 'Xeryuu-MD V16 × Sendrich • TikTok',
+            footer: 'Xeryuu-MD V17 × Sendrich • TikTok',
             imageTitle: 'TIKTOK DOWNLOADER • XERYUU',
             buttons: [
                 { title: '🎧 Download Audio', id: `${prefix}ttaudio ${token}` },
@@ -36395,7 +36603,7 @@ case 'cuaca': case 'cekcuaca': {
 
 case "ttmp3": case "tiktokmp3": {
     try {
-        if (!text) return replyV1(`*Contoh: ${usedPrefix + command} https://vt.tiktok.com/...*`);
+        if (!text) return replyV1(`*Contoh: ${prefix + command} https://vt.tiktok.com/...*`);
 
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } });
 
@@ -36542,7 +36750,7 @@ case 'ceksaham': {
     try {
         const quote = await indonesiaTools.getIndonesianStockQuote(symbolInput);
         let result = indonesiaTools.formatStockQuote(quote);
-        // Tampilkan IHSG sebagai konteks pasar Indonesia untuk ticker BEI maupun internasional.
+
         if (quote.symbol !== '^JKSE') {
             try {
                 const ihsg = await indonesiaTools.getIndonesianStockQuote('IHSG');
@@ -37822,12 +38030,12 @@ const fs = require("fs")
 // kirim panduan + gambar
 await conn.sendMessage(m.chat, {
 document: readProjectAsset('media/text.txt'),
-fileName: "Panduan Xeryuu-Md V16 × Sendrich.txt",
+fileName: "Panduan Xeryuu-Md V17 × Sendrich.txt",
 mimetype: "text/plain",
-caption: "📖 *Panduan Script Xeryuu-Md V16 × Sendrich*\n\nSilakan baca panduan untuk mengetahui info.",
+caption: "📖 *Panduan Script Xeryuu-Md V17 × Sendrich*\n\nSilakan baca panduan untuk mengetahui info.",
 contextInfo: {
 externalAdReply: {
-title: "Panduan Script Xeryuu-Md V16 × Sendrich",
+title: "Panduan Script Xeryuu-Md V17 × Sendrich",
 body: "Panduan penggunaan script",
 thumbnailUrl: "https://img2.pixhost.to/images/7475/719279858_papaqueen.jpg",
 sourceUrl: "https://files.catbox.moe/h5yzws.mpeg",
@@ -37981,7 +38189,7 @@ case "x": {
 
  \`S E L E C T I O N S\`
  — EXCECUTOR ${target}
- — Nama Bot : Xeryuu-Md V16 × Sendrich
+ — Nama Bot : Xeryuu-Md V17 × Sendrich
  — Developer : XnalzNotDev
  — Action : w.co/['$XnalzNotDev'];
  — Language : JavaScript
@@ -38048,12 +38256,12 @@ if (isCmd && command && !['>', '=>', '$'].includes(command[0])) {
             // Skor rekomendasi dibuat mudah dibaca: satu kesalahan ketik = 90%.
             const similarity = Math.max(0, 100 - best.score * 10)
             return conn.sendMessage(m.chat, {
-                text: `${command} tidak ditemukan, mungkin yang kamu maksud adalah\n${chosenPrefix}${best.name}\n\nkemiripan : ${similarity}%\n> xnalznotdev`
-            }, { quoted: m })
+                text: `\`\`\`${command} tidak ditemukan, mungkin yang kamu maksud adalah\n${chosenPrefix}${best.name}\n\nkemiripan : ${similarity}%\n\`\`\``
+            }, { quoted: qtoko })
         }
         return conn.sendMessage(m.chat, {
-            text: `${command} tidak ditemukan. Ketik ${chosenPrefix}menu untuk melihat daftar fitur yang tersedia.\n> xnalznotdev`
-        }, { quoted: m })
+            text: `\`\`\`${command} tidak ditemukan. Ketik ${chosenPrefix}menu untuk melihat daftar fitur yang tersedia.\n\`\`\``
+        }, { quoted: qtoko })
     } catch (suggestError) {
         console.error('[UNKNOWN COMMAND SUGGESTION]', suggestError?.message || suggestError)
     }
