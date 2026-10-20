@@ -1,7 +1,7 @@
 {
-  "name": "xeryuu-md-v17-dualtelegram-integrity",
+  "name": "Xeryuu-Md V17",
   "version": "17.0.0",
-  "description": "WhatsApp Bot Xeryuu-MD V17 with GitHub signed updater and dual Telegram integrity monitoring",
+  "description": "WhatsApp Bot Xeryuu-MD V17 anti rename socket",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
