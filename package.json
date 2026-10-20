@@ -1,7 +1,7 @@
 {
-  "name": "xeryuu-md-v16-sendrich",
-  "version": "16.0.0",
-  "description": "WhatsApp Bot Xeryuu-Md V16 × Sendrich",
+  "name": "xeryuu-md-v17-dualtelegram-integrity",
+  "version": "17.0.0",
+  "description": "WhatsApp Bot Xeryuu-MD V17 with GitHub signed updater and dual Telegram integrity monitoring",
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
