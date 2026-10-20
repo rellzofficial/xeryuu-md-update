@@ -1,52 +1,47 @@
-name: Sign Xeryuu Update Manifest
+name: Sign Update Manifest
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.xeryuu-update.json'
   workflow_dispatch:
 
 permissions:
   contents: write
 
-jobs:
-  sign-manifest:
-    runs-on: ubuntu-latest
+concurrency:
+  group: sign-update-manifest-main
+  cancel-in-progress: false
 
+jobs:
+  sign:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: true
 
-      - name: Check signing configuration
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Sign manifest with Ed25519
         env:
-          SIGNING_PRIVATE_KEY: ${{ secrets.SIGNING_PRIVATE_KEY }}
-        run: |
-          if [ -z "$SIGNING_PRIVATE_KEY" ]; then
-            echo "::error::Repository secret UPDATE_SIGNING_PRIVATE_KEY belum diatur."
-            exit 1
-          fi
-
-          if [ ! -f .xeryuu-update.json ]; then
-            echo "::error::File .xeryuu-update.json belum tersedia."
-            exit 1
-          fi
-
-          if [ ! -f .github/scripts/sign-update-manifest.js ]; then
-            echo "::error::Script penandatanganan belum tersedia."
-            exit 1
-          fi
-
-      - name: Sign manifest
-        env:
-          SIGNING_PRIVATE_KEY: ${{ secrets.SIGNING_PRIVATE_KEY }}
+          INTEGRITY_SIGNING_PRIVATE_KEY: ${{ secrets.INTEGRITY_SIGNING_PRIVATE_KEY }}
         run: node .github/scripts/sign-update-manifest.js
 
-      - name: Publish signature
+      - name: Commit signature
         run: |
-          if [ ! -f .xeryuu-update.sig ]; then
-            echo "::error::File tanda tangan tidak berhasil dibuat."
-            exit 1
-          fi
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .xeryuu-update.sig
-          git diff --cached --quiet || git commit -m "Sign Xeryuu update manifest"
-          git push
+          if git diff --cached --quiet; then
+            echo "Signature already current."
+          else
+            git commit -m "chore: sign Xeryuu update manifest"
+            git push origin HEAD:main
+          fi
