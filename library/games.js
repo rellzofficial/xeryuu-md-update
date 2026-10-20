@@ -692,6 +692,7 @@ const LEGACY_GAMES = {
 
 const legacyTimers = new Map()
 let currentConnection = null
+let activeLegacyReplySender = null
 
 function normalizeAnswer(value) {
   return String(value || '').toLowerCase().trim()
@@ -743,10 +744,18 @@ async function legacyTimeout(key) {
   const body = room.game === 'tebakgambar'
     ? `⏰ *WAKTU HABIS!*\n\nJawabannya adalah: *${answerText}*`
     : `⏰ *WAKTU HABIS!*\n\nPertanyaan:\n${room.question}\n\nJawaban: *${answerText}*`
-  const quoteOptions = room.quoteMessage?.key && room.quoteMessage?.message
-    ? { quoted: room.quoteMessage }
-    : undefined
-  await conn.sendMessage(room.chat, { text: body }, quoteOptions).catch(() => {})
+  const quoteMessage = room.quoteMessage?.key && room.quoteMessage?.message
+    ? room.quoteMessage
+    : null
+  try {
+    if (typeof activeLegacyReplySender === 'function') {
+      await activeLegacyReplySender(room.chat, body, quoteMessage)
+    } else {
+      await conn.sendMessage(room.chat, { text: body }, quoteMessage ? { quoted: quoteMessage } : undefined)
+    }
+  } catch (error) {
+    console.error('[LEGACY GAME TIMEOUT SEND]', error?.stack || error)
+  }
 }
 
 function scheduleLegacyTimeout(key, room) {
@@ -755,7 +764,8 @@ function scheduleLegacyTimeout(key, room) {
   legacyTimers.set(key, setTimeout(() => legacyTimeout(key), delay))
 }
 
-function restoreLegacyTimers(conn) {
+function restoreLegacyTimers(conn, replySender) {
+  if (typeof replySender === 'function') activeLegacyReplySender = replySender
   if (currentConnection === conn && legacyTimers.size > 0) return
   currentConnection = conn
   const current = now()
@@ -892,11 +902,15 @@ async function processLegacyAnswer(ctx) {
       clearLegacyTimer(key)
       delete db.rooms[key]
       saveDb()
-      await ctx.conn.sendMessage(ctx.m.chat, { text: `🎉 *FAMILY 100 SELESAI!*\n\nJawaban benar: ${hit.display}\n🎁 Kamu mendapatkan +20 limit.` }, { quoted: ctx.m })
+      const message = `🎉 *FAMILY 100 SELESAI!*\n\nJawaban benar: ${hit.display}\n🎁 Kamu mendapatkan +20 limit.`
+      if (typeof ctx.reply === 'function') await ctx.reply(message)
+      else await ctx.conn.sendMessage(ctx.m.chat, { text: message }, { quoted: ctx.m })
       return true
     }
     saveDb()
-    await ctx.conn.sendMessage(ctx.m.chat, { text: `✅ *JAWABAN DITEMUKAN!*\n\n${hit.display}\n🎁 +20 limit\n\nSisa jawaban: *${remaining}*` }, { quoted: ctx.m })
+    const message = `✅ *JAWABAN DITEMUKAN!*\n\n${hit.display}\n🎁 +20 limit\n\nSisa jawaban: *${remaining}*`
+    if (typeof ctx.reply === 'function') await ctx.reply(message)
+    else await ctx.conn.sendMessage(ctx.m.chat, { text: message }, { quoted: ctx.m })
     return true
   }
 
@@ -909,9 +923,9 @@ async function processLegacyAnswer(ctx) {
   delete db.rooms[key]
   saveDb()
   const label = room.game === 'tebakgambar' ? '🎉 *JAWABAN BENAR!*' : '🎉 *JAWABAN KAMU BENAR!*'
-  await ctx.conn.sendMessage(ctx.m.chat, {
-    text: `${label}\n\n${room.question}\n\nJawaban: *${room.answer}*\n🎁 +20 limit`
-  }, { quoted: ctx.m })
+  const message = `${label}\n\n${room.question}\n\nJawaban: *${room.answer}*\n🎁 +20 limit`
+  if (typeof ctx.reply === 'function') await ctx.reply(message)
+  else await ctx.conn.sendMessage(ctx.m.chat, { text: message }, { quoted: ctx.m })
   return true
 }
 
