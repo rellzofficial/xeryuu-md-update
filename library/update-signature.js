@@ -4,7 +4,7 @@ const crypto = require('crypto')
 
 // Public verification key only. The matching private key belongs in GitHub Actions Secrets.
 const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAFm9kjt1rVXzJC50G7Vkod2Z4ZT9BjhuUHQvpV+bGjJs=
+MCowBQYDK2VwAyEASVvHxDZpLAVcMvfIygek2H64oXXx4I9AbBeu89ghJAM=
 -----END PUBLIC KEY-----
 `
 
