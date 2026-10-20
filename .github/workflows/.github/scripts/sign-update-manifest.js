@@ -7,7 +7,7 @@ const manifestPath = '.xeryuu-update.json'
 const signaturePath = '.xeryuu-update.sig'
 
 function main() {
-    const privateKey = process.env.SIGNING_PRIVATE_KEY
+    const privateKey = process.env.INTEGRITY_SIGNING_PRIVATE_KEY
 
     if (!privateKey) {
         throw new Error('Secret SIGNING_PRIVATE_KEY belum tersedia.')
