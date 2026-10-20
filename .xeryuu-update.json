@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261019084940",
-  "updatedAt": "2026-10-19T08:49:40.111Z",
+  "version": "v20261020035159",
+  "updatedAt": "2026-10-20T03:51:59.179Z",
   "branch": "main",
-  "previousVersion": "v20261019054324",
-  "previousCommitSha": "d0d5b58621f5d50623e95b4b633cc3acc4d63f61",
+  "previousVersion": "v20261019084940",
+  "previousCommitSha": "1f0de4ff2536a485bff638760178f67965f35bf0",
   "files": [
     {
       "path": "library/afk.js",
@@ -38,13 +38,13 @@
     },
     {
       "path": "library/brat.js",
-      "sha256": "21f5f8ca180bf7c72ffaee28c3606a4739a94b219ad0e4715786a304a32fe379",
-      "size": 23289
+      "sha256": "01806074e0236b22f7c24c06b30bd57cd23090ed54728e6c6371f13f87c0eff6",
+      "size": 23541
     },
     {
       "path": "library/caklontong.js",
-      "sha256": "4ab683b597e5424061da2fdb5a1a47e97bee18553d1f9a6c95d0af5f4f68171e",
-      "size": 6614
+      "sha256": "becabee10568eb913040ff1fc728c76a315c220d8b688f053c50f81b091d129b",
+      "size": 7413
     },
     {
       "path": "library/channel-monitor.js",
@@ -148,13 +148,13 @@
     },
     {
       "path": "library/games.js",
-      "sha256": "c2acfe8848659d17c525d92e04a1399e30bb6dde47c17a2571122ddabc3f72c1",
-      "size": 32913
+      "sha256": "eb72f4956f661d4e2314626a677a54694cab9ca538887985ca388765a9c9adca",
+      "size": 33587
     },
     {
       "path": "library/github-update-user.js",
-      "sha256": "46f97f704440bf8e444c9b211d3876213f91ee55580acdd76eabe71c8f5346ef",
-      "size": 15195
+      "sha256": "4909778f986d52fb206468cce14c8e06641811cc18d225b050aadda2ca97cb37",
+      "size": 15865
     },
     {
       "path": "library/global-database.js",
@@ -182,6 +182,11 @@
       "size": 2358
     },
     {
+      "path": "library/integrity-notification.js",
+      "sha256": "b92669937056a767a1dc8912e5fab4caa71edc4c96a2d63f5f1fc18c824aae4c",
+      "size": 2329
+    },
+    {
       "path": "library/jadibot.js",
       "sha256": "d7abce0d61711899bd139f7db4bd6602589fed63ec91ce30671ada8aad2fb913",
       "size": 37380
@@ -203,13 +208,23 @@
     },
     {
       "path": "library/music-downloader.js",
-      "sha256": "865ec30326e0596dfdda6c45ddea0a540e880a1e0faebd4a0200bca5895f2c8e",
+      "sha256": "6ac4471b6eddd8769743acd67a17e196ea283614bcd4daaed0ca0d96d3904ef4",
       "size": 58420
     },
     {
       "path": "library/nokos.js",
       "sha256": "e4be75185d7a8f4ab7038ed20c28cb6d14f33eb5350f80e2591570efffe2ba4b",
       "size": 45355
+    },
+    {
+      "path": "library/pinterest-carousel.js",
+      "sha256": "a23f7e2cca80e35ad2ab14b01064f77dc3b7a8973bed406d25bac4facb880547",
+      "size": 7552
+    },
+    {
+      "path": "library/pinterest-utils.js",
+      "sha256": "f53e7bd3047576205b411406d0d0e4a15b2a733c0ebbf54da3be2f972d610168",
+      "size": 2750
     },
     {
       "path": "library/provider-wallets.js",
@@ -238,7 +253,7 @@
     },
     {
       "path": "library/richhtml-games/chess-ultimate.html",
-      "sha256": "3dc136218087480cc654f6377cc2ba1ea285aee7cfb80c3e9efefda824c3aa8a",
+      "sha256": "e2c146aec26e33d3bd2914e21b68dfa403edd56613b99d57dfeb02d32c3484b3",
       "size": 44825
     },
     {
@@ -308,7 +323,7 @@
     },
     {
       "path": "library/richhtml.js",
-      "sha256": "8e045bab62939a88f734bff452ddaadacc46963872f8c31293997b1841ac3600",
+      "sha256": "192d1c1d9ae490f6419fe74c78f1549caad0a5dc4c0cde8ff4347538db620a60",
       "size": 17301
     },
     {
@@ -333,8 +348,8 @@
     },
     {
       "path": "library/scraper.js",
-      "sha256": "4089e8070a1af0968f4abab4cb4bf53393058fe2cd53af927cd29d76b67f72db",
-      "size": 10968
+      "sha256": "d9112e9cec99dc1bc7a46f7bf7e20ebaf0cb6528dc30e00d10b7ca5e2a67cd97",
+      "size": 13220
     },
     {
       "path": "library/scrapr-downloader.js",
@@ -348,7 +363,7 @@
     },
     {
       "path": "library/spotify-scraper.js",
-      "sha256": "b932113755409bcd0e1ddec6dfcf01bd4118fba0d565c642f23d0500e8e752e8",
+      "sha256": "c32fcc19d8a7f47a7025bdbdf11b17adbabe1b2930bcb1eb2659003f9cee7af5",
       "size": 14232
     },
     {
@@ -377,6 +392,11 @@
       "size": 977
     },
     {
+      "path": "library/update-signature.js",
+      "sha256": "93cde4691ac92fb616d0548ae63e1f17007443070a653f9accf2032febba15c4",
+      "size": 915
+    },
+    {
       "path": "library/uploaden.js",
       "sha256": "e2c3da5c6f4fb78b42d8b1c3a7fe38997522b41adc9e0354ecdb5d6dcb1804af",
       "size": 789
@@ -400,6 +420,11 @@
       "path": "library/werewolf.js",
       "sha256": "1484a19bd060d180d2ea3bb3fd65dad4bdc4e6c1627e1ba3574b6389d1698ca7",
       "size": 39055
+    },
+    {
+      "path": "library/xeryuu-extension.js",
+      "sha256": "e2a0648c67c2fe1d6e3389d6c2e3677ca6e597dbb3c6dcc091c94c31b97ab7f5",
+      "size": 60696
     },
     {
       "path": "library/xeryuu-extras.js",
@@ -528,8 +553,8 @@
     },
     {
       "path": "package.json",
-      "sha256": "3595a60e45cef2c340a4a52fcbc79cc5f1bac82c56e8e5e01470a45d4bc23801",
-      "size": 2026
+      "sha256": "c36c01e6dfd63ff3c5f210aaf3e154a8815d8f769210671cd197e2b23bc79a38",
+      "size": 2094
     },
     {
       "path": "source/database.js",
@@ -538,12 +563,12 @@
     },
     {
       "path": "source/message.js",
-      "sha256": "a339c7ff6829bd34947621c01bae2d8bb8017acdae5e448e65c120b18fb213b4",
+      "sha256": "58dbabe5f3a8b7e1ed45da9e3d652d0647460694c0f441bcb72917a20c963009",
       "size": 49681
     },
     {
       "path": "source/upsert-policy.js",
-      "sha256": "36c3c269a5dbc36f930592984afe40feb48a70842a6bdc15147b7519480c1d1e",
+      "sha256": "ef1a7eb3f0cd72cab83025e7819cbfa4683a541c8590438f70b3c79c48d5bd9f",
       "size": 4024
     },
     {
@@ -577,6 +602,26 @@
       "size": 2346
     },
     {
+      "path": "tests/integrity-notification.test.js",
+      "sha256": "beb72118ce2cacb18479f14d3fd58a2cee01372896f9800923136984ce1a09a2",
+      "size": 1679
+    },
+    {
+      "path": "tests/pinterest-carousel.test.js",
+      "sha256": "81ec060997e7e8c7c1491efdbac1c4e35f603673d46c092e63ff6054be13d613",
+      "size": 4363
+    },
+    {
+      "path": "tests/pinterest-scraper.test.js",
+      "sha256": "12ad2309bf68939f77ee9c577b7b795b0ed67db2214384152caa082292333b94",
+      "size": 1941
+    },
+    {
+      "path": "tests/replyv1-consistency.test.js",
+      "sha256": "682b0778ca7dba986f715064abe3c5ed4308e44c6829baf6f8d288706ef15c66",
+      "size": 6190
+    },
+    {
       "path": "tests/richstalk.test.js",
       "sha256": "08c19f1610cf15347bd85191015b7aca92f245cb5ca891f6933ea2f008e7e533",
       "size": 15979
@@ -585,6 +630,11 @@
       "path": "tests/scrapr-downloader.test.js",
       "sha256": "4594b74cc5e8194611f348286e0d077ab85752f3790b7cfa3b2e519699f30492",
       "size": 4444
+    },
+    {
+      "path": "tests/update-signature.test.js",
+      "sha256": "588d5f286da872ff500e4db988a5cd43097ecd5df96aac3da88de7a63c6b8e81",
+      "size": 1213
     },
     {
       "path": "tests/upsert-policy.test.js",
@@ -608,8 +658,8 @@
     },
     {
       "path": "xeryuu.js",
-      "sha256": "a386f420d31eb974b027990128c4657430919ec9adb634b5a094f2b84d7b3058",
-      "size": 1454795
+      "sha256": "0b3485f844bd89072e26d0caa0f88a47941d4b224d17c5c2266501b68aebc43c",
+      "size": 1452068
     }
   ]
 }
