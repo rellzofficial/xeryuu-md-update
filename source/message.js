@@ -133,7 +133,7 @@ function unwrapMessagePayload(message) {
 function getMessageBody(m) {
     if (!m) return ''
 
-    // WhatsApp/Furina message handling unwraps ephemeral/view-once wrappers
+    // WhatsApp/Xeryuu message handling unwraps ephemeral/view-once wrappers
     // before parsing a command. Do the same here so SELF and MAINTENANCE gates
     // see the real command text instead of silently ignoring wrapped messages.
     const rawMessage = m.message && typeof m.message === 'object' ? m.message : {}
@@ -584,7 +584,7 @@ function isDuplicateMessage(conn, msg, upsertType = 'notify') {
     const currentIsCommand = isCommandCandidate(rawBody, remoteJid, configuredPrefix)
 
     if (previous && now - previousTime < TTL) {
-        // Furina-style handlers synthesize an `append` text command from some
+        // Xeryuu-style handlers synthesize an `append` text command from some
         // interactive responses while retaining the original message ID. The
         // ordinary ID-only dedup would discard that fallback unconditionally.
         // Permit it only if the first event was not itself a command, and never
@@ -1017,7 +1017,7 @@ async function Serialize(conn, m, store) {
 	}
 	if (m.message) {
         // Normalize payload before the command router, matching the reliable
-        // wrapper-unwrapping path used in Furina V18's messages.upsert handler.
+        // wrapper-unwrapping path used in Xeryuu V18's messages.upsert handler.
         const unwrappedMessage = unwrapMessagePayload(m.message)
 		m.type = getContentType(unwrappedMessage) || Object.keys(unwrappedMessage)[0] || ''
         const rawContent = unwrappedMessage[m.type]
