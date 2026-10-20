@@ -5,6 +5,7 @@ const path = require('path')
 const os = require('os')
 const crypto = require('crypto')
 const axios = require('axios')
+const { verifyManifestSignature } = require('./update-signature')
 
 // This must point to a PUBLIC, sanitized distribution repository. Never embed a GitHub token here.
 // The full developer repository can remain private; publish only approved files to this repository.
@@ -197,6 +198,15 @@ async function update({ projectRoot, reply }) {
 
     await reply('⏳ Memeriksa manifest GitHub dan memvalidasi seluruh file update...')
     const manifestBuffer = await downloadRaw(rawUrl(config.owner, config.repository, config.branch, MANIFEST_NAME), 2 * 1024 * 1024)
+    let signatureBuffer
+    try {
+        signatureBuffer = await downloadRaw(rawUrl(config.owner, config.repository, config.branch, '.xeryuu-update.sig'), 4096)
+    } catch {
+        throw new Error('Tanda tangan update belum tersedia. Tunggu workflow GitHub "Sign Update Manifest" selesai, lalu jalankan update kembali.')
+    }
+    if (!verifyManifestSignature(manifestBuffer, signatureBuffer.toString('utf8'))) {
+        throw new Error('Tanda tangan manifest GitHub tidak valid. Tidak ada file yang ditimpa; pastikan workflow penandatanganan berhasil dan ulangi setelah memeriksa repository.')
+    }
     let manifest
     try {
         manifest = JSON.parse(manifestBuffer.toString('utf8'))
