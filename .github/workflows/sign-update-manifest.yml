@@ -16,7 +16,7 @@ jobs:
 
       - name: Check signing configuration
         env:
-          SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+          SIGNING_PRIVATE_KEY: ${{ secrets.SIGNING_PRIVATE_KEY }}
         run: |
           if [ -z "$SIGNING_PRIVATE_KEY" ]; then
             echo "::error::Repository secret UPDATE_SIGNING_PRIVATE_KEY belum diatur."
@@ -35,7 +35,7 @@ jobs:
 
       - name: Sign manifest
         env:
-          SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+          SIGNING_PRIVATE_KEY: ${{ secrets.SIGNING_PRIVATE_KEY }}
         run: node .github/scripts/sign-update-manifest.js
 
       - name: Publish signature
