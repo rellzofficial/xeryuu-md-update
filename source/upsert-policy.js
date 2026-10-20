@@ -62,7 +62,7 @@ function isCommandCandidate(body, chat, configuredPrefix = '.') {
 }
 
 /**
- * `append` is used by Furina-like forks both for history and for synthetic
+ * `append` is used by Xeryuu-like forks both for history and for synthetic
  * command messages created from button/list/poll responses. Only permit a
  * clearly command-shaped message created at/after this socket's open time,
  * with a usable recent timestamp. This avoids replaying old payment/admin
