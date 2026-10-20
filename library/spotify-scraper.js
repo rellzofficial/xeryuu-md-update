@@ -363,7 +363,7 @@ async function v4_run(input) {
 }
 
 async function v5_run(input) {
-  // Adaptasi Furina V18/scrape/spotifyplay.js (Spotisongdownloader).
+  // Adaptasi Xeryuu V18/scrape/spotifyplay.js (Spotisongdownloader).
   const axios = require('axios')
   const crypto = require('crypto')
   const trackUrl = extractTrackUrl(input)
@@ -427,11 +427,11 @@ function withTimeout(promise, ms, label) {
 }
 
 const SCRAPERS = [
-  { name: 'Furina Spotdown', run: v1_run, timeoutMs: 20000 },
-  { name: 'Furina Spotidownloader', run: v2_run, timeoutMs: 22000 },
-  { name: 'Furina Spotmate', run: v3_run, timeoutMs: 22000 },
-  { name: 'Furina SpotDL.io', run: v4_run, timeoutMs: 22000 },
-  { name: 'Furina Spotisongdownloader', run: v5_run, timeoutMs: 20000 },
+  { name: 'Xeryuu Spotdown', run: v1_run, timeoutMs: 20000 },
+  { name: 'Xeryuu Spotidownloader', run: v2_run, timeoutMs: 22000 },
+  { name: 'Xeryuu Spotmate', run: v3_run, timeoutMs: 22000 },
+  { name: 'Xeryuu SpotDL.io', run: v4_run, timeoutMs: 22000 },
+  { name: 'Xeryuu Spotisongdownloader', run: v5_run, timeoutMs: 20000 },
 ]
 
 function mergeMetaPreferOfficial(currentMeta = {}, officialMeta = null) {
