@@ -140,17 +140,23 @@ async function ensureHandwrittenFont(canvasLib) {
 }
 
 async function downloadImageBuffer(url) {
-  const axios = fetchAxios();
-  const response = await axios.get(url, {
-    responseType: 'arraybuffer',
-    timeout: 18000,
-    maxContentLength: MAX_IMAGE_BYTES,
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Xeryuu-MD/16.5)' },
-    validateStatus: status => status >= 200 && status < 300
-  });
-  const buffer = Buffer.from(response.data || []);
+  let buffer;
+  if (typeof url === 'string' && !/^https?:\/\//i.test(url)) {
+    // Template lokal lebih andal daripada URL eksternal yang bisa berubah/hilang.
+    buffer = fs.readFileSync(path.resolve(url));
+  } else {
+    const axios = fetchAxios();
+    const response = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 18000,
+      maxContentLength: MAX_IMAGE_BYTES,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Xeryuu-MD/16.5)' },
+      validateStatus: status => status >= 200 && status < 300
+    });
+    buffer = Buffer.from(response.data || []);
+  }
   if (!buffer.length || buffer.length > MAX_IMAGE_BYTES || !isImageBuffer(buffer)) {
-    throw new Error('Provider tidak mengembalikan data gambar yang valid.');
+    throw new Error('Sumber template tidak mengembalikan data gambar yang valid.');
   }
   return buffer;
 }
@@ -202,7 +208,7 @@ function createLocalClassicBratImage(text) {
   return canvas.toBuffer('image/png');
 }
 
-async function createFurinaStyleBrat(text) {
+async function createXeryuuStyleBrat(text) {
   const content = String(text || '').replace(/\0/g, '').trim();
   if (!content) throw new Error('Teks BRAT belum diisi.');
   if (content.length > 180) throw new Error('Teks BRAT maksimal 180 karakter agar hasil stiker tetap terbaca.');
@@ -254,7 +260,7 @@ async function createTemplateBrat(text, variant) {
       align: 'center'
     },
     bahlil: {
-      url: 'https://i.ibb.co/JwT2QFvY/Furina-md.jpg',
+      url: path.join(__dirname, '..', 'media', 'XeryuMd.jpg'),
       area: { x: 0.18, y: 0.55, w: 0.64, h: 0.30 },
       color: '#ffffff',
       font: 'bold',
@@ -569,7 +575,7 @@ module.exports = {
   normalizeColor,
   createBratImage,
   createLocalClassicBratImage,
-  createFurinaStyleBrat,
+  createXeryuuStyleBrat,
   createTemplateBrat,
   createAnimeBratImage,
   createBratVideoSticker,
