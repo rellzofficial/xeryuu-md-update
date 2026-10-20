@@ -316,7 +316,7 @@ async function resolveViaYtmp3Mobi(url) {
 }
 
 async function resolveViaYtbRip(url) {
-  // Adaptasi dari scrape/ytdl.js milik Furina: jalur ytb.rip hanya dipakai
+  // Adaptasi dari scrape/ytdl.js milik Xeryuu: jalur ytb.rip hanya dipakai
   // untuk opsi audio langsung. Opsi converter/SSE dihindari agar polling
   // tidak menggantung dan provider berikutnya masih bisa dicoba.
   const configTimestamp = '1771534846328'
@@ -354,10 +354,10 @@ async function resolveViaYtbRip(url) {
   }
 }
 
-// Provider adapters ported from Furina V18/fitur/youtubedl.js.
+// Provider adapters ported from Xeryuu V18/fitur/youtubedl.js.
 // Each provider is bounded by its own request timeouts and a short polling window
 // so one unavailable third-party server cannot block all fallbacks.
-async function resolveViaFurinaLbServer(url) {
+async function resolveViaXeryuuLbServer(url) {
   const headers = { 'User-Agent': USER_AGENT, Accept: 'application/json, text/plain, */*' }
   const { data } = await axios.get('https://p.lbserver.xyz/ajax/download.php', {
     params: { format: 'mp3', audio_quality: '128', url },
@@ -389,7 +389,7 @@ async function resolveViaFurinaLbServer(url) {
   throw new Error('Timeout menunggu proses LBServer')
 }
 
-async function resolveViaFurinaSaveNow(url) {
+async function resolveViaXeryuuSaveNow(url) {
   let localApiKey = ''
   try {
     const localAuth = require('../authen.js') || {}
@@ -425,7 +425,7 @@ async function resolveViaFurinaSaveNow(url) {
   throw new Error('Timeout menunggu proses SaveNow')
 }
 
-async function resolveViaFurinaSSYoutube(url) {
+async function resolveViaXeryuuSSYoutube(url) {
   const headers = {
     'User-Agent': USER_AGENT,
     'Content-Type': 'application/x-www-form-urlencoded',
@@ -454,7 +454,7 @@ async function resolveViaFurinaSSYoutube(url) {
   return { url: direct, title }
 }
 
-async function resolveViaFurinaYtdlpOnline(url) {
+async function resolveViaXeryuuYtdlpOnline(url) {
   const command = encodeURIComponent(`-x --audio-format mp3 ${url}`)
   const { data } = await axios.get(`https://ytdlp.online/stream?command=${command}`, {
     responseType: 'text',
@@ -724,12 +724,12 @@ async function downloadYouTubeAudio(inputUrl) {
     ['Vreden', () => resolveViaVreden(sourceUrl), 13000],
     ['Sanka', () => resolveViaSanka(sourceUrl), 10000],
     ['Skyzopedia', () => resolveViaSkyzopedia(sourceUrl), 10000],
-    // Furina's ytmp3.gg / YtConvert adapter; keep a bounded wait for its poll API.
+    // Xeryuu's ytmp3.gg / YtConvert adapter; keep a bounded wait for its poll API.
     ['YtConvert', () => resolveViaYtConvert(sourceUrl), 25000],
-    ['Furina-LBServer', () => resolveViaFurinaLbServer(sourceUrl), 15000],
-    ['Furina-SaveNow', () => resolveViaFurinaSaveNow(sourceUrl), 15000],
-    ['Furina-SSYoutube', () => resolveViaFurinaSSYoutube(sourceUrl), 11000],
-    ['Furina-YtDlp.online', () => resolveViaFurinaYtdlpOnline(sourceUrl), 12000],
+    ['Xeryuu-LBServer', () => resolveViaXeryuuLbServer(sourceUrl), 15000],
+    ['Xeryuu-SaveNow', () => resolveViaXeryuuSaveNow(sourceUrl), 15000],
+    ['Xeryuu-SSYoutube', () => resolveViaXeryuuSSYoutube(sourceUrl), 11000],
+    ['Xeryuu-YtDlp.online', () => resolveViaXeryuuYtdlpOnline(sourceUrl), 12000],
     ['YTMP3.mobi', () => resolveViaYtmp3Mobi(sourceUrl), 25000],
     ['ytb.rip', () => resolveViaYtbRip(sourceUrl), 13000],
     ['Distube', () => resolveViaDistube(sourceUrl), 14000]
@@ -1192,9 +1192,9 @@ async function downloadSpotifyAudio(input) {
   const trackUrl = validSpotifyTrackUrl(input)
   if (!trackUrl) throw new Error('Link Spotify harus berupa tautan track Spotify yang valid')
   const attempts = [
-    ['Furina multi-scraper', async () => {
+    ['Xeryuu multi-scraper', async () => {
       const scraper = require('./spotify-scraper.js')
-      const result = await withTimeout(scraper.spotifyScrape(trackUrl), 110000, 'Scraper Spotify Furina')
+      const result = await withTimeout(scraper.spotifyScrape(trackUrl), 110000, 'Scraper Spotify Xeryuu')
       const media = await normalizeAudioBuffer(result.audioBuffer, result?.song?.mimetype || '')
       return {
         ...media,
