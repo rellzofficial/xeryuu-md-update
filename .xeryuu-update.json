@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261020035159",
-  "updatedAt": "2026-10-20T03:51:59.179Z",
+  "version": "v20261020211847",
+  "updatedAt": "2026-10-20T21:18:47.149Z",
   "branch": "main",
-  "previousVersion": "v20261019084940",
-  "previousCommitSha": "1f0de4ff2536a485bff638760178f67965f35bf0",
+  "previousVersion": "v20261020035159",
+  "previousCommitSha": "aaa8615979bbd829e9771612473868710d119718",
   "files": [
     {
       "path": "library/afk.js",
@@ -217,6 +217,11 @@
       "size": 45355
     },
     {
+      "path": "library/persistent-group-settings.js",
+      "sha256": "943a284b366a1291854ba268edf210f13944d07f68f3e02618e412578176ea58",
+      "size": 5103
+    },
+    {
       "path": "library/pinterest-carousel.js",
       "sha256": "a23f7e2cca80e35ad2ab14b01064f77dc3b7a8973bed406d25bac4facb880547",
       "size": 7552
@@ -347,6 +352,11 @@
       "size": 1405
     },
     {
+      "path": "library/scheduled-broadcast.js",
+      "sha256": "65dfe59e7483e48dd157700144215cc27ec321c1d3099813fb12e4f8352afb0b",
+      "size": 26063
+    },
+    {
       "path": "library/scraper.js",
       "sha256": "d9112e9cec99dc1bc7a46f7bf7e20ebaf0cb6528dc30e00d10b7ca5e2a67cd97",
       "size": 13220
@@ -393,7 +403,7 @@
     },
     {
       "path": "library/update-signature.js",
-      "sha256": "93cde4691ac92fb616d0548ae63e1f17007443070a653f9accf2032febba15c4",
+      "sha256": "e9019cba61a4751772f2f7c078d9d8e92b9d316e693defc034bbdb59ac6e66af",
       "size": 915
     },
     {
@@ -553,8 +563,8 @@
     },
     {
       "path": "package.json",
-      "sha256": "c36c01e6dfd63ff3c5f210aaf3e154a8815d8f769210671cd197e2b23bc79a38",
-      "size": 2094
+      "sha256": "37cc41f87061f4632e99e5e405164dd1e7a1988fe76bba03483f5e79c1f74744",
+      "size": 2024
     },
     {
       "path": "source/database.js",
@@ -607,6 +617,11 @@
       "size": 1679
     },
     {
+      "path": "tests/persistent-group-settings.test.js",
+      "sha256": "bd3e28ef38235a5af673a9e1b768b9408aa36f60f468bb199b89c4d476861c81",
+      "size": 3244
+    },
+    {
       "path": "tests/pinterest-carousel.test.js",
       "sha256": "81ec060997e7e8c7c1491efdbac1c4e35f603673d46c092e63ff6054be13d613",
       "size": 4363
@@ -625,6 +640,11 @@
       "path": "tests/richstalk.test.js",
       "sha256": "08c19f1610cf15347bd85191015b7aca92f245cb5ca891f6933ea2f008e7e533",
       "size": 15979
+    },
+    {
+      "path": "tests/scheduled-broadcast-reliability.test.js",
+      "sha256": "92b3103d26e7e63dbd3893f4c526329212bdefea7ed29d8e6349d35626e398d3",
+      "size": 5156
     },
     {
       "path": "tests/scrapr-downloader.test.js",
@@ -658,8 +678,8 @@
     },
     {
       "path": "xeryuu.js",
-      "sha256": "0b3485f844bd89072e26d0caa0f88a47941d4b224d17c5c2266501b68aebc43c",
-      "size": 1452068
+      "sha256": "865e9785cbb43eca2f85daf8600fc42187c0de7ce671d6960d61a9d7a38b80ef",
+      "size": 1468482
     }
   ]
 }
