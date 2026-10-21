@@ -205,19 +205,20 @@ function questionAnswer(command, text) {
 
 function scoreCheck(kind, name) {
   const subject = cleanName(name, 'Kamu');
-  const score = Math.floor(Math.random() * 99) + 1;
+  const score = Math.floor(Math.random() * 100) + 1;
+  // Legacy Furina-style aliases return a random percentage instead of a
+  // hard-coded refusal so the existing fun commands remain callable.
+  if (kind === 'cekgay' || kind === 'ceklesbi') return `${score}%`;
   const configs = {
-    cekganteng: { title: 'CEK GANTENG', high: 'Ganteng parah! 😎', mid: 'Lumayan, aura bintangnya ada.', low: 'Pesona itu lebih dari penampilan. 🫶' },
-    cekcantik: { title: 'CEK CANTIK', high: 'Cantik banget! ✨', mid: 'Manis dan punya pesona sendiri.', low: 'Tetap cantik dengan jadi diri sendiri. 💖' },
-    cekgay: { title: 'CEK GAY', high: 'Hasil random-nya tinggi banget 😂', mid: 'Hasilnya nanggung nih 😆', low: 'Kerang random belum menemukan jawaban 🐚' },
-    ceklesbi: { title: 'CEK LESBI', high: 'Hasil random-nya tinggi banget 😂', mid: 'Hasilnya nanggung nih 😆', low: 'Kerang random belum menemukan jawaban 🐚' },
-    wangy: { title: 'CEK WANGY', high: 'Wangi bunga satu taman! 🌸', mid: 'Lumayan wangi, lanjutkan! 🌼', low: 'Mungkin perlu mandi dan parfum dulu 😄' },
-    rate: { title: 'RATE', high: 'Nilai tinggi, pertahankan!', mid: 'Lumayan, masih bisa ditingkatkan.', low: 'Ini cuma angka random, jangan dimasukkan hati.' },
-    top: { title: 'TOP FUN SCORE', high: 'Aura juara terdeteksi! 🏆', mid: 'Masuk papan skor hiburan.', low: 'Latihan lagi, champion! 🔥' }
+    cekganteng: { title: 'CEK AURA PERCAYA DIRI', high: 'Aura percaya dirimu lagi naik! ✨', mid: 'Energi positif mulai terlihat.', low: 'Angka acak ini tidak mengukur penampilan atau nilai dirimu.' },
+    cekcantik: { title: 'CEK ENERGI POSITIF', high: 'Energi positifmu lagi tinggi! 🌟', mid: 'Vibe ceriamu cukup terasa.', low: 'Angka acak ini tidak mengukur penampilan atau nilai dirimu.' },
+    wangy: { title: 'CEK WANGY', high: 'Aroma bunga satu taman! 🌸', mid: 'Vibe segar hari ini! 🌼', low: 'Ini hanya tebak-tebakan acak 😄' },
+    rate: { title: 'RATE AURA', high: 'Energi positif lagi tinggi!', mid: 'Vibe santai dan seimbang.', low: 'Ini cuma angka random, jangan dimasukkan hati.' },
+    top: { title: 'TOP FUN SCORE', high: 'Aura juara fiksi terdeteksi! 🏆', mid: 'Masuk papan skor hiburan.', low: 'Latihan lagi, champion! 🔥' }
   };
   const config = configs[kind] || configs.rate;
   const note = score >= 75 ? config.high : score >= 45 ? config.mid : config.low;
-  return `╭━━━〔 🎭 ${config.title} 〕━━━╮\n│ 👤 Nama: ${subject}\n│ 📊 Skor: ${score}/100\n│ ✨ ${note}\n╰━━━━━━━━━━━━━━━━━━╯\n_Ini fitur hiburan, bukan penilaian sungguhan._`;
+  return `╭━━━〔 🎭 ${config.title} 〕━━━╮\n│ 👤 Nama: ${subject}\n│ 📊 Skor aura: ${score}/100\n│ ✨ ${note}\n╰━━━━━━━━━━━━━━━━━━╯\n_Ini fitur hiburan, bukan penilaian fisik atau identitas._`;
 }
 
 function makePantun() {
