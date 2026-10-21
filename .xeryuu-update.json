@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261020211847",
-  "updatedAt": "2026-10-20T21:18:47.149Z",
+  "version": "v20261021075650",
+  "updatedAt": "2026-10-21T07:56:50.051Z",
   "branch": "main",
-  "previousVersion": "v20261020035159",
-  "previousCommitSha": "aaa8615979bbd829e9771612473868710d119718",
+  "previousVersion": "v20261020211847",
+  "previousCommitSha": "cb144949290de338df9b552d14347f65a87f7a58",
   "files": [
     {
       "path": "library/afk.js",
@@ -123,8 +123,8 @@
     },
     {
       "path": "library/deposit.js",
-      "sha256": "b8f1e32ec6dacca411d2d798f7fc9146454df90afe48af43e2fb33595259ea80",
-      "size": 30902
+      "sha256": "50aa067d63fef98f0d47a149c279542f308a15e8948f5b9f5939f3fd4f4be7dd",
+      "size": 38246
     },
     {
       "path": "library/economy.js",
@@ -143,8 +143,8 @@
     },
     {
       "path": "library/funmenu.js",
-      "sha256": "e925c157cabfcc66463e5c4f303b9b2793af280967db8e56925347cffecb035e",
-      "size": 15833
+      "sha256": "8499dcf6875a99e39ac42d152f7e66beaf13b8d1fb9ac8d31c8d2d2b597efeb8",
+      "size": 15801
     },
     {
       "path": "library/games.js",
@@ -215,6 +215,11 @@
       "path": "library/nokos.js",
       "sha256": "e4be75185d7a8f4ab7038ed20c28cb6d14f33eb5350f80e2591570efffe2ba4b",
       "size": 45355
+    },
+    {
+      "path": "library/payment-carousel.js",
+      "sha256": "514729a2fb9162c8d33530f23f00e251a4b624bd893635c4e699d8fbb3967207",
+      "size": 9848
     },
     {
       "path": "library/persistent-group-settings.js",
@@ -347,6 +352,11 @@
       "size": 44365
     },
     {
+      "path": "library/rpg-fun-integration.js",
+      "sha256": "7a05dbe021ba61564e5ebc855172c6ea105d532f714d46c848bf24d4657bafce",
+      "size": 69150
+    },
+    {
       "path": "library/rwm.js",
       "sha256": "d242fd8123fed9f680dfc90e8738a15d2b42691011162a381bef161a0f737e05",
       "size": 1405
@@ -395,6 +405,16 @@
       "path": "library/tourl.js",
       "sha256": "310ae7c5ac889be834366cd7cc934bfc09bea0eb71dd70b9974524ae696ad2be",
       "size": 13445
+    },
+    {
+      "path": "library/transaction-qr-delivery.js",
+      "sha256": "7fe20a6c5bf2941385818c7fcdfd9e754361e5df678c838c7408fa2a659b386e",
+      "size": 3212
+    },
+    {
+      "path": "library/transaction-qr-interactive.js",
+      "sha256": "1c1297a84530aa639a029e8682f9f13a47d1c6498304dda547d78430c5ff2c84",
+      "size": 3078
     },
     {
       "path": "library/upch.js",
@@ -602,6 +622,11 @@
       "size": 3485
     },
     {
+      "path": "tests/deposit-qr.test.js",
+      "sha256": "665c30ab623bc66cc2239c303562950944ea6b889c737e76d6f483b47d8c7861",
+      "size": 5804
+    },
+    {
       "path": "tests/feature-integration.test.js",
       "sha256": "f1a0d20ad003684d05b737b087b505e7f1d7a1b94d929abff86915cbfdd82d29",
       "size": 4560
@@ -615,6 +640,11 @@
       "path": "tests/integrity-notification.test.js",
       "sha256": "beb72118ce2cacb18479f14d3fd58a2cee01372896f9800923136984ce1a09a2",
       "size": 1679
+    },
+    {
+      "path": "tests/payment-carousel.test.js",
+      "sha256": "9ca89f0c01b865f86c13d6bfaa7411b4b335e9c6b6499f65743f72a465c280f1",
+      "size": 6446
     },
     {
       "path": "tests/persistent-group-settings.test.js",
@@ -637,9 +667,19 @@
       "size": 6190
     },
     {
+      "path": "tests/restored-games.test.js",
+      "sha256": "8223d27bc6b049b9419af46b0f861a28fe2d56c07f993192a4defa08086954c4",
+      "size": 4388
+    },
+    {
       "path": "tests/richstalk.test.js",
       "sha256": "08c19f1610cf15347bd85191015b7aca92f245cb5ca891f6933ea2f008e7e533",
       "size": 15979
+    },
+    {
+      "path": "tests/rpg-fun-integration.test.js",
+      "sha256": "6b9627a8e5bfb8b1edc2ae599ac796e5a674d417eb6b7f3d5e4918a4945e94e2",
+      "size": 15800
     },
     {
       "path": "tests/scheduled-broadcast-reliability.test.js",
@@ -650,6 +690,16 @@
       "path": "tests/scrapr-downloader.test.js",
       "sha256": "4594b74cc5e8194611f348286e0d077ab85752f3790b7cfa3b2e519699f30492",
       "size": 4444
+    },
+    {
+      "path": "tests/transaction-qr-delivery.test.js",
+      "sha256": "917e841faf0d90200c61932c421fcd1ed5f5b3769270b0a2aaae314e2e300b25",
+      "size": 3810
+    },
+    {
+      "path": "tests/transaction-qr-interactive.test.js",
+      "sha256": "97c94c74d105a579ce93b95cdcb735424fb24ced943b528f447d5b9ceaec9dd8",
+      "size": 3412
     },
     {
       "path": "tests/update-signature.test.js",
@@ -678,8 +728,8 @@
     },
     {
       "path": "xeryuu.js",
-      "sha256": "865e9785cbb43eca2f85daf8600fc42187c0de7ce671d6960d61a9d7a38b80ef",
-      "size": 1468482
+      "sha256": "7b1401374ee6ac40d6290054bd180ff5d663a1c5d667ca187c8558b29de1553f",
+      "size": 1493559
     }
   ]
 }
