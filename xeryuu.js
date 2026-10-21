@@ -167,6 +167,16 @@ const premium = Array.isArray(premiumData) ? premiumData : []
 const list = Array.isArray(listData) ? listData : []
 const { pinterest, pinterest2, pinterestSearch, remini, mediafire, tiktokDl, ephoto} = require('./library/scraper');
 const { createPinterestCarouselSender, sendPinterestSearchFallback } = require('./library/pinterest-carousel.js');
+const { createPaymentCarouselSender } = require('./library/payment-carousel.js');
+const { sendQrImageMessage } = require('./library/transaction-qr-delivery.js');
+const { sendQrWithButtonsInteractive } = require('./library/transaction-qr-interactive.js');
+const xeryuuRpgFunIntegration = require('./library/rpg-fun-integration.js');
+const sendXeryuuPaymentCarousel = createPaymentCarouselSender({
+    proto,
+    generateWAMessageFromContent,
+    prepareWAMessageMedia,
+    projectRoot: __dirname
+});
 const { toAudio, toPTT, toVideo, ffmpeg } = require("./library/converter.js")
 const { CatBox, TelegraPh, floNime, uptotelegra } = require('./library/uploader')
 const { getDevice } = require("@whiskeysockets/baileys")
@@ -2641,7 +2651,7 @@ const sendXeryuuCategoryPicker = async (page = 1) => {
     ]
     const secondCategoryRows = [
         { title: '🎮 Menu Game', description: 'Game dan permainan interaktif', id: `${prefix}gamemenu` },
-        { title: '🧙 Menu RPG', description: 'Petualangan dan fitur RPG', id: `${prefix}rpgmenu` },
+        { title: '🧙 Menu RPG', description: 'RPG klasik dan ekonomi virtual Xeryuu', id: `${prefix}rpgmenu` },
         { title: '🔮 Menu Primbon', description: 'Fitur primbon dan kecocokan', id: `${prefix}primbonmenu` },
         { title: '🎨 Menu Editing', description: 'Editing gambar dan media', id: `${prefix}editingmenu` },
         { title: '🔎 Menu Stalk', description: 'Pencarian dan informasi akun', id: `${prefix}stalkmenu` },
@@ -2653,7 +2663,7 @@ const sendXeryuuCategoryPicker = async (page = 1) => {
     ]
     const thirdCategoryRows = [
         { title: '🔄 Menu Convert', description: 'Konversi file dan media', id: `${prefix}convertmenu` },
-        { title: '🎭 Menu Fun', description: 'Hiburan, kuis, dan fun tools', id: `${prefix}funmenu` },
+        { title: '🎭 Menu Fun', description: 'Hiburan SFW, matematika, fakta, dan reaksi anime', id: `${prefix}funmenu` },
         { title: '🧩 Menu Maker', description: 'Pembuat konten dan generator', id: `${prefix}makermenu` },
         { title: '🪄 Menu Jasher', description: 'Fitur tambahan Jasher', id: `${prefix}jashermenu` },
         { title: '🛍️ Website Store', description: 'Kembali ke katalog produk', id: `${prefix}store` },
@@ -3088,7 +3098,10 @@ const makeXeryuuReplyContextInfo = () => ({
     externalAdReply: {
         title: 'XERYUU-MD V17',
         body: 'created by: XnalzNotDev',
-        thumbnail: readProjectAsset('media/xeryuu.png'),
+        // Jangan pasang PNG banner penuh (sekitar 1.8 MB) sebagai thumbnail
+        // metadata transaksi. Beberapa build Baileys menolak payload gambar
+        // interaktif yang membawa thumbnail metadata terlalu besar.
+        thumbnail: readProjectAsset('media/XeryuMd-thumbnail.jpg'),
         mediaType: 1,
         renderLargerThumbnail: false
     }
@@ -3109,11 +3122,16 @@ const persistQrMessageReferences = async (paymentRef, qrMessage, controlMessage)
     const ref = String(paymentRef || '').trim()
     if (!ref || typeof depositService.updateMessageReferences !== 'function') return
     try {
-        await depositService.updateMessageReferences(ref, {
-            qrMessageKey: toStoredWaMessageKey(qrMessage),
-            controlMessageKey: toStoredWaMessageKey(controlMessage),
-            messagesDeletedAt: null
-        })
+        const references = {}
+        const qrKey = toStoredWaMessageKey(qrMessage)
+        const controlKey = toStoredWaMessageKey(controlMessage)
+        // Do not erase a previously stored key when a resend fails to produce a
+        // new QR or control message. Retaining the old key is required so that
+        // cancellation can still attempt to remove any earlier visible QR.
+        if (qrKey) references.qrMessageKey = qrKey
+        if (controlKey) references.controlMessageKey = controlKey
+        if (qrKey || controlKey) references.messagesDeletedAt = null
+        if (Object.keys(references).length) await depositService.updateMessageReferences(ref, references)
     } catch (error) {
         // UI tidak boleh membatalkan invoice yang valid hanya karena gagal mencatat
         // key pesan untuk penghapusan. Transaksi tetap dapat dicek/dibatalkan via ref.
@@ -3163,8 +3181,15 @@ const deleteStoredQrMessages = async (transaction, paymentRef = '') => {
     return { deleted, failed }
 }
 
-const sendTransactionControlInteractive = async ({ text, footer, buttons = [], fallbackText = '', imageBuffer = null }) => {
-    const controlText = styleXeryuuReplyText(text)
+const sendTransactionControlInteractive = async ({
+    text,
+    controlText = '',
+    imageCaption = '',
+    footer,
+    buttons = [],
+    fallbackText = '',
+    imageBuffer = null
+}) => {
     const nativeButtons = buttons.slice(0, 3).map(button => ({
         name: 'quick_reply',
         buttonParamsJson: JSON.stringify({
@@ -3172,81 +3197,134 @@ const sendTransactionControlInteractive = async ({ text, footer, buttons = [], f
             id: String(button.id || `${prefix}store`)
         })
     }))
-    try {
-        let header = undefined
-        if (Buffer.isBuffer(imageBuffer) && imageBuffer.length) {
-            const uploadedImage = await generateWAMessageContent(
-                { image: imageBuffer },
-                { upload: conn.waUploadToServer }
-            )
-            header = {
-                hasMediaAttachment: true,
-                imageMessage: uploadedImage.imageMessage
-            }
-        }
 
-        const waMessage = generateWAMessageFromContent(m.chat, {
-            viewOnceMessage: {
-                message: {
-                    messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
-                    interactiveMessage: proto.Message.InteractiveMessage.fromObject({
-                        ...(header ? { header } : {}),
-                        body: proto.Message.InteractiveMessage.Body.fromObject({ text: controlText }),
-                        contextInfo: makeXeryuuReplyContextInfo(),
-                        footer: proto.Message.InteractiveMessage.Footer.fromObject({
-                            text: String(footer || 'Xeryuu-Md V17 × Sendrich • Transaksi')
-                        }),
-                        nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
-                            buttons: nativeButtons,
-                            messageParamsJson: '{}'
-                        })
-                    })
+    // Utamakan satu kartu WhatsApp: gambar QRIS, detail invoice, tombol cek,
+    // dan tombol batal berada pada pesan yang sama. Tidak menambahkan ad
+    // thumbnail/contextInfo ke header pembayaran agar payload media tetap kecil.
+    if (Buffer.isBuffer(imageBuffer) && imageBuffer.length && nativeButtons.length) {
+        try {
+            const combined = await sendQrWithButtonsInteractive({
+                conn,
+                chat: m.chat,
+                quoted: m,
+                imageBuffer,
+                bodyText: styleXeryuuReplyText(imageCaption || controlText || text || fallbackText || '📲 QRIS pembayaran'),
+                footer: footer || 'Xeryuu-Md V17 × Sendrich • Transaksi',
+                nativeButtons,
+                proto,
+                generateWAMessageFromContent,
+                prepareWAMessageMedia,
+                userJid: m.sender
+            })
+            if (combined?.sent && combined.message) {
+                // Kedua referensi sengaja menunjuk ke pesan yang sama. Fungsi
+                // penghapusan mendeduplikasi message key ini saat invoice dibatalkan.
+                return {
+                    qrMessage: combined.message,
+                    controlMessage: combined.message,
+                    qrSent: true,
+                    controlSent: true,
+                    qrError: null,
+                    controlError: null,
+                    combined: true
                 }
             }
-        }, { quoted: m, userJid: m.sender })
-        await conn.relayMessage(m.chat, waMessage.message, { messageId: waMessage.key.id })
-        return waMessage
+        } catch (error) {
+            console.error('[TRANSACTION QR+BUTTONS COMBINED]', error?.stack || error)
+            // Compatibility fallback: keep the QR image deliverable even if
+            // this Baileys build/client refuses image headers on interactive cards.
+        }
+    }
+
+    // Fallback for clients/builds that reject a combined image + button card.
+    // In this path both message keys are persisted and both get deleted on cancel.
+    // Beberapa build Baileys/klien WhatsApp menerima tombol interaktif tetapi
+    // tidak merender imageMessage pada header, sehingga invoice terlihat aktif
+    // walau QR tidak tampak. Pemisahan ini membuat pengiriman gambar eksplisit.
+    const qrDelivery = await sendQrImageMessage({
+        conn,
+        chat: m.chat,
+        quoted: m,
+        imageBuffer,
+        caption: styleXeryuuReplyText(imageCaption || text || '📲 QRIS pembayaran'),
+        // Sengaja tanpa contextInfo/ad thumbnail pada pesan gambar QRIS.
+        // Gambar QR harus dapat dikirim sendiri tanpa metadata tambahan.
+        onError: error => console.error('[TRANSACTION QR IMAGE SEND]', error?.stack || error)
+    })
+    const qrMessage = qrDelivery.message || null
+    const qrSent = Boolean(qrDelivery.sent)
+
+    const qrWarning = qrSent
+        ? ''
+        : `\n\n⚠️ Gambar QRIS belum berhasil dikirim. Jangan membayar melalui QR lain. Gunakan link invoice resmi jika tersedia, atau minta owner memeriksa referensi transaksi.\n\nDetail teknis: ${String(qrDelivery.error?.message || 'pengiriman gambar tidak terkonfirmasi').slice(0, 500)}`
+    const fallbackBase = String(fallbackText || text || 'Informasi transaksi')
+    const bodyBase = qrSent ? String(controlText || text || 'Informasi transaksi') : fallbackBase
+    const noQrBodyBase = bodyBase
+        .replace(/1\.\s*Scan QRIS di atas menggunakan aplikasi pembayaran\.?/gi, '')
+        .replace(/Scan QRIS(?: di atas| untuk membayar)?(?: pesanan ini)?\.?/gi, '')
+    const visibleQrWarning = !qrSent && /(?:QRIS|gambar QR).{0,50}(?:belum|tidak|gagal|tersedia|ditampilkan|dirender|berhasil dikirim)/i.test(noQrBodyBase)
+        ? ''
+        : qrWarning
+    const body = styleXeryuuReplyText(`${noQrBodyBase}${visibleQrWarning}`)
+    const fallback = styleXeryuuReplyText(
+        `${fallbackBase.replace(/1\.\s*Scan QRIS di atas menggunakan aplikasi pembayaran\.?/gi, '').replace(/Scan QRIS(?: di atas| untuk membayar)?(?: pesanan ini)?\.?/gi, '')}${visibleQrWarning}\n\nJika tombol tidak muncul, gunakan perintah manual yang tercantum di atas.`
+    )
+    let controlMessage = null
+
+    try {
+        if (!proto?.Message?.InteractiveMessage?.fromObject || !nativeButtons.length) {
+            controlMessage = await conn.sendMessage(m.chat, { text: body }, { quoted: m })
+        } else {
+            const waMessage = generateWAMessageFromContent(m.chat, {
+                viewOnceMessage: {
+                    message: {
+                        messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
+                        interactiveMessage: proto.Message.InteractiveMessage.fromObject({
+                            body: proto.Message.InteractiveMessage.Body.fromObject({ text: body }),
+                            contextInfo: makeXeryuuReplyContextInfo(),
+                            footer: proto.Message.InteractiveMessage.Footer.fromObject({
+                                text: String(footer || 'Xeryuu-Md V17 × Sendrich • Transaksi')
+                            }),
+                            nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
+                                buttons: nativeButtons,
+                                messageParamsJson: '{}'
+                            })
+                        })
+                    }
+                }
+            }, { quoted: m, userJid: m.sender })
+            await conn.relayMessage(m.chat, waMessage.message, { messageId: waMessage.key.id })
+            controlMessage = waMessage
+        }
     } catch (error) {
         console.error('[TRANSACTION CONTROL BUTTONS]', error?.stack || error)
-        const fallback = styleXeryuuReplyText(
-            fallbackText || `${text}\n\nJika tombol tidak muncul, gunakan perintah manual yang tercantum di atas.`
-        )
-        // Fallback tetap satu pesan: QRIS + petunjuk dibawa dalam caption,
-        // bukan mengirim pesan kontrol terpisah. Coba tanpa metadata bila ditolak.
-        if (Buffer.isBuffer(imageBuffer) && imageBuffer.length) {
-            try {
-                return await conn.sendMessage(m.chat, {
-                    image: imageBuffer,
-                    caption: fallback,
-                    contextInfo: makeXeryuuReplyContextInfo()
-                }, { quoted: m })
-            } catch (imageFallbackError) {
-                console.error('[TRANSACTION QR IMAGE FALLBACK]', imageFallbackError?.message || imageFallbackError)
-                try {
-                    return await conn.sendMessage(m.chat, {
-                        image: imageBuffer,
-                        caption: fallback
-                    }, { quoted: m })
-                } catch (plainImageError) {
-                    console.error('[TRANSACTION QR PLAIN IMAGE FALLBACK]', plainImageError?.message || plainImageError)
-                }
-            }
-        }
-        const fallbackWithQrWarning = `${fallback}\n\n⚠️ QRIS tidak berhasil terkirim sebagai gambar. Gunakan tautan invoice bila tersedia dan jangan membayar invoice lain sebelum status ini dipastikan.`
         try {
-            return await conn.sendMessage(m.chat, {
-                text: fallbackWithQrWarning,
+            controlMessage = await conn.sendMessage(m.chat, {
+                text: fallback,
                 contextInfo: makeXeryuuReplyContextInfo()
             }, { quoted: m })
         } catch (richFallbackError) {
             console.error('[TRANSACTION CONTROL RICH FALLBACK]', richFallbackError?.message || richFallbackError)
             try {
-                return await conn.sendMessage(m.chat, { text: fallbackWithQrWarning }, { quoted: m })
+                controlMessage = await conn.sendMessage(m.chat, { text: fallback }, { quoted: m })
             } catch (plainFallbackError) {
                 console.error('[TRANSACTION CONTROL PLAIN FALLBACK]', plainFallbackError?.message || plainFallbackError)
-                return null
             }
         }
+    }
+
+    if (qrDelivery.error && !controlMessage) {
+        console.error('[TRANSACTION QR DELIVERY FAILED]', qrDelivery.error?.message || qrDelivery.error)
+    }
+    return { qrMessage, controlMessage, qrSent, controlSent: Boolean(controlMessage), qrError: qrDelivery.error || null, combined: false }
+}
+
+const sendPaymentProgressNotice = async (text) => {
+    try {
+        return await conn.sendMessage(m.chat, { text: String(text || '⏳ Menyiapkan invoice pembayaran...') }, { quoted: m })
+    } catch (error) {
+        console.error('[PAYMENT PROGRESS NOTICE]', error?.stack || error)
+        return null
     }
 }
 
@@ -3259,20 +3337,29 @@ const sendDepositInteractive = async (tx, imageBuffer, captionText) => {
     const actionText = canCancel
         ? 'Pilih tombol di bawah untuk cek status atau batalkan deposit. Jika pembatalan berhasil, pesan QRIS ini akan dihapus.'
         : 'Invoice sudah tidak menunggu pembayaran. Gunakan tombol Cek Status untuk melihat hasil terbaru.'
-    const combinedText = `${captionText}\n\n${actionText}`
+    const qrWarning = Buffer.isBuffer(imageBuffer) && imageBuffer.length
+        ? ''
+        : `\n\n⚠️ Gambar QRIS belum berhasil dibuat dari respons gateway. Invoice belum berarti lunas; jangan membayar lewat QR lain. ${tx.checkoutUrl ? `Gunakan link invoice resmi ini: ${tx.checkoutUrl}` : `Simpan invoice ${ref} dan hubungi owner untuk memeriksa data QRIS.`}`
+    const displayCaption = qrWarning
+        ? `${String(captionText || '').replace(/Scan QRIS untuk membayar\.?/gi, '').trim()}${qrWarning}`
+        : captionText
+    const combinedText = `${displayCaption}\n\n${actionText}`
     const buttons = [{ title: '🔄 Cek Status', id: `${prefix}depositstatus ${ref}` }]
     if (canCancel) buttons.push({ title: '❌ Batalkan Deposit', id: `${prefix}depositcancel ${ref}` })
-    const fallbackText = `${combinedText}\n\nPerintah manual: ${prefix}depositstatus ${ref}${canCancel ? ` atau ${prefix}depositcancel ${ref}` : ''}`
+    const manualCommands = `Perintah manual: ${prefix}depositstatus ${ref}${canCancel ? ` atau ${prefix}depositcancel ${ref}` : ''}`
+    const fallbackText = `${combinedText}\n\n${manualCommands}`
 
-    const combinedMessage = await sendTransactionControlInteractive({
+    const delivery = await sendTransactionControlInteractive({
         text: combinedText,
-        imageBuffer,
+        controlText: `${Buffer.isBuffer(imageBuffer) && imageBuffer.length ? actionText : displayCaption + '\n\n' + actionText}\n\n${manualCommands}`,
+        imageCaption: `${captionText}\n\n${actionText}\n\n${manualCommands}`,
+        imageBuffer: Buffer.isBuffer(imageBuffer) && imageBuffer.length ? imageBuffer : null,
         footer: 'Xeryuu-Md V17 × Sendrich • Deposit QRIS',
         buttons,
         fallbackText
     })
-    await persistQrMessageReferences(ref, combinedMessage, null)
-    return combinedMessage
+    await persistQrMessageReferences(ref, delivery.qrMessage, delivery.controlMessage)
+    return delivery
 }
 
 const sendStoreOrderInteractive = async (order, imageBuffer, captionText) => {
@@ -3287,20 +3374,29 @@ const sendStoreOrderInteractive = async (order, imageBuffer, captionText) => {
     const actionText = canCancel
         ? 'Pilih tombol di bawah untuk cek status pembayaran atau batalkan order. Jika pembatalan berhasil, pesan QRIS ini akan dihapus.'
         : 'Pembayaran sudah terverifikasi atau order tidak lagi bisa dibatalkan. Gunakan tombol Cek Status untuk melihat hasil terbaru.'
-    const combinedText = `${captionText}\n\n${actionText}`
+    const qrWarning = Buffer.isBuffer(imageBuffer) && imageBuffer.length
+        ? ''
+        : `\n\n⚠️ Gambar QRIS belum berhasil dibuat dari respons gateway. Status order tetap menunggu verifikasi; jangan membayar melalui QR lain. ${payment?.checkoutUrl ? `Gunakan link invoice resmi ini: ${payment.checkoutUrl}` : `Simpan referensi ${ref} dan hubungi owner untuk memeriksa data QRIS.`}`
+    const displayCaption = qrWarning
+        ? `${String(captionText || '').replace(/(?:1\.\s*)?Scan QRIS(?: di atas)?(?: menggunakan aplikasi pembayaran)?\.?/gi, '').trim()}${qrWarning}`
+        : captionText
+    const combinedText = `${displayCaption}\n\n${actionText}`
     const buttons = [{ title: '🔄 Cek Status', id: `${prefix}orderstatus ${ref}` }]
     if (canCancel) buttons.push({ title: '❌ Batalkan Order', id: `${prefix}ordercancel ${ref}` })
-    const fallbackText = `${combinedText}\n\nPerintah manual: ${prefix}orderstatus ${ref}${canCancel ? ` atau ${prefix}ordercancel ${ref}` : ''}`
+    const manualCommands = `Perintah manual: ${prefix}orderstatus ${ref}${canCancel ? ` atau ${prefix}ordercancel ${ref}` : ''}`
+    const fallbackText = `${combinedText}\n\n${manualCommands}`
 
-    const combinedMessage = await sendTransactionControlInteractive({
+    const delivery = await sendTransactionControlInteractive({
         text: combinedText,
-        imageBuffer,
+        controlText: `${Buffer.isBuffer(imageBuffer) && imageBuffer.length ? actionText : displayCaption + '\n\n' + actionText}\n\n${manualCommands}`,
+        imageCaption: `${captionText}\n\n${actionText}\n\n${manualCommands}`,
+        imageBuffer: Buffer.isBuffer(imageBuffer) && imageBuffer.length ? imageBuffer : null,
         footer: 'Xeryuu-Md V17 × Sendrich • Store QRIS',
         buttons,
         fallbackText
     })
-    if (order.paymentRef) await persistQrMessageReferences(order.paymentRef, combinedMessage, null)
-    return combinedMessage
+    if (order.paymentRef) await persistQrMessageReferences(order.paymentRef, delivery.qrMessage, delivery.controlMessage)
+    return delivery
 }
 
 const convertPulsaSessionForCurrentUser = () => {
@@ -9169,15 +9265,17 @@ Token: ${token}`)
         const controlButtons = [{ title: '🔄 Cek Status', id: `${prefix}purchaseqrisstatus ${payment.merchantRef}` }]
         if (canCancel) controlButtons.push({ title: '❌ Batalkan Order', id: `${prefix}purchaseqriscancel ${token}` })
         const fallbackText = `${combinedText}\n\nPerintah manual: ${prefix}purchaseqrisstatus ${payment.merchantRef}${canCancel ? ` atau ${prefix}purchaseqriscancel ${token}` : ''}`
-        const combinedMessage = await sendTransactionControlInteractive({
+        const delivery = await sendTransactionControlInteractive({
             text: combinedText,
-            imageBuffer: image,
+            controlText: `${image ? actionText : qrCaption + '\n\n' + actionText}\n\nPerintah manual: ${prefix}purchaseqrisstatus ${payment.merchantRef}${canCancel ? ` atau ${prefix}purchaseqriscancel ${token}` : ''}`,
+            imageCaption: `${qrCaption}\n\n${actionText}\n\nPerintah manual: ${prefix}purchaseqrisstatus ${payment.merchantRef}${canCancel ? ` atau ${prefix}purchaseqriscancel ${token}` : ''}`,
+            imageBuffer: Buffer.isBuffer(image) && image.length ? image : null,
             footer: 'Xeryuu-Md V17 × Sendrich • QRIS Pembelian',
             buttons: controlButtons,
             fallbackText
         })
-        await persistQrMessageReferences(payment.merchantRef, combinedMessage, null)
-        return combinedMessage
+        await persistQrMessageReferences(payment.merchantRef, delivery.qrMessage, delivery.controlMessage)
+        return delivery
     } catch (error) {
         const intent = purchasePayment.getIntent(token)
         if (intent?.status === 'QRIS_REVIEW_REQUIRED') {
@@ -9389,6 +9487,16 @@ if (['ewe-paksa', 'ewepaksa'].includes(String(command || '').toLowerCase())) {
     return replyV1('🛡️ Command ini dinonaktifkan. Gunakan .duel untuk permainan kompetitif yang aman.');
 }
 
+// Keep only explicit adult/sexual legacy aliases behind this guard.
+// This guard runs before the extension and legacy switch so aliases cannot bypass it.
+// All supported arcade commands below use Xeryuu's in-bot virtual balance only.
+const XERYUU_DISABLED_UNSAFE_GAMES = new Set([
+    'horny', 'sange', 'sangean', 'perawan', 'ngentod', 'ngentot'
+]);
+if (XERYUU_DISABLED_UNSAFE_GAMES.has(String(command || '').toLowerCase())) {
+    return replyV1('Perintah ini tidak tersedia di build ini. Fitur game RPG/arcade lainnya tetap dapat digunakan.');
+}
+
 try {
     const handledXeryuuCommand = await xeryuuExtension.handle(command, {
         conn,
@@ -9404,6 +9512,18 @@ try {
 } catch (error) {
     console.error('[XERYUU EXTENSION COMMAND]', error?.stack || error);
     return replyV1(`❌ Perintah game/RPG gagal diproses. Detail: ${String(error?.message || error).slice(0, 220)}`);
+}
+
+try {
+    const handledRpgFunIntegration = await xeryuuRpgFunIntegration.handle(command, {
+        conn, m, args, text, body, prefix, economy, reply: replyV1,
+        isAdmin: Boolean(isAdmins),
+        saveGlobalDb: () => saveDB(global.db)
+    });
+    if (handledRpgFunIntegration) return;
+} catch (error) {
+    console.error('[XERYUU RPG/FUN INTEGRATION]', error?.stack || error);
+    return replyV1(`❌ Perintah RPG/Fun gagal diproses. Detail: ${String(error?.message || error).slice(0, 220)}`);
 }
 
 switch (command) {
@@ -10660,6 +10780,10 @@ case 'depo': {
             `⚠️ Deposit menambah *saldo wallet*, bukan langsung membeli produk.`
         )
     }
+    if (typeof depositService.ready === 'function' && !depositService.ready()) {
+        return replyV1('❌ Gateway QRIS belum dikonfigurasi. Periksa NASIONALPAY_STORE_KEY pada environment atau authen.js lokal, lalu restart bot. Tidak ada invoice baru dibuat.')
+    }
+    await sendPaymentProgressNotice('⏳ Menyiapkan invoice deposit QRIS. Tunggu sebentar dan jangan kirim perintah deposit yang sama berulang kali.')
     try {
         const tx = await depositService.create({
             jid: m.sender,
@@ -10667,7 +10791,8 @@ case 'depo': {
             pushname
         })
         let image = null
-        try { image = await depositService.qrBuffer(tx) } catch (e) { console.error('[QR DEPOSIT]', e?.message || e) }
+        try { image = await depositService.qrBuffer(tx) } catch (e) { console.error('[QR DEPOSIT BUFFER]', e?.stack || e) }
+        if (!image) console.error('[QR DEPOSIT BUFFER EMPTY]', JSON.stringify({ ref: tx?.merchantRef || '', hasQrString: Boolean(tx?.qrString), hasQrImage: Boolean(tx?.qrImage), hasCheckoutUrl: Boolean(tx?.checkoutUrl), provider: tx?.provider || '' }))
 
         const caption =
             `╭─〔 💳 DEPOSIT SALDO 〕\n` +
@@ -10675,8 +10800,9 @@ case 'depo': {
             `║ 💰 Nominal: *Rp${depositService.formatMoney(tx.amount)}*\n` +
             `║ ⏳ Status: *${tx.status}*\n` +
             `╰────────────────\n\n` +
-            `Scan QRIS untuk membayar.\n` +
-            `Setelah membayar, gunakan *${prefix}depositstatus ${tx.merchantRef}* jika notifikasi belum masuk.\n\n` +
+            `${image ? 'Scan QRIS untuk membayar.' : `⚠️ Gambar QRIS belum berhasil dirender. ${tx.checkoutUrl ? `Buka link invoice: ${tx.checkoutUrl}` : 'Jangan membayar melalui QR lain; hubungi owner untuk memeriksa data invoice.'}`}\n` +
+            `Setelah membayar, gunakan *${prefix}depositstatus ${tx.merchantRef}* jika notifikasi belum masuk.\n` +
+            `Jika QR tidak terlihat, tampilkan ulang invoice dengan *${prefix}depositqr ${tx.merchantRef}*.\n\n` +
             (tx.checkoutUrl ? `🔗 Invoice: ${tx.checkoutUrl}` : '')
 
         return sendDepositInteractive(tx, image, caption)
@@ -10724,6 +10850,7 @@ case 'cekdeposit': {
         if (String(before.kind || 'DEPOSIT').toUpperCase() !== 'DEPOSIT') {
             return replyV1('❌ Referensi tersebut bukan invoice deposit saldo. Untuk Store/Jadibot/Sewa Bot gunakan .orderstatus <ref>; untuk invoice pembelian yang didukung gunakan .purchaseqrisstatus <ref>.')
         }
+        await sendPaymentProgressNotice(`⏳ Memeriksa status invoice deposit ${String(args[0]).toUpperCase()}...`)
         const tx = await depositService.check(args[0])
         return replyV1(
             `╭─〔 💳 STATUS DEPOSIT 〕\n` +
@@ -10735,6 +10862,47 @@ case 'cekdeposit': {
         )
     } catch (e) {
         return replyV1(`❌ ${e?.message || e}`)
+    }
+}
+break
+case 'depositqr':
+case 'depositqris':
+case 'depositulangqr': {
+    const ref = String(args[0] || '').trim().toUpperCase()
+    if (!ref) return replyV1(`Contoh: ${prefix}depositqr DEPXXXX\nPerintah ini menampilkan ulang invoice yang sama; tidak membuat tagihan baru.`)
+    try {
+        const before = depositService.get(ref)
+        if (!before) return replyV1('❌ Invoice deposit tidak ditemukan.')
+        if (before.jid !== m.sender && !isOwner) return replyV1('❌ Invoice ini bukan milik akun kamu.')
+        if (String(before.kind || 'DEPOSIT').toUpperCase() !== 'DEPOSIT') return replyV1(`❌ Referensi ini bukan deposit saldo. Untuk Store gunakan ${prefix}orderqr <ref-order>.`)
+
+        // Refresh the gateway before re-sending the same QR. This prevents a QR
+        // that has already been paid or expired from being presented as payable.
+        await sendPaymentProgressNotice(`⏳ Memeriksa invoice deposit ${ref} sebelum menampilkan ulang QRIS...`)
+        const tx = await depositService.check(ref)
+        const status = String(tx.status || '').toUpperCase()
+        if (['PAID', 'SUCCESS', 'SETTLED'].includes(status) || tx.credited) {
+            return replyV1(`✅ Invoice ${tx.merchantRef} sudah dibayar/terkredit. QR tidak dikirim ulang agar tidak terjadi pembayaran ganda. Saldo deposit: Rp${depositService.formatMoney(tx.balanceAfter ?? 0)}.`)
+        }
+        if (['CANCELED', 'CANCELLED', 'EXPIRED', 'FAILED', 'REFUNDED'].includes(status) || (tx.expiredAt && Number(tx.expiredAt) <= Date.now())) {
+            return replyV1(`⚠️ Invoice ${tx.merchantRef} tidak lagi aman untuk dibayar. Status gateway: ${status || 'EXPIRED'}. Tidak ada invoice baru dibuat; cek status atau buat deposit baru setelah transaksi lama dipastikan selesai.`)
+        }
+
+        let image = null
+        try { image = await depositService.qrBuffer(tx) } catch (error) { console.error('[DEPOSIT QR RESEND]', ref, error?.stack || error) }
+        if (!image) console.error('[DEPOSIT QR RESEND EMPTY]', JSON.stringify({ ref, hasQrString: Boolean(tx?.qrString), hasQrImage: Boolean(tx?.qrImage), hasCheckoutUrl: Boolean(tx?.checkoutUrl) }))
+        const caption =
+            `╭─〔 💳 TAMPILKAN ULANG DEPOSIT 〕\n` +
+            `║ Invoice : *${tx.merchantRef}*\n` +
+            `║ Nominal : *Rp${depositService.formatMoney(tx.amount)}*\n` +
+            `║ Status  : *${tx.status}*\n` +
+            `╰────────────────\n\n` +
+            `${image ? 'Scan QRIS ini untuk membayar invoice yang sama.' : `⚠️ Gambar QRIS masih tidak tersedia. ${tx.checkoutUrl ? `Buka link invoice: ${tx.checkoutUrl}` : 'Hubungi owner untuk pemeriksaan; jangan membayar QR lain.'}`}\n` +
+            `Tidak ada tagihan baru dibuat. Cek status: ${prefix}depositstatus ${ref}.` +
+            (tx.checkoutUrl ? `\n🔗 Invoice: ${tx.checkoutUrl}` : '')
+        return sendDepositInteractive(tx, image, caption)
+    } catch (error) {
+        return replyV1(`❌ QR deposit belum dapat ditampilkan ulang: ${error?.message || error}\n\nStatus invoice tidak diubah oleh perintah ini. Jangan membuat pembayaran duplikat; coba cek ${prefix}depositstatus ${ref} atau hubungi owner.`)
     }
 }
 break
@@ -11494,10 +11662,15 @@ case 'belijadibot': {
     if (!key) return sendStoreProductSelectionMenu('all', 1)
     const product = storeService.getProduct(key)
     if (!product) return replyV1(`❌ Produk *${key}* tidak ditemukan. Gunakan ${prefix}listproduk.`)
+    if (typeof depositService.ready === 'function' && !depositService.ready()) {
+        return replyV1('❌ Gateway QRIS Store belum dikonfigurasi. Periksa NASIONALPAY_STORE_KEY pada environment atau authen.js lokal, lalu restart bot. Order belum dibuat.')
+    }
+    await sendPaymentProgressNotice(`⏳ Menyiapkan invoice QRIS untuk ${product.name}. Tunggu sebentar dan jangan checkout ulang sebelum hasilnya muncul.`)
     try {
         const created = await storeService.createOrder({ jid: m.sender, productKey: key, pushname })
         let image = null
-        try { image = await storeService.qrBuffer(created.order) } catch (e) { console.error('[STORE QR]', e?.message || e) }
+        try { image = await storeService.qrBuffer(created.order) } catch (e) { console.error('[STORE QR BUFFER]', e?.stack || e) }
+        if (!image) console.error('[STORE QR BUFFER EMPTY]', JSON.stringify({ orderRef: created?.order?.ref || '', paymentRef: created?.order?.paymentRef || '', hasQrString: Boolean(created?.payment?.qrString), hasQrImage: Boolean(created?.payment?.qrImage), hasCheckoutUrl: Boolean(created?.payment?.checkoutUrl), provider: created?.payment?.provider || '' }))
         const caption =
             `╭━━━〔 🧾 ORDER STORE 〕━━━╮\n` +
             `🆔 Referensi : ${created.order.ref}\n` +
@@ -11505,14 +11678,61 @@ case 'belijadibot': {
             `💰 Total     : Rp${storeService.formatMoney(created.order.price)}\n` +
             `📌 Status    : ${String(created.order.paymentStatus || created.payment.status || 'UNPAID').toUpperCase()}\n` +
             `╰━━━━━━━━━━━━━━━━━━━━╯\n\n` +
-            `1. Scan QRIS di atas menggunakan aplikasi pembayaran.\n` +
+            `${image ? '1. Scan QRIS di atas menggunakan aplikasi pembayaran.' : `⚠️ QRIS belum berhasil ditampilkan sebagai gambar. ${created.order.checkoutUrl ? `Buka link invoice: ${created.order.checkoutUrl}` : 'Jangan membayar lewat QR lain; hubungi owner untuk memeriksa data invoice.'}`}\n` +
             `2. Tunggu pembayaran terverifikasi oleh sistem.\n` +
             `3. Cek perkembangan melalui ${prefix}orderstatus ${created.order.ref}.\n` +
-            `4. Jika batal sebelum membayar: ${prefix}ordercancel ${created.order.ref}.` +
+            `4. Jika QR tidak muncul, tampilkan ulang invoice yang sama: ${prefix}orderqr ${created.order.ref}.\n` +
+            `5. Jika batal sebelum membayar: ${prefix}ordercancel ${created.order.ref}.` +
             (created.order.checkoutUrl ? `\n\n🔗 Invoice: ${created.order.checkoutUrl}` : '')
         return sendStoreOrderInteractive(created.order, image, caption)
     } catch (e) {
         return replyV1(`❌ Gagal membuat order: ${e?.message || e}`)
+    }
+}
+break
+case 'orderqr':
+case 'orderqris':
+case 'orderulangqr': {
+    const ref = String(args[0] || '').trim().toUpperCase()
+    if (!ref) return replyV1(`Contoh: ${prefix}orderqr ORDXXXX\nPerintah ini menampilkan ulang invoice yang sama; tidak membuat order atau tagihan baru.`)
+    try {
+        let order = storeService.getOrder(ref)
+        if (!order) return replyV1('❌ Order Store tidak ditemukan.')
+        if (order.jid !== m.sender && !isOwner) return replyV1('❌ Order ini bukan milik akun kamu.')
+        if (!order.paymentRef) return replyV1('❌ Referensi pembayaran belum tercatat pada order ini. Hubungi owner untuk pemeriksaan; jangan membuat order baru.')
+        if (['CANCELED', 'CANCELLED', 'PAYMENT_FAILED', 'FAILED', 'EXPIRED', 'DONE', 'PROCESSING', 'PAID_WAITING_FULFILLMENT'].includes(String(order.status || '').toUpperCase()) || ['CANCELED', 'CANCELLED', 'PAID', 'SUCCESS', 'SETTLED', 'FAILED', 'EXPIRED', 'REFUNDED'].includes(String(order.paymentStatus || '').toUpperCase())) {
+            return replyV1(`⚠️ Order ${order.ref} sudah berstatus ${order.paymentStatus || order.status}. QR tidak dikirim ulang agar tidak terjadi pembayaran ganda. Gunakan ${prefix}orderstatus ${ref} untuk melihat status terbaru.`)
+        }
+
+        // Refresh the existing invoice before re-showing its QR; never create a
+        // replacement invoice from this recovery command.
+        await sendPaymentProgressNotice(`⏳ Memeriksa invoice Store ${ref} pada gateway sebelum menampilkan ulang QRIS...`)
+        const payment = await depositService.check(order.paymentRef)
+        order = storeService.getOrder(ref) || order
+        const paymentStatus = String(payment.status || order.paymentStatus || '').toUpperCase()
+        if (['PAID', 'SUCCESS', 'SETTLED'].includes(paymentStatus) || ['PAID', 'DONE', 'PROCESSING', 'PAID_WAITING_FULFILLMENT'].includes(String(order.status || '').toUpperCase())) {
+            return replyV1(`✅ Pembayaran order ${ref} sudah terdeteksi. QR tidak dikirim ulang. Status pembayaran: ${paymentStatus || order.paymentStatus}; proses order: ${order.status}.`)
+        }
+        if (['CANCELED', 'CANCELLED', 'EXPIRED', 'FAILED', 'REFUNDED'].includes(paymentStatus) || (payment.expiredAt && Number(payment.expiredAt) <= Date.now())) {
+            return replyV1(`⚠️ Invoice ${payment.merchantRef} tidak lagi aman untuk dibayar. Status gateway: ${paymentStatus || 'EXPIRED'}. Tidak ada tagihan baru dibuat; cek ${prefix}orderstatus ${ref} atau hubungi owner.`)
+        }
+
+        let image = null
+        try { image = await storeService.qrBuffer(order) } catch (error) { console.error('[STORE QR RESEND]', ref, error?.stack || error) }
+        if (!image) console.error('[STORE QR RESEND EMPTY]', JSON.stringify({ orderRef: ref, paymentRef: order?.paymentRef || '', hasQrString: Boolean(order?.qrString), hasQrUrl: Boolean(order?.qrUrl), hasCheckoutUrl: Boolean(order?.checkoutUrl) }))
+        const caption =
+            `╭─〔 🧾 TAMPILKAN ULANG QRIS STORE 〕\n` +
+            `║ Order   : *${order.ref}*\n` +
+            `║ Produk  : *${order.productName}*\n` +
+            `║ Total   : *Rp${storeService.formatMoney(order.price)}*\n` +
+            `║ Status  : *${paymentStatus || order.paymentStatus || 'UNPAID'}*\n` +
+            `╰────────────────\n\n` +
+            `${image ? 'Scan QRIS ini untuk membayar order yang sama.' : `⚠️ Gambar QRIS masih tidak tersedia. ${payment.checkoutUrl ? `Buka link invoice: ${payment.checkoutUrl}` : 'Hubungi owner untuk pemeriksaan; jangan membayar QR lain.'}`}\n` +
+            `Tidak ada tagihan baru dibuat. Cek status: ${prefix}orderstatus ${ref}.` +
+            (payment.checkoutUrl ? `\n🔗 Invoice: ${payment.checkoutUrl}` : '')
+        return sendStoreOrderInteractive(order, image, caption)
+    } catch (error) {
+        return replyV1(`❌ QR order belum dapat ditampilkan ulang: ${error?.message || error}\n\nStatus order tidak diubah oleh perintah ini. Jangan membuat order duplikat; coba ${prefix}orderstatus ${ref} atau hubungi owner.`)
     }
 }
 break
@@ -13843,12 +14063,107 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .readmore *<teks>*
  ⪩ .idtolink *<konversi>*
 
+\`💰 乂 𝐫 𝐩 𝐠 & 𝐞 𝐜 𝐨 𝐧 𝐨 𝐦 𝐲 乂\`
+ ⪩ .kerja 
+ ⪩ .beli 
+ ⪩ .bank
+ ⪩ .shop
+ ⪩ .berburu 
+ ⪩ .crafting 
+ ⪩ .heal 
+ ⪩ .inventory
+ ⪩ .dailymisi 
+ ⪩ .weekly 
+ ⪩ .monthly 
+ ⪩ .yearly
+ ⪩ .ngojek 
+ ⪩ .polisi 
+ ⪩ .roket 
+ ⪩ .selectskill
+ ⪩ .cekskill 
+ ⪩ .makan 
+ ⪩ .tidur 
+ ⪩ .mengaji
+ ⪩  .joinrpg 
+ ⪩  .exitrpg 
+ ⪩  .jual
+ ⪩ .redeem 
+ ⪩ .memancing 
+ ⪩ .merampok 
+ ⪩ .mining
+ ⪩ .nebang 
+ ⪩ .repair 
+ ⪩ .atmall 
+ ⪩ .dompet 
+ ⪩ .werewolf
+ ⪩ .fightnaga 
+ ⪩ .fightkucing 
+ ⪩ .fightphonix 
+ ⪩ .fightgriffin
+ ⪩ .fightkyubi 
+ ⪩ .fightcentaur 
+ ⪩ .fight 
+ ⪩ .duel
+ ⪩ .perangsarung
+ ⪩ .nabung 
+ ⪩ .bankcek 
+ ⪩ .banknabung 
+ ⪩ .banktarik
+ ⪩ .bonus 
+ ⪩ .bansos 
+ ⪩ .gajian 
+ ⪩ .maling 
+ ⪩ .rob 
+ ⪩ .rampok
+ ⪩ .buah 
+ ⪩ .berkebon 
+ ⪩ .collect 
+ ⪩ .taxy 
+ ⪩ .mulung
+ ⪩ .berdagang 
+ ⪩ .nguli 
+ ⪩ .petshop 
+ ⪩ .kolam 
+ ⪩ .koboy
+ ⪩ .referal 
+ ⪩ .sampah
+ ⪩ .upgrade 
+ ⪩ .ulartangga 
+ ⪩ .leaderboard
+ ⪩ .pinjol 
+ ⪩ .belivga 
+ ⪩ .nambangkripto 
+ ⪩ .jualkripto
+ ⪩ .pilihclass 
+ ⪩ .mystats 
+ ⪩ .battle 
+ ⪩ .invest
+ ⪩ .portofolio 
+ ⪩ .blackinvest 
+ ⪩ .balapan 
+ ⪩ .nyawit
+
 \`🌤️ 乂 𝐠 𝐚 𝐦 𝐞 - 𝐦 𝐞 𝐧 𝐮 乂\`
  ⪩ .tebakanml
  ⪩ .tebakgame
  ⪩ .tebaklogo
  ⪩ .tebaksurah
  ⪩ .blackjack
+ ⪩ .bet <jumlah> <1-6> (saldo virtual)
+ ⪩ .casino <jumlah> 
+ ⪩ .slot <jumlah> (saldo virtual)
+ ⪩ .lotre open|buy|status|cancel
+ ⪩ .poker3 start <jumlah>
+ ⪩ .hilo start <jumlah> 
+ ⪩ .high 
+ ⪩ .low 
+ ⪩ .take 
+ ⪩ .cancel
+ ⪩ .rr join <jumlah> spin claim cancel
+ ⪩ .sabung <jumlah> (adu skor virtual)
+ ⪩ .bomb start pilih <1-5>
+ ⪩ .heist 
+ ⪩ .begal
  ⪩ .tebakkata
  ⪩ .tebaktebakan
  ⪩ .tebaklirik
@@ -13878,6 +14193,76 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .cekgila *<funmenu>*
  ⪩ .cekwaras *<funmenu>*
  ⪩ .jodoh *<funmenu>*
+ ⪩ .math *<ekspresi matematika>*
+ ⪩ .fact
+ ⪩ .pick *<opsi1 | opsi2>*
+ ⪩ .soulmate *<nama1 | nama2>*
+ ⪩ .fitnah 
+ ⪩ .can 
+ ⪩ .is 
+ ⪩ .when
+ ⪩ .where
+ ⪩ .what
+ ⪩ .how
+ ⪩ .stupidcheck
+ ⪩ .handsomecheck 
+ ⪩ .uncleancheck
+ ⪩ .hotcheck 
+ ⪩ .smartcheck
+ ⪩ .greatcheck
+ ⪩ .evilcheck
+ ⪩ .dogcheck 
+ ⪩ .coolcheck
+ ⪩ .waifucheck
+ ⪩ .awesomecheck
+ ⪩ .cutecheck 
+ ⪩ .prettycheck
+ ⪩ .lovelycheck
+ ⪩ .uglycheck
+ ⪩ .hornycheck
+ ⪩ .gaycheck
+ ⪩ .lesbiancheck 
+ ⪩ .lesbicheck
+ ⪩ .cry
+ ⪩ .hug
+ ⪩ .pat 
+ ⪩ .wink
+ ⪩ .poke
+ ⪩ .smile
+ ⪩ .wave
+ ⪩ .blush
+ ⪩ .smug
+ ⪩ .happy 
+ ⪩ .dance 
+ ⪩ .cringe 
+ ⪩ .highfive
+ ⪩ .shinobu
+ ⪩ .foxgirl 
+ ⪩ .avatar 
+ ⪩ .awoo 
+ ⪩ .nom
+ ⪩ .kiss 
+ ⪩ .bite 
+ ⪩ .yeet 
+ ⪩ .bully 
+ ⪩ .bonk 
+ ⪩ .slap
+ ⪩ .glomp 
+ ⪩ .cuddle 
+ ⪩ .handhold 
+ ⪩ .tickle 
+ ⪩ .kill
+ ⪩ .lick 
+ ⪩ .spank 
+ ⪩ .funfeed 
+ ⪩ .foxgirl 
+ ⪩ .avatar
+ ⪩ .lyrics 
+ ⪩ .suit 
+ ⪩ .tictactoe 
+ ⪩ .truth 
+ ⪩ .couple
+
 
 \`🎨 乂 𝐢 𝐦 𝐚 𝐠 𝐞 & 𝐛 𝐨 𝐭 乂\`
  ⪩ .quoteimg *<image+quote>*
@@ -14308,6 +14693,15 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .perangsarung
  ⪩ .ulartangga
  ⪩ .slot
+ ⪩ .blackjack
+ ⪩ .lotre
+ ⪩ .poker3
+ ⪩ .hilo
+ ⪩ .rr
+ ⪩ .sabung
+ ⪩ .bomb
+ ⪩ .heist
+ ⪩ .begal
 
 \`🔮 乂 𝐫 𝐚 𝐦 𝐚 𝐥 𝐚 𝐧 乂\`
  ⪩ .artinama
@@ -14952,12 +15346,107 @@ text: `
  ⪩ .readmore *<teks>*
  ⪩ .idtolink *<konversi>*
 
+\`💰 乂 𝐫 𝐩 𝐠 & 𝐞 𝐜 𝐨 𝐧 𝐨 𝐦 𝐲 乂\`
+ ⪩ .kerja 
+ ⪩ .beli 
+ ⪩ .bank
+ ⪩ .shop
+ ⪩ .berburu 
+ ⪩ .crafting 
+ ⪩ .heal 
+ ⪩ .inventory
+ ⪩ .dailymisi 
+ ⪩ .weekly 
+ ⪩ .monthly 
+ ⪩ .yearly
+ ⪩ .ngojek 
+ ⪩ .polisi 
+ ⪩ .roket 
+ ⪩ .selectskill
+ ⪩ .cekskill 
+ ⪩ .makan 
+ ⪩ .tidur 
+ ⪩ .mengaji
+ ⪩  .joinrpg 
+ ⪩  .exitrpg 
+ ⪩  .jual
+ ⪩ .redeem 
+ ⪩ .memancing 
+ ⪩ .merampok 
+ ⪩ .mining
+ ⪩ .nebang 
+ ⪩ .repair 
+ ⪩ .atmall 
+ ⪩ .dompet 
+ ⪩ .werewolf
+ ⪩ .fightnaga 
+ ⪩ .fightkucing 
+ ⪩ .fightphonix 
+ ⪩ .fightgriffin
+ ⪩ .fightkyubi 
+ ⪩ .fightcentaur 
+ ⪩ .fight 
+ ⪩ .duel
+ ⪩ .perangsarung
+ ⪩ .nabung 
+ ⪩ .bankcek 
+ ⪩ .banknabung 
+ ⪩ .banktarik
+ ⪩ .bonus 
+ ⪩ .bansos 
+ ⪩ .gajian 
+ ⪩ .maling 
+ ⪩ .rob 
+ ⪩ .rampok
+ ⪩ .buah 
+ ⪩ .berkebon 
+ ⪩ .collect 
+ ⪩ .taxy 
+ ⪩ .mulung
+ ⪩ .berdagang 
+ ⪩ .nguli 
+ ⪩ .petshop 
+ ⪩ .kolam 
+ ⪩ .koboy
+ ⪩ .referal 
+ ⪩ .sampah
+ ⪩ .upgrade 
+ ⪩ .ulartangga 
+ ⪩ .leaderboard
+ ⪩ .pinjol 
+ ⪩ .belivga 
+ ⪩ .nambangkripto 
+ ⪩ .jualkripto
+ ⪩ .pilihclass 
+ ⪩ .mystats 
+ ⪩ .battle 
+ ⪩ .invest
+ ⪩ .portofolio 
+ ⪩ .blackinvest 
+ ⪩ .balapan 
+ ⪩ .nyawit
+
 \`🌤️ 乂 𝐠 𝐚 𝐦 𝐞 - 𝐦 𝐞 𝐧 𝐮 乂\`
  ⪩ .tebakanml
  ⪩ .tebakgame
  ⪩ .tebaklogo
  ⪩ .tebaksurah
  ⪩ .blackjack
+ ⪩ .bet <jumlah> <1-6> (saldo virtual)
+ ⪩ .casino <jumlah> 
+ ⪩ .slot <jumlah> (saldo virtual)
+ ⪩ .lotre open|buy|status|cancel
+ ⪩ .poker3 start <jumlah>
+ ⪩ .hilo start <jumlah> 
+ ⪩ .high 
+ ⪩ .low 
+ ⪩ .take 
+ ⪩ .cancel
+ ⪩ .rr join <jumlah> spin claim cancel
+ ⪩ .sabung <jumlah> (adu skor virtual)
+ ⪩ .bomb start pilih <1-5>
+ ⪩ .heist 
+ ⪩ .begal
  ⪩ .tebakkata
  ⪩ .tebaktebakan
  ⪩ .tebaklirik
@@ -14987,6 +15476,76 @@ text: `
  ⪩ .cekgila *<funmenu>*
  ⪩ .cekwaras *<funmenu>*
  ⪩ .jodoh *<funmenu>*
+ ⪩ .math *<ekspresi matematika>*
+ ⪩ .fact
+ ⪩ .pick *<opsi1 | opsi2>*
+ ⪩ .soulmate *<nama1 | nama2>*
+ ⪩ .fitnah 
+ ⪩ .can 
+ ⪩ .is 
+ ⪩ .when
+ ⪩ .where
+ ⪩ .what
+ ⪩ .how
+ ⪩ .stupidcheck
+ ⪩ .handsomecheck 
+ ⪩ .uncleancheck
+ ⪩ .hotcheck 
+ ⪩ .smartcheck
+ ⪩ .greatcheck
+ ⪩ .evilcheck
+ ⪩ .dogcheck 
+ ⪩ .coolcheck
+ ⪩ .waifucheck
+ ⪩ .awesomecheck
+ ⪩ .cutecheck 
+ ⪩ .prettycheck
+ ⪩ .lovelycheck
+ ⪩ .uglycheck
+ ⪩ .hornycheck
+ ⪩ .gaycheck
+ ⪩ .lesbiancheck 
+ ⪩ .lesbicheck
+ ⪩ .cry
+ ⪩ .hug
+ ⪩ .pat 
+ ⪩ .wink
+ ⪩ .poke
+ ⪩ .smile
+ ⪩ .wave
+ ⪩ .blush
+ ⪩ .smug
+ ⪩ .happy 
+ ⪩ .dance 
+ ⪩ .cringe 
+ ⪩ .highfive
+ ⪩ .shinobu
+ ⪩ .foxgirl 
+ ⪩ .avatar 
+ ⪩ .awoo 
+ ⪩ .nom
+ ⪩ .kiss 
+ ⪩ .bite 
+ ⪩ .yeet 
+ ⪩ .bully 
+ ⪩ .bonk 
+ ⪩ .slap
+ ⪩ .glomp 
+ ⪩ .cuddle 
+ ⪩ .handhold 
+ ⪩ .tickle 
+ ⪩ .kill
+ ⪩ .lick 
+ ⪩ .spank 
+ ⪩ .funfeed 
+ ⪩ .foxgirl 
+ ⪩ .avatar
+ ⪩ .lyrics 
+ ⪩ .suit 
+ ⪩ .tictactoe 
+ ⪩ .truth 
+ ⪩ .couple
+
 
 \`🎨 乂 𝐢 𝐦 𝐚 𝐠 𝐞 & 𝐛 𝐨 𝐭 乂\`
  ⪩ .quoteimg *<image+quote>*
@@ -15417,6 +15976,15 @@ text: `
  ⪩ .perangsarung
  ⪩ .ulartangga
  ⪩ .slot
+ ⪩ .blackjack
+ ⪩ .lotre
+ ⪩ .poker3
+ ⪩ .hilo
+ ⪩ .rr
+ ⪩ .sabung
+ ⪩ .bomb
+ ⪩ .heist
+ ⪩ .begal
 
 \`🔮 乂 𝐫 𝐚 𝐦 𝐚 𝐥 𝐚 𝐧 乂\`
  ⪩ .artinama
@@ -17107,6 +17675,47 @@ footer: `
 ║ ⪩ .atmall
 ║ ⪩ .dompet
 ║ ⪩ .werewolf
+║
+║ 〔 ⚔️ PETUALANGAN & PERTARUNGAN 〕
+║ ⪩ .fightnaga / .fightkucing / .fightphonix
+║ ⪩ .fightgriffin / .fightkyubi / .fightcentaur / .fight
+║ ⪩ .duel / .perangsarung / .ulartangga
+║ ⪩ .koboy / .petualang
+║
+║ 〔 💰 EKONOMI & KEGIATAN RPG 〕
+║ ⪩ .nabung / .bankcek / .banknabung / .banktarik
+║ ⪩ .bonus / .bansos / .gajian / .maling
+║ ⪩ .buah / .berkebon / .collect / .feed
+║ ⪩ .taxy / .mulung / .berdagang / .nguli
+║ ⪩ .petshop / .kolam / .referal / .upgrade
+║ ⪩ .sampah / .rob / .rampok / .leaderboard
+║
+║ 〔 💼 RPG EKONOMI VIRTUAL 〕
+║ ⪩ .pinjol <jumlah> / bayar <jumlah>
+║ ⪩ .belivga [jumlah]
+║ ⪩ .nambangkripto
+║ ⪩ .jualkripto <jumlah|all>
+║ ⪩ .pilihclass
+║ ⪩ .mystats
+║ ⪩ .battle
+║ ⪩ .invest
+║ ⪩ .portofolio
+║ ⪩ .blackinvest
+║ ⪩ .balapan
+║ ⪩ .nyawit
+║
+║ 〔 🎮 GAME ARCADE VIRTUAL 〕
+║ ⪩ .bet <jumlah> <1-6>
+║ ⪩ .casino <jumlah> / .slot <jumlah>
+║ ⪩ .blackjack [hit|stand]
+║ ⪩ .lotre open|buy|status|cancel
+║ ⪩ .poker3 start <jumlah>
+║ ⪩ .hilo start <jumlah> / high / low / take / cancel
+║ ⪩ .rr join <jumlah> / spin / claim / cancel
+║ ⪩ .sabung <jumlah>
+║ ⪩ .bomb start / pilih <1-5>
+║ ⪩ .heist / .begal
+║ ⓘ Semua saldo permainan adalah saldo virtual bot.
 ╚─═─═─═─═─═─═⪩
 `,
 
@@ -17939,7 +18548,7 @@ footer: `
 ║ ⪩ .bego
 ║ ⪩ .goblok
 ║ ⪩ .janda
-║ ⪩ .perawan
+║ ⪩ .perawan (dinonaktifkan)
 ║ ⪩ .babi
 ║ ⪩ .tolol
 ║ ⪩ .pekok
@@ -17963,10 +18572,10 @@ footer: `
 ║ ⪩ .newbie
 ║ ⪩ .bangsat
 ║ ⪩ .bangke
-║ ⪩ .sange
-║ ⪩ .sangean
+║ ⪩ .sange (dinonaktifkan)
+║ ⪩ .sangean (dinonaktifkan)
 ║ ⪩ .dakjal
-║ ⪩ .horny
+║ ⪩ .horny (dinonaktifkan)
 ║ ⪩ .wibu
 ║ ⪩ .puki
 ║ ⪩ .puqi
@@ -17978,6 +18587,42 @@ footer: `
 ║ ⪩ .cacat
 ║ ⪩ .yatim
 ║ ⪩ .piatu
+║
+║ 〔 🧩 FUN TOOLS TAMBAHAN 〕
+║ ⪩ .math <ekspresi>
+║ ⪩ .fact
+║ ⪩ .pick <opsi1 | opsi2>
+║ ⪩ .soulmate <nama1 | nama2>
+║ ⪩ .fitnah <pesan target|pesan mu|nomor/tag target>
+║ ⪩ .can <pertanyaan>
+║ ⪩ .is <pertanyaan>
+║ ⪩ .when <pertanyaan>
+║ ⪩ .where <pertanyaan>
+║ ⪩ .what <pertanyaan>
+║ ⪩ .how <pertanyaan>
+║ ⪩ .stupidcheck <nama> (skor vibe random)
+║ ⪩ .handsomecheck <nama> (skor vibe random)
+║ ⪩ .uncleancheck <nama> (skor vibe random)
+║ ⪩ .hotcheck <nama> (skor vibe random)
+║ ⪩ .smartcheck <nama>
+║ ⪩ .greatcheck <nama>
+║ ⪩ .evilcheck <nama>
+║ ⪩ .dogcheck <nama>
+║ ⪩ .coolcheck <nama>
+║ ⪩ .waifucheck <nama>
+║ ⪩ .awesomecheck <nama>
+║ ⪩ .cutecheck <nama>
+║ ⪩ .prettycheck <nama> (skor vibe random)
+║ ⪩ .lovelycheck <nama>
+║ ⪩ .uglycheck <nama> (skor vibe random)
+║ ⪩ .gaycheck / .lesbiancheck / .lesbicheck / .hornycheck
+║ ⪩ .cry / .hug / .pat / .wink / .poke
+║ ⪩ .smile / .wave / .blush / .smug
+║ ⪩ .happy / .dance / .cringe / .highfive
+║ ⪩ .shinobu / .foxgirl / .avatar / .awoo / .nom
+║
+║ ⓘ Skor hanya acak untuk hiburan; bukan penilaian fisik atau identitas.
+║ ⓘ Game arcade menggunakan saldo virtual; bukan uang nyata.
 ╚─═─═─═─═─═─═⪩`,
 
 thumbnail: randomThumb,
@@ -18147,9 +18792,11 @@ case 'jasherbuy': {
             `║ 💰 Total : *Rp${storeService.formatMoney(created.order.price)}*\n` +
             `║ ⏳ Status: *MENUNGGU PEMBAYARAN*\n` +
             `╰────────────────\n\n` +
-            `Scan QRIS. Setelah PAID, bot akan meminta materi share.\n` +
+            `${image ? 'Scan QRIS. Setelah PAID, bot akan meminta materi share.' : `⚠️ QRIS belum berhasil ditampilkan sebagai gambar. ${created.order.checkoutUrl ? `Buka link invoice: ${created.order.checkoutUrl}` : 'Jangan membayar melalui QR lain; hubungi owner untuk memeriksa data invoice.'}`}\n` +
             `Cek status: ${prefix}orderstatus ${created.order.ref}\n` +
-            `Batalkan order: ${prefix}ordercancel ${created.order.ref}`
+            `Jika QR tidak muncul: ${prefix}orderqr ${created.order.ref}\n` +
+            `Batalkan order: ${prefix}ordercancel ${created.order.ref}` +
+            (created.order.checkoutUrl ? `\n🔗 Invoice: ${created.order.checkoutUrl}` : '')
         return sendStoreOrderInteractive(created.order, image, caption)
     } catch (e) {
         return replyV1(`❌ Gagal membuat order Jasher: ${e?.message || e}`)
@@ -37794,92 +38441,31 @@ case "payment":
 case "pay":
 case "qr":
 case "qris": {
+    const settings = {
+        dana: global.dana,
+        ovo: global.ovo,
+        gopay: global.gopay,
+        shopeepay: global.shopeepay,
+        linkaja: global.linkaja
+    }
+    const paymentResult = await sendXeryuuPaymentCarousel(conn, m, settings, {
+        qrisPath: projectPath('qris.jpg'),
+        brandPath: projectPath('media', 'XeryuMd-thumbnail.jpg')
+    })
+    if (paymentResult.mode !== 'carousel') {
+        console.warn('[XERYUU PAYMENT] Carousel tidak berhasil; metode fallback sudah dikirim.')
+    }
 
-const fs = require("fs")
-
-let teks = `💸 *SILAHKAN PILIH METODE PAYMENT*
-
-Silahkan pilih metode pembayaran 👇
-
-• Transfer ke salah satu Nope
-• Klik tombol untuk menyalin Nope
-
-📸 *Kirim Bukti Pembayaran*
-Kirim screenshot / foto transfer ke owner
-agar pesanan diproses ⚡`
-
-let buffer = fs.readFileSync(projectPath('qris.jpg'))
-let audio = readProjectAsset('media/menu3.mp3')
-
-// 🔥 bikin message dulu
-const msg = generateWAMessageFromContent(m.chat, {
-viewOnceMessage: {
-message: {
-interactiveMessage: {
-
-contextInfo: {
-forwardingScore: 999,
-isForwarded: true,
-forwardedNewsletterMessageInfo: {
-newsletterName: "𝐊𝐄𝐋𝐏𝐎𝐍 𝐏𝐀𝐘𝐌𝐄𝐍𝐓",
-newsletterJid: "120363426041078526@newsletter"
-}
-},
-
-header: {
-hasMediaAttachment: true,
-imageMessage: (await prepareWAMessageMedia(
-{ image: buffer },
-{ upload: conn.waUploadToServer }
-)).imageMessage
-},
-
-body: { text: teks },
-
-footer: { text: "PAYMENT • XnalzNotDev" },
-
-nativeFlowMessage: {
-buttons: [
-
-{
-name: "cta_copy",
-buttonParamsJson: JSON.stringify({
-display_text: "089663152244",
-copy_code: String(global.dana || "Tersedia")
-})
-},
-
-{
-name: "cta_copy",
-buttonParamsJson: JSON.stringify({
-display_text: "085890160393",
-copy_code: String(global.gopay || "Tersedia")
-})
-}
-
-]
-}
-
-}
-}
-}
-}, { quoted: qtoko }) // 🔥 ini sekarang WORK
-
-// kirim
-await conn.relayMessage(m.chat, msg.message, {
-messageId: msg.key.id
-})
-
-// delay
-await new Promise(r => setTimeout(r, 800))
-
-// audio juga quoted
-await conn.sendMessage(m.chat, {
-audio: audio,
-mimetype: "audio/mpeg",
-ptt: true
-}, { quoted: qtoko })
-
+    // Keep the existing optional payment voice note, but skip it when the asset is missing.
+    const paymentAudio = readProjectAsset('media/menu3.mp3')
+    if (paymentAudio?.length) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        await conn.sendMessage(m.chat, {
+            audio: paymentAudio,
+            mimetype: 'audio/mpeg',
+            ptt: true
+        }, { quoted: m })
+    }
 }
 break
 
