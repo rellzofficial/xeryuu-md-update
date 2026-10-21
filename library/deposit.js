@@ -151,10 +151,20 @@ function headers(extra = {}) {
 
 function unwrap(body) {
     if (!body || typeof body !== 'object') return body
-    if (body.data !== undefined && body.data !== null) return body.data
-    if (body.result !== undefined && body.result !== null) return body.result
-    if (body.response !== undefined && body.response !== null) return body.response
-    return body
+
+    // Provider deployments have returned both a flat object and one or two
+    // wrapper layers ({ data: ... }, { result: { data: ... } }). Unwrap only
+    // object-valued wrappers; a string-valued `data` may itself be the QR.
+    let current = body
+    for (let depth = 0; depth < 4; depth++) {
+        const next = current.data && typeof current.data === 'object' ? current.data
+            : current.result && typeof current.result === 'object' ? current.result
+            : current.response && typeof current.response === 'object' ? current.response
+            : null
+        if (!next || next === current) break
+        current = next
+    }
+    return current
 }
 
 function first(obj, keys, fallback = undefined) {
@@ -181,13 +191,52 @@ function parseExpiry(value, fallback) {
 }
 
 function normalizeStatus(value) {
-    const status = String(value || '').toLowerCase().replace(/[-\s]+/g, '_')
-    if (['paid', 'success', 'succeeded', 'settled', 'completed', 'done', 'success_payment'].includes(status)) return 'PAID'
-    if (['pending', 'unpaid', 'waiting', 'wait', 'processing', 'created', 'unpaid_payment'].includes(status)) return 'UNPAID'
+    // Boolean `status: true` pada response generate NasionalPay adalah tanda
+    // request berhasil, bukan bukti invoice sudah dibayar. Status pembayaran
+    // yang tak dikenal juga harus fail-safe ke UNPAID, bukan menjadi status
+    // baru seperti TRUE/ACTIVE yang tidak dikenali poller.
+    if (typeof value === 'boolean' || value == null || value === '') return 'UNPAID'
+    const status = String(value).trim().toLowerCase().replace(/[-\s]+/g, '_')
+    if (['paid', 'success', 'succeeded', 'settled', 'completed', 'complete', 'done', 'success_payment', 'successful', 'settlement', 'confirmed'].includes(status)) return 'PAID'
+    if ([
+        'pending', 'unpaid', 'waiting', 'wait', 'processing', 'created', 'unpaid_payment',
+        'active', 'open', 'new', 'initialized', 'waiting_payment', 'awaiting_payment',
+        'in_progress', 'inprogress', 'pending_payment'
+    ].includes(status)) return 'UNPAID'
     if (['expired', 'expire'].includes(status)) return 'EXPIRED'
     if (['cancel', 'cancelled', 'canceled'].includes(status)) return 'CANCELED'
-    if (['failed', 'failure', 'error'].includes(status)) return 'FAILED'
-    return String(value || 'UNPAID').toUpperCase()
+    if (['failed', 'failure', 'error', 'declined', 'rejected'].includes(status)) return 'FAILED'
+    if (['refunded', 'refund', 'reversed'].includes(status)) return 'REFUNDED'
+    return 'UNPAID'
+}
+
+function extractPaymentStatus(root, defaults = {}) {
+    // Status khusus pembayaran selalu lebih bermakna daripada status HTTP/API.
+    const explicit = first(root, [
+        'payment_status', 'paymentStatus', 'transaction_status', 'transactionStatus',
+        'trx_status', 'trxStatus', 'invoice_status', 'invoiceStatus',
+        'payment.status', 'transaction.status', 'invoice.status'
+    ], null)
+    if (explicit !== null && typeof explicit !== 'boolean') return normalizeStatus(explicit)
+
+    const state = first(root, ['state', 'payment.state', 'transaction.state', 'invoice.state'], null)
+    if (state !== null && typeof state !== 'boolean') return normalizeStatus(state)
+
+    const genericStatus = root && typeof root === 'object' ? root.status : null
+    if (typeof genericStatus === 'string' && genericStatus.trim()) {
+        const value = genericStatus.trim().toLowerCase().replace(/[-\s]+/g, '_')
+        // Pada endpoint generate, `status: "success"` biasanya berarti
+        // pembuatan invoice berhasil, bukan pelanggan sudah membayar. Hanya
+        // endpoint cek status yang boleh menafsirkan generic success sebagai PAID.
+        if (['success', 'succeeded', 'successful'].includes(value) && defaults.statusContext !== 'check') {
+            return normalizeStatus(defaults.status || 'UNPAID')
+        }
+        return normalizeStatus(value)
+    }
+
+    // `status: true`/`false` adalah status request, bukan status transaksi.
+    // Abaikan dan pertahankan status invoice sebelumnya yang sudah dinormalisasi.
+    return normalizeStatus(defaults.status || 'UNPAID')
 }
 
 function parseDeposit(body, defaults = {}) {
@@ -223,12 +272,7 @@ function parseDeposit(body, defaults = {}) {
         'ref'
     ], defaults.gatewayId || '') || '')
 
-    const status = normalizeStatus(first(root, [
-        'status',
-        'state',
-        'payment_status',
-        'paymentStatus'
-    ], defaults.status || 'pending'))
+    const status = extractPaymentStatus(root, defaults)
 
     const merchantRef = String(
         defaults.merchantRef ||
@@ -240,16 +284,63 @@ function parseDeposit(body, defaults = {}) {
         Date.now() +
         Number(defaults.expiresInMinutes || providerConfig().expiresInMinutes || 10) * 60000
 
-    const qrisData = first(root, [
+    const rawQrisData = first(root, [
         'qris_data',
         'qrisData',
+        'qr_content',
+        'qrContent',
+        'qr_payload',
+        'qrPayload',
+        'qr_data',
+        'qrData',
         'qris_string',
         'qrisString',
         'qr_string',
         'qrString',
+        'payment.qris_data',
+        'payment.qr_content',
+        'qr.content',
+        'qris.content',
+        'qr_code.content',
+        'qr_code.payload',
+        'qr_code.data',
         'qr_code',
         'qris'
     ], defaults.qrString || null)
+
+    const qrisData = typeof rawQrisData === 'string'
+        ? rawQrisData.trim()
+        : first(rawQrisData, ['content', 'payload', 'text', 'value', 'data'], defaults.qrString || null)
+
+    const rawQrImage = first(root, [
+        'qris_image',
+        'qrisImage',
+        'qr_image',
+        'qrImage',
+        'qr_url',
+        'qrUrl',
+        'qr_image_url',
+        'qrImageUrl',
+        'qris_image_url',
+        'qrisImageUrl',
+        'qr_image_base64',
+        'qrImageBase64',
+        'qris_image_base64',
+        'qrisImageBase64',
+        'payment.qr_url',
+        'payment.qr_image',
+        'qr.url',
+        'qr.image',
+        'qr_code.url',
+        'qr_code.image',
+        'qris.url',
+        'qris.image',
+        'data_url',
+        'dataUrl'
+    ], defaults.qrImage || null)
+    const qrImage = typeof rawQrImage === 'string'
+        ? rawQrImage.trim()
+        : first(rawQrImage, ['url', 'src', 'imageUrl', 'image_url', 'base64', 'data', 'content'], defaults.qrImage || null)
 
     return {
         ...root,
@@ -264,17 +355,8 @@ function parseDeposit(body, defaults = {}) {
         totalPay: finalAmount || baseAmount,
         method: 'QRIS',
         paymentName: 'QRIS',
-        qrString: typeof qrisData === 'string' ? qrisData : (defaults.qrString || null),
-        qrImage: first(root, [
-            'qris_image',
-            'qrisImage',
-            'qr_image',
-            'qrImage',
-            'qr_url',
-            'qrUrl',
-            'data_url',
-            'dataUrl'
-        ], defaults.qrImage || null),
+        qrString: typeof qrisData === 'string' && qrisData ? qrisData : (defaults.qrString || null),
+        qrImage: qrImage || null,
         checkoutUrl: first(root, [
             'checkout_url',
             'checkoutUrl',
@@ -489,28 +571,102 @@ async function create(args) {
     return createPayment({ ...args, kind: 'DEPOSIT' })
 }
 
+function isImageBuffer(value) {
+    if (!Buffer.isBuffer(value) || value.length < 12) return false
+    // Validate the response before passing it to WhatsApp. Some gateways/CDNs
+    // return an HTML error page with HTTP 200; that is not a usable QR image.
+    return (
+        value.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])) ||
+        (value[0] === 0xFF && value[1] === 0xD8 && value[2] === 0xFF) ||
+        (value.toString('ascii', 0, 4) === 'RIFF' && value.toString('ascii', 8, 12) === 'WEBP') ||
+        value.toString('ascii', 0, 4) === 'GIF8'
+    )
+}
+
+function decodeImageValue(value) {
+    if (typeof value !== 'string') return null
+    const text = value.trim()
+    if (!text) return null
+
+    const dataUrl = text.match(/^data:image\/[a-z0-9.+-]+;base64,([\s\S]+)$/i)
+    if (dataUrl) {
+        const buffer = Buffer.from(dataUrl[1].replace(/\s+/g, ''), 'base64')
+        return isImageBuffer(buffer) ? buffer : null
+    }
+
+    // Provider fields named qr_image_base64 may contain the raw base64 rather
+    // than a data URL. Only accept the value if its decoded bytes look like an
+    // actual image, not merely because the text happens to be base64-shaped.
+    if (text.length > 100 && /^[A-Za-z0-9+/=\r\n]+$/.test(text)) {
+        const buffer = Buffer.from(text.replace(/\s+/g, ''), 'base64')
+        if (isImageBuffer(buffer)) return buffer
+    }
+    return null
+}
+
+async function fetchQrImage(value) {
+    if (typeof value !== 'string' || !/^https?:\/\//i.test(value.trim())) return null
+    const url = value.trim()
+    const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        timeout: Math.max(5000, Number(providerConfig().timeoutMs || 20000)),
+        maxRedirects: 5,
+        headers: {
+            Accept: 'image/png,image/jpeg,image/webp,image/gif,application/octet-stream;q=0.8,*/*;q=0.5',
+            'User-Agent': 'Xeryuu-MD/17 QRIS renderer'
+        },
+        validateStatus: status => status >= 200 && status < 300
+    })
+    const buffer = Buffer.from(response.data || [])
+    if (!isImageBuffer(buffer)) {
+        throw new Error('URL QRIS tidak mengembalikan file gambar yang valid (respons bukan PNG/JPEG/WEBP/GIF).')
+    }
+    return buffer
+}
+
 async function qrBuffer(tx) {
-    if (tx?.qrString) {
-        return QRCode.toBuffer(String(tx.qrString), { width: 900, margin: 2 })
+    if (!tx || typeof tx !== 'object') return null
+
+    const rawPayload = tx.qrString ?? tx.qrContent ?? tx.qrisData ?? tx.qris_data ?? tx.qr_content ?? null
+    if (typeof rawPayload === 'string' && rawPayload.trim()) {
+        const payload = rawPayload.trim()
+        // Occasionally a gateway incorrectly labels the image URL/base64 as
+        // `qris_data`. Treat it as media when it actually decodes as an image;
+        // otherwise render it as the QRIS payload string as intended.
+        const imageFromPayload = decodeImageValue(payload)
+        if (imageFromPayload) return imageFromPayload
+        if (/^https?:\/\//i.test(payload)) {
+            try {
+                const fetched = await fetchQrImage(payload)
+                if (fetched) return fetched
+            } catch (error) {
+                // Continue to other provider image fields. The useful error is
+                // thrown below only if no other QR representation can be read.
+                tx.qrImageFetchError = String(error?.message || error)
+            }
+        } else if (!/^data:image\//i.test(payload)) {
+            return QRCode.toBuffer(payload, {
+                type: 'png',
+                width: 900,
+                margin: 3,
+                errorCorrectionLevel: 'M'
+            })
+        }
     }
 
-    if (!tx?.qrImage) return null
-
-    const value = String(tx.qrImage)
-    if (/^data:image\//i.test(value)) return Buffer.from(value.split(',')[1], 'base64')
-
-    if (/^https?:\/\//i.test(value)) {
-        const response = await axios.get(value, {
-            responseType: 'arraybuffer',
-            timeout: 20000
-        })
-        return Buffer.from(response.data)
+    const imageValue = tx.qrImage ?? tx.qrUrl ?? tx.qrisImage ?? tx.qris_image ?? null
+    if (Buffer.isBuffer(imageValue) && isImageBuffer(imageValue)) return imageValue
+    if (typeof imageValue === 'string' && imageValue.trim()) {
+        const embeddedImage = decodeImageValue(imageValue)
+        if (embeddedImage) return embeddedImage
+        if (/^https?:\/\//i.test(imageValue.trim())) {
+            return fetchQrImage(imageValue)
+        }
     }
 
-    if (/^[A-Za-z0-9+/=\r\n]+$/.test(value) && value.length > 100) {
-        return Buffer.from(value.replace(/\s+/g, ''), 'base64')
-    }
-
+    // Do not generate a QR from checkoutUrl here. That would encode a web link,
+    // not a QRIS payment payload, and scanning it in a banking app would fail.
+    // The caller should instead show the actual checkout link and a clear warning.
     return null
 }
 
@@ -542,7 +698,8 @@ async function check(ref) {
             createdAt: tx.createdAt,
             credited: tx.credited,
             expiredAt: tx.expiredAt,
-            expiresInMinutes: provider.expiresInMinutes
+            expiresInMinutes: provider.expiresInMinutes,
+            statusContext: 'check'
         })
 
         Object.assign(tx, parsed, {
@@ -811,6 +968,7 @@ module.exports = {
     providerName,
     providerConfig,
     supportsAutomaticDeposit,
+    parseDeposit,
     findLatestPending,
     findPending,
     findByOrderRef,
