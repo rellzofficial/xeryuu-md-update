@@ -290,7 +290,9 @@ function createNulisImage(input) {
 function createQuoteCardImage({ name = 'User', text = '' } = {}) {
   const value = compact(text, 650)
   if (!value) throw new Error('Teks quote tidak boleh kosong.')
-  const { createCanvas } = require('@napi-rs/canvas')
+  const canvasApi = require('@napi-rs/canvas')
+  const { createCanvas } = canvasApi
+  const canvasText = require('./canvas-text').createCanvasText(canvasApi)
   const canvas = createCanvas(512, 512)
   const ctx = canvas.getContext('2d')
   const bg = ctx.createLinearGradient(0, 0, 512, 512)
@@ -305,44 +307,44 @@ function createQuoteCardImage({ name = 'User', text = '' } = {}) {
   }
   ctx.fillStyle = '#ffffff'
   ctx.globalAlpha = 0.9
-  ctx.font = 'bold 64px Georgia, serif'
+  ctx.font = `bold 64px ${canvasText.family}`
   ctx.textAlign = 'left'
-  ctx.fillText('“', 34, 97)
+  canvasText.fillText(ctx, '“', 34, 97)
   ctx.globalAlpha = 1
   const displayName = compact(name || 'User', 50) || 'User'
-  ctx.font = 'bold 20px Arial, sans-serif'
+  ctx.font = `bold 20px ${canvasText.family}`
   ctx.fillStyle = '#f5d0fe'
-  ctx.fillText(displayName, 42, 139, 425)
+  canvasText.fillText(ctx, displayName, 42, 139, 425)
 
   const words = value.split(/\s+/)
   let fontSize = 31
   let lines = []
   while (fontSize >= 18) {
-    ctx.font = `600 ${fontSize}px Arial, sans-serif`
+    ctx.font = `600 ${fontSize}px ${canvasText.family}`
     lines = []
     let line = ''
     for (const word of words) {
       const candidate = line ? `${line} ${word}` : word
-      if (ctx.measureText(candidate).width <= 418 || !line) line = candidate
+      if (canvasText.measureText(ctx, candidate) <= 418 || !line) line = candidate
       else { lines.push(line); line = word }
     }
     if (line) lines.push(line)
-    if (lines.every(item => ctx.measureText(item).width <= 418) && lines.length <= 8 && lines.length * fontSize * 1.25 <= 280) break
+    if (lines.every(item => canvasText.measureText(ctx, item) <= 418) && lines.length <= 8 && lines.length * fontSize * 1.25 <= 280) break
     fontSize -= 1
   }
-  ctx.font = `600 ${fontSize}px Arial, sans-serif`
+  ctx.font = `600 ${fontSize}px ${canvasText.family}`
   ctx.fillStyle = '#ffffff'
   ctx.textAlign = 'left'
   let y = 190
   for (const line of lines) {
     if (y > 440) break
-    ctx.fillText(line, 44, y, 418)
+    canvasText.fillText(ctx, line, 44, y, 418)
     y += fontSize * 1.25
   }
-  ctx.font = 'bold 12px Arial, sans-serif'
+  ctx.font = `bold 12px ${canvasText.family}`
   ctx.fillStyle = 'rgba(255,255,255,.72)'
   ctx.textAlign = 'right'
-  ctx.fillText('XERYUU-MD • QUICK QUOTE', 470, 479)
+  canvasText.fillText(ctx, 'XERYUU-MD • QUICK QUOTE', 470, 479)
   return canvas.toBuffer('image/png')
 }
 
