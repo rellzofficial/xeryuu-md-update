@@ -67,7 +67,7 @@ function createPaymentCarouselSender(dependencies = {}) {
 
     return async function sendPaymentCarousel(conn, m, settings = {}, options = {}) {
         const qrisPath = options.qrisPath || 'qris.jpg'
-        const brandPath = options.brandPath || path.join('media', 'XeryuMd-thumbnail.jpg')
+        const brandPath = options.brandPath || path.join('media', 'payment1.jpg')
         const methods = makePaymentMethods(settings)
         const Interactive = proto?.Message?.InteractiveMessage
         const Carousel = Interactive?.CarouselMessage
