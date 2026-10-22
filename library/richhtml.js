@@ -40,6 +40,13 @@ const GAME_DEFINITIONS = Object.freeze({
         title: 'Arrow Breakout 🧱',
         trustedSources: []
     },
+    'brick-breaker': {
+        aliases: ['brickbreaker', 'brick', 'richbrickbreaker'],
+        file: 'brick-breaker.html',
+        local: true,
+        title: 'Brick Breaker — Rich Game 🧱',
+        trustedSources: []
+    },
     'chess-ultimate': {
         aliases: ['fchess', 'chessultimate', 'richchess2'],
         file: 'chess-ultimate.html',
