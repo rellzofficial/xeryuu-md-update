@@ -64,6 +64,7 @@ function getXeryuuPrivateKey(name, envName, globalNames = []) {
     const candidates = [
         process.env[envName],
         ...globalNames.map(key => global[key]),
+        global.xeryuuApiKeys?.[name],
         xeryuuPrivateApiKeys[name]
     ];
     const found = candidates.find(value => typeof value === 'string' && value.trim());
@@ -197,6 +198,25 @@ const { sendRichYoutube, sendRichTourl, searchYouTube, resolveYouTubeAudio, publ
 const { sendRichSpotify } = require('./library/richspotify.js')
 const storyEditService = require('./library/storyedit.js')
 const funMenu = require('./library/funmenu.js')
+// Fun Menu replies use the project's replyV1 payload with qtoko quoted by default.
+// Other commands retain their existing quote behavior.
+const FUN_MENU_REPLY_COMMANDS = new Set([
+    ...xeryuuRpgFunIntegration.getCommandNames(),
+    'funmenu', 'apakah', 'bisakah', 'kapankah', 'bagaimanakah',
+    'can', 'is', 'when', 'where', 'what', 'how', 'quiz',
+    'katasenja', 'katailham', 'quotes', 'puisi', 'motivasi',
+    'cekganteng', 'cekcantik', 'cekgay', 'ceklesbi', 'ceksifat', 'sifat',
+    'cekhobi', 'cekhoby', 'cekhobby', 'cekjodoh', 'jodoh', 'cekpasangan',
+    'kerangajaib', 'coinflip', 'lemparkoin', '8ball', 'magic8ball', 'pujian',
+    'roast', 'truth', 'dare', 'wouldyourather', 'pilihsatu', 'pilih',
+    'ramalkeberuntungan', 'pantun', 'faktaunik', 'jadian', 'terima', 'tolak',
+    'putus', 'wangy', 'rate', 'top', 'cekkhodam', 'cekgila', 'cekwaras',
+    'bego', 'goblok', 'janda', 'perawan', 'babi', 'tolol', 'pekok', 'jancok',
+    'pinter', 'pintar', 'asu', 'bodoh', 'gay', 'lesby', 'bajingan', 'anjing',
+    'anjg', 'anjj', 'anj', 'ngentod', 'ngentot', 'monyet', 'mastah', 'newbie',
+    'bangsat', 'bangke', 'sange', 'sangean', 'dakjal', 'horny', 'wibu', 'puki',
+    'puqi', 'peak', 'pantex', 'pantek', 'setan', 'iblis', 'cacat', 'yatim', 'piatu'
+])
 const hdService = require('./library/hd.js')
 const { sendRichStalk, formatStalkError } = require('./library/richstalk.js')
 const judi = require('./library/judi.js')
@@ -625,6 +645,8 @@ function isXeryuuMenuText(value) {
 function styleXeryuuReplyText(value) {
     const raw = String(value ?? '').replace(/\*/g, '');
     if (!raw.trim() || /^\s*```[\s\S]*```\s*$/.test(raw)) return raw;
+    // Native WhatsApp mentions should not be wrapped in a Markdown code block.
+    if (/@[1-9]\d{4,15}(?!\d)/.test(raw)) return raw;
     return `\`\`\`${raw}\`\`\``;
 }
 const sendPinterestCarousel = createPinterestCarouselSender({
@@ -1286,7 +1308,6 @@ const antilinkFile = projectPath('library', 'database', 'antilink-all.json');
 const legacyAntiLinkFile = projectPath('library', 'database', 'antilink.json');
 const isAfkOn = afk.checkAfkUser(m.sender, Array.isArray(_afk) ? _afk : []);
 const databasefile = DB_FILE;
-// Database helpers use this project's path, not the shell's current directory.
 function loaddatabase() {
     const parsed = readProjectJson(databasefile, { chats: {} });
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : { chats: {} };
@@ -1325,8 +1346,8 @@ function saveAntilink() {
 let AntiLinkKick = readProjectJson('library/database/antilink2.json', []);
 if (!Array.isArray(AntiLinkKick)) AntiLinkKick = [];
 const thumbnails = [
-"https://img3.pixhost.to/images/6499/786288369_xeryuu.jpg",
-"https://img3.pixhost.to/images/6499/786288369_xeryuu.jpg"
+"https://files.catbox.moe/rukmcl.png",
+"https://files.catbox.moe/rukmcl.png"
 ]
 
 //filter bot
@@ -1390,7 +1411,7 @@ const lol = { key: {
       itemCount: "13",
       status: "INQUIRY",
       surface: "CATALOG",
-      message: `Xeryuu-Md × Sendrich\n V 16.0.0`,
+      message: `Xeryuu-Md × Sendrich\n V 17.0.0`,
       token: "AR6xBKbXZn0Xwmu76Ksyd7rnxI+Rx87HfinVlW4lwXa6JA=="
     }
   },
@@ -2315,17 +2336,34 @@ async function replyV1(teks, options = {}) {
     ? normalizedOptions.mentions
     : [];
   const senderMentions = normalizedOptions.includeSenderMention === false ? [] : [m?.sender];
-  const mentions = [...new Set([...senderMentions, ...optionMentions].filter(Boolean))];
   const styledText = styleXeryuuReplyText(teks);
+  const canonicalMentionJid = value => String(value || '').trim().replace(/:\d+(?=@)/, '');
+  const mentionCandidates = [...senderMentions, ...optionMentions].filter(value => typeof value === 'string' && value.trim());
+  // replyV1 uses a document caption, so derive mention metadata here instead of
+  // relying only on the text-payload normalizer used by normal sendMessage calls.
+  for (const match of String(styledText).matchAll(/@([1-9]\d{4,15})(?!\d)/g)) {
+    const number = match[1];
+    const known = mentionCandidates.some(jid => canonicalMentionJid(jid).split('@')[0].split(':')[0] === number);
+    if (!known) mentionCandidates.push(`${number}@s.whatsapp.net`);
+  }
+  const mentions = [];
+  const seenMentions = new Set();
+  for (const jid of mentionCandidates) {
+    const canonical = canonicalMentionJid(jid);
+    if (!canonical || seenMentions.has(canonical)) continue;
+    seenMentions.add(canonical);
+    mentions.push(jid);
+  }
   const thumbnail = readProjectAsset('media/XeryuMd-thumbnail.jpg');
   const customContextInfo = normalizedOptions.contextInfo && typeof normalizedOptions.contextInfo === 'object'
     ? normalizedOptions.contextInfo
     : {};
   const noAdReply = normalizedOptions.noAdReply === true;
   const targetChat = normalizedOptions.chatOverride || m.chat;
+  const defaultQuote = FUN_MENU_REPLY_COMMANDS.has(String(command || '').trim().toLowerCase()) ? qtoko : m;
   const quote = Object.prototype.hasOwnProperty.call(normalizedOptions, 'quoted')
     ? normalizedOptions.quoted
-    : m;
+    : defaultQuote;
   const sendOptions = quote ? { quoted: quote } : {};
   const metadataContext = noAdReply ? {} : {
     forwardingScore: 9999,
@@ -2346,7 +2384,10 @@ async function replyV1(teks, options = {}) {
     mentions,
     contextInfo: {
       ...customContextInfo,
-      ...metadataContext
+      ...metadataContext,
+      ...(Array.isArray(customContextInfo.mentionedJid)
+        ? {}
+        : (mentions.length ? { mentionedJid: mentions } : {}))
     }
   };
   if (Buffer.isBuffer(thumbnail) && thumbnail.length) payload.jpegThumbnail = thumbnail;
@@ -2420,6 +2461,31 @@ async function replyadminp() {
     return replyV1('🔒 Fitur ini khusus administrator panel. Hubungi developer untuk informasi akses.');
 }
 
+function normalizeXeryuuMentionJid(value) {
+    return String(value || '').trim().replace(/:\d+(?=@)/, '');
+}
+
+function xeryuuMentionToken(jid) {
+    const normalized = normalizeXeryuuMentionJid(jid);
+    const local = normalized.split('@')[0].split(':')[0];
+    return /^[1-9]\d{4,15}$/.test(local) ? `@${local}` : '';
+}
+
+async function getXeryuuMentionLabel(conn, jid, fallback = 'Anggota') {
+    const resolved = await getXeryuuContactNameSafe(conn, jid, fallback);
+    const label = String(resolved || '').replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
+    return !label || /^\+?[0-9 .()-]+$/.test(label) ? fallback : label;
+}
+
+function withXeryuuTargetMention(message, jid, label = '👤 Target') {
+    const token = xeryuuMentionToken(jid);
+    if (!token) return { text: String(message || ''), mentions: [] };
+    return {
+        text: `${String(message || '').trim()}\n\n${label}: ${token}`,
+        mentions: [normalizeXeryuuMentionJid(jid)]
+    };
+}
+
 const sendCompatibilityMentionReply = async (name1, name2, jid1 = '', jid2 = '') => {
     const result = funMenu.scoreCompatibility(name1, name2)
     const normalizeMentionJid = value => String(value || '').trim().replace(/:\d+(?=@)/, '')
@@ -2428,9 +2494,9 @@ const sendCompatibilityMentionReply = async (name1, name2, jid1 = '', jid2 = '')
 
     if (mentions.length !== 2) return replyV1(result.text)
 
-    const mentionTokens = mentions.map(jid => `@${jid.split('@')[0]}`)
+    const mentionTokens = mentions.map(jid => xeryuuMentionToken(jid))
     const text = `${result.text}\n\n💞 Pengguna yang dipasangkan:\n${mentionTokens[0]} ❤️ ${mentionTokens[1]}`
-    return replyV1(text, { mentions })
+    return replyV1(text, { mentions, includeSenderMention: false })
 }
 
 const sendXeryuuImageReply = async (caption, imagePath = 'media/xeryuu.png') => {
@@ -2458,10 +2524,10 @@ const sendXeryuuMenuArtwork = async (label, imagePath = 'media/xeryuu.png') => {
         await conn.sendMessage(m.chat, {
             image: imageBuffer,
             caption:
-                `╔─═⪩ 『 ${title} 』\n` +
-                `║ Xeryuu-MD V17 × Sendrich\n` +
-                `║ Created by: XnalzNotDev\n` +
-                `╚─═─═─═─═─═─═⪩\n\n` +
+                `${title}\n` +
+                ` Xeryuu-MD V17 × Sendrich\n` +
+                ` Created by: XnalzNotDev\n` +
+                `\n\n` +
                 `Pilih fitur dari menu yang dikirim setelah gambar ini.`
         }, { quoted: m })
         return true
@@ -9242,12 +9308,12 @@ Token: ${token}`)
         const expiry = payment.expiredAt ? new Date(Number(payment.expiredAt)).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-'
         const caption =
             `╭─〔 📲 QRIS PEMBELIAN LANGSUNG 〕\n` +
-            `║ Jenis    : ${type}\n` +
-            `║ Invoice  : ${payment.merchantRef}\n` +
-            `║ Produk   : ${created.intent.label}\n` +
-            `║ Total    : Rp${depositService.formatMoney(due)}\n` +
-            `║ Status   : ${isPaid ? 'SUDAH DIBAYAR' : payment.status || 'MENUNGGU'}\n` +
-            `║ Expired  : ${expiry}\n` +
+            ` Jenis    : ${type}\n` +
+            ` Invoice  : ${payment.merchantRef}\n` +
+            ` Produk   : ${created.intent.label}\n` +
+            ` Total    : Rp${depositService.formatMoney(due)}\n` +
+            ` Status   : ${isPaid ? 'SUDAH DIBAYAR' : payment.status || 'MENUNGGU'}\n` +
+            ` Expired  : ${expiry}\n` +
             `╰────────────────\n\n` +
             (isPaid ? '✅ Pembayaran terdeteksi. Pesanan sedang diproses/akan direkonsiliasi otomatis.' : 'Scan QRIS untuk membayar pesanan ini. Pembayaran ini langsung untuk produk, bukan deposit saldo bot. Jangan membayar dua kali.') +
             (payment.checkoutUrl ? `\n\n🔗 Link pembayaran: ${payment.checkoutUrl}` : '') +
@@ -9324,9 +9390,9 @@ async function handleWaPurchaseBalance(token, type) {
         if (type === 'NOKOS') purchasePayment.startNokosWatcher(item)
         if (!result.already) await notifyWaPurchaseOwner(result)
         if (type === 'NOKOS') {
-            return replyV1(`╭─〔 📱 ORDER NOKOS 〕\n║ Ref      : ${item.ref}\n║ Service  : ${item.service}\n║ Negara   : ${item.country}\n║ Provider : ${item.provider || '-'}\n║ Nomor    : ${item.phone || '-'}\n║ Harga    : Rp${depositService.formatMoney(item.sellingPrice)}\n║ Status   : ${String(item.status || 'waiting').toUpperCase()}\n╰────────────────\n\nBot akan mengecek OTP otomatis.\nCek: ${prefix}nokosstatus ${item.ref}\nBatalkan: ${prefix}nokoscancel ${item.ref}`)
+            return replyV1(`╭─〔 📱 ORDER NOKOS 〕\n Ref      : ${item.ref}\n Service  : ${item.service}\n Negara   : ${item.country}\n Provider : ${item.provider || '-'}\n Nomor    : ${item.phone || '-'}\n Harga    : Rp${depositService.formatMoney(item.sellingPrice)}\n Status   : ${String(item.status || 'waiting').toUpperCase()}\n╰────────────────\n\nBot akan mengecek OTP otomatis.\nCek: ${prefix}nokosstatus ${item.ref}\nBatalkan: ${prefix}nokoscancel ${item.ref}`)
         }
-        return replyV1(`╭─〔 🎮 ORDER TOP UP 〕\n║ Ref     : ${item.ref}\n║ Game    : ${item.game}\n║ Produk  : ${item.productName}\n║ Tujuan  : ${item.customerNo || '-'}${item.zone ? ` | Zone ${item.zone}` : ''}\n║ Harga   : Rp${topupService.formatMoney(item.sellingPrice)}\n║ Status  : ${item.status}\n║ SN      : ${item.sn || '-'}\n╰────────────────\n\n${item.message || 'Transaksi diproses.'}\nCek: ${prefix}topupstatus ${item.ref}`)
+        return replyV1(`╭─〔 🎮 ORDER TOP UP 〕\n Ref     : ${item.ref}\n Game    : ${item.game}\n Produk  : ${item.productName}\n Tujuan  : ${item.customerNo || '-'}${item.zone ? ` | Zone ${item.zone}` : ''}\n Harga   : Rp${topupService.formatMoney(item.sellingPrice)}\n Status  : ${item.status}\n SN      : ${item.sn || '-'}\n╰────────────────\n\n${item.message || 'Transaksi diproses.'}\nCek: ${prefix}topupstatus ${item.ref}`)
     } catch (error) {
         return replyV1(`❌ Pembayaran saldo gagal: ${error?.message || error}\n\nJika saldo belum terpotong, pilih QRIS pembelian. Jika status menunjukkan sedang diproses, jangan membuat order baru.`)
     }
@@ -9487,15 +9553,6 @@ if (['ewe-paksa', 'ewepaksa'].includes(String(command || '').toLowerCase())) {
     return replyV1('🛡️ Command ini dinonaktifkan. Gunakan .duel untuk permainan kompetitif yang aman.');
 }
 
-// Keep only explicit adult/sexual legacy aliases behind this guard.
-// This guard runs before the extension and legacy switch so aliases cannot bypass it.
-// All supported arcade commands below use Xeryuu's in-bot virtual balance only.
-const XERYUU_DISABLED_UNSAFE_GAMES = new Set([
-    'horny', 'sange', 'sangean', 'perawan', 'ngentod', 'ngentot'
-]);
-if (XERYUU_DISABLED_UNSAFE_GAMES.has(String(command || '').toLowerCase())) {
-    return replyV1('Perintah ini tidak tersedia di build ini. Fitur game RPG/arcade lainnya tetap dapat digunakan.');
-}
 
 try {
     const handledXeryuuCommand = await xeryuuExtension.handle(command, {
@@ -9516,7 +9573,7 @@ try {
 
 try {
     const handledRpgFunIntegration = await xeryuuRpgFunIntegration.handle(command, {
-        conn, m, args, text, body, prefix, economy, reply: replyV1,
+        conn, m, args, text, body, prefix, economy, reply: replyV1, qtoko,
         isAdmin: Boolean(isAdmins),
         saveGlobalDb: () => saveDB(global.db)
     });
@@ -10759,9 +10816,9 @@ case 'depo': {
         return replyV1(
             `╭─〔 💳 DEPOSIT SALDO 〕
 ` +
-            `║ 💰 Minimal : *Rp${depositService.formatMoney(global.depositConfig?.minAmount || 1000)}*
+            ` 💰 Minimal : *Rp${depositService.formatMoney(global.depositConfig?.minAmount || 1000)}*
 ` +
-            `║ 💰 Maksimal: *Rp${depositService.formatMoney(global.depositConfig?.maxAmount || 5000000)}*
+            ` 💰 Maksimal: *Rp${depositService.formatMoney(global.depositConfig?.maxAmount || 5000000)}*
 ` +
             `╰────────────────
 
@@ -10781,7 +10838,7 @@ case 'depo': {
         )
     }
     if (typeof depositService.ready === 'function' && !depositService.ready()) {
-        return replyV1('❌ Gateway QRIS belum dikonfigurasi. Periksa NASIONALPAY_STORE_KEY pada environment atau authen.js lokal, lalu restart bot. Tidak ada invoice baru dibuat.')
+        return replyV1('❌ Gateway QRIS belum dikonfigurasi. Periksa NASIONALPAY_STORE_KEY pada environment atau nasionalPayStoreKey di settings.js lokal, lalu restart bot. Tidak ada invoice baru dibuat.')
     }
     await sendPaymentProgressNotice('⏳ Menyiapkan invoice deposit QRIS. Tunggu sebentar dan jangan kirim perintah deposit yang sama berulang kali.')
     try {
@@ -10796,9 +10853,9 @@ case 'depo': {
 
         const caption =
             `╭─〔 💳 DEPOSIT SALDO 〕\n` +
-            `║ 🧾 Invoice: *${tx.merchantRef}*\n` +
-            `║ 💰 Nominal: *Rp${depositService.formatMoney(tx.amount)}*\n` +
-            `║ ⏳ Status: *${tx.status}*\n` +
+            ` 🧾 Invoice: *${tx.merchantRef}*\n` +
+            ` 💰 Nominal: *Rp${depositService.formatMoney(tx.amount)}*\n` +
+            ` ⏳ Status: *${tx.status}*\n` +
             `╰────────────────\n\n` +
             `${image ? 'Scan QRIS untuk membayar.' : `⚠️ Gambar QRIS belum berhasil dirender. ${tx.checkoutUrl ? `Buka link invoice: ${tx.checkoutUrl}` : 'Jangan membayar melalui QR lain; hubungi owner untuk memeriksa data invoice.'}`}\n` +
             `Setelah membayar, gunakan *${prefix}depositstatus ${tx.merchantRef}* jika notifikasi belum masuk.\n` +
@@ -10828,9 +10885,9 @@ case 'bataldeposit': {
         const cleanup = await deleteStoredQrMessages(tx, ref)
         return replyV1(
             `╭─〔 ❌ TRANSAKSI DIBATALKAN 〕\n` +
-            `║ 🧾 Invoice : *${tx.merchantRef}*\n` +
-            `║ 💰 Nominal : *Rp${depositService.formatMoney(tx.amount)}*\n` +
-            `║ 📌 Status  : *CANCELED*\n` +
+            ` 🧾 Invoice : *${tx.merchantRef}*\n` +
+            ` 💰 Nominal : *Rp${depositService.formatMoney(tx.amount)}*\n` +
+            ` 📌 Status  : *CANCELED*\n` +
             `╰────────────────\n\n` +
             `${cleanup.failed ? '⚠️ Penghapusan QRIS tidak dapat dikonfirmasi sepenuhnya. Jangan gunakan QR lama; hubungi owner jika pesan masih terlihat.' : `✅ Pesan QRIS/control berhasil dihapus (${cleanup.deleted} pesan).`}
 Pembatalan ini bersifat lokal. Jika QR lama sempat disimpan dan tetap dibayar, sistem akan mengamankan nominal terkonfirmasi ke Saldo Biasa agar dana tidak hilang.`
@@ -10854,10 +10911,10 @@ case 'cekdeposit': {
         const tx = await depositService.check(args[0])
         return replyV1(
             `╭─〔 💳 STATUS DEPOSIT 〕\n` +
-            `║ Invoice : *${tx.merchantRef}*\n` +
-            `║ Nominal : *Rp${depositService.formatMoney(tx.amount)}*\n` +
-            `║ Status  : *${tx.status}*\n` +
-            `║ Credited: *${tx.credited ? 'YA' : 'BELUM'}*\n` +
+            ` Invoice : *${tx.merchantRef}*\n` +
+            ` Nominal : *Rp${depositService.formatMoney(tx.amount)}*\n` +
+            ` Status  : *${tx.status}*\n` +
+            ` Credited: *${tx.credited ? 'YA' : 'BELUM'}*\n` +
             `╰────────────────`
         )
     } catch (e) {
@@ -10893,9 +10950,9 @@ case 'depositulangqr': {
         if (!image) console.error('[DEPOSIT QR RESEND EMPTY]', JSON.stringify({ ref, hasQrString: Boolean(tx?.qrString), hasQrImage: Boolean(tx?.qrImage), hasCheckoutUrl: Boolean(tx?.checkoutUrl) }))
         const caption =
             `╭─〔 💳 TAMPILKAN ULANG DEPOSIT 〕\n` +
-            `║ Invoice : *${tx.merchantRef}*\n` +
-            `║ Nominal : *Rp${depositService.formatMoney(tx.amount)}*\n` +
-            `║ Status  : *${tx.status}*\n` +
+            ` Invoice : *${tx.merchantRef}*\n` +
+            ` Nominal : *Rp${depositService.formatMoney(tx.amount)}*\n` +
+            ` Status  : *${tx.status}*\n` +
             `╰────────────────\n\n` +
             `${image ? 'Scan QRIS ini untuk membayar invoice yang sama.' : `⚠️ Gambar QRIS masih tidak tersedia. ${tx.checkoutUrl ? `Buka link invoice: ${tx.checkoutUrl}` : 'Hubungi owner untuk pemeriksaan; jangan membayar QR lain.'}`}\n` +
             `Tidak ada tagihan baru dibuat. Cek status: ${prefix}depositstatus ${ref}.` +
@@ -11058,7 +11115,7 @@ case 'purchaseqrisstatus': {
         if (!before || String(before.kind || '').toUpperCase() === 'DEPOSIT') return replyV1('❌ Invoice pembelian tidak ditemukan.')
         if (before.jid !== m.sender && !isOwner) return replyV1('❌ Invoice ini bukan milik akun kamu.')
         const tx = await depositService.check(ref)
-        return replyV1(`╭─〔 📲 STATUS QRIS PEMBELIAN 〕\n║ Invoice : ${tx.merchantRef}\n║ Produk  : ${tx.items?.[0]?.name || '-'}\n║ Nominal : Rp${depositService.formatMoney(tx.totalPay || tx.amount)}\n║ Status  : ${tx.status}\n║ Fulfill : ${tx.handlerProcessedAt ? 'SELESAI' : tx.fulfillmentPaused ? 'BUTUH PEMERIKSAAN OWNER' : 'DIPROSES OTOMATIS'}\n╰────────────────\n\nPembayaran ini adalah invoice pembelian langsung, bukan deposit saldo bot.`)
+        return replyV1(`╭─〔 📲 STATUS QRIS PEMBELIAN 〕\n Invoice : ${tx.merchantRef}\n Produk  : ${tx.items?.[0]?.name || '-'}\n Nominal : Rp${depositService.formatMoney(tx.totalPay || tx.amount)}\n Status  : ${tx.status}\n Fulfill : ${tx.handlerProcessedAt ? 'SELESAI' : tx.fulfillmentPaused ? 'BUTUH PEMERIKSAAN OWNER' : 'DIPROSES OTOMATIS'}\n╰────────────────\n\nPembayaran ini adalah invoice pembelian langsung, bukan deposit saldo bot.`)
     } catch (error) { return replyV1(`❌ Gagal cek invoice: ${error?.message || error}`) }
 }
 break
@@ -11070,8 +11127,8 @@ case 'topupdiag': {
         const status = info?.status ?? 'OK'
         return replyV1(
             `╭─〔 🔎 VIPAYMENT DIAGNOSTIC 〕\n` +
-            `║ Status : *${String(status)}*\n` +
-            `║ Saldo  : *Rp${topupService.formatMoney(balance)}*\n` +
+            ` Status : *${String(status)}*\n` +
+            ` Saldo  : *Rp${topupService.formatMoney(balance)}*\n` +
             `╰────────────────\n\n` +
             `Endpoint profile VIPayment berhasil diautentikasi.`
         )
@@ -11163,12 +11220,12 @@ case 'cekstatus': {
         }
         return replyV1(
             `╭─〔 🎮 STATUS TOP UP 〕\n` +
-            `║ Ref     : *${tx.ref}*\n` +
-            `║ Produk  : *${tx.productName}*\n` +
-            `║ Status  : *${tx.status}*\n` +
-            `║ Harga   : *Rp${topupService.formatMoney(tx.sellingPrice)}*\n` +
-            `║ SN      : *${tx.sn || '-'}*\n` +
-            `║ Refund  : *${tx.refunded ? 'YA' : 'TIDAK'}*\n` +
+            ` Ref     : *${tx.ref}*\n` +
+            ` Produk  : *${tx.productName}*\n` +
+            ` Status  : *${tx.status}*\n` +
+            ` Harga   : *Rp${topupService.formatMoney(tx.sellingPrice)}*\n` +
+            ` SN      : *${tx.sn || '-'}*\n` +
+            ` Refund  : *${tx.refunded ? 'YA' : 'TIDAK'}*\n` +
             `╰────────────────\n\n${tx.message || ''}`
         )
     } catch (e) {
@@ -11457,13 +11514,13 @@ case 'nokosstatus': {
         const updated = nokosService.updateOrder(ref, patch) || { ...order, ...patch }
         return replyV1(
             `╭─〔 📱 STATUS NOKOS 〕\n` +
-            `║ Ref     : *${updated.ref}*\n` +
-            `║ Service : *${updated.service}*\n` +
-            `║ Nomor   : *${updated.phone}*\n` +
-            `║ Harga   : *Rp${nokosService.money(updated.sellingPrice)}*\n` +
-            `║ Status  : *${String(updated.status).toUpperCase()}*\n` +
-            `║ OTP     : *${updated.otp || '-'}*\n` +
-            `║ Refund  : *${updated.refunded ? 'YA' : 'TIDAK'}*\n` +
+            ` Ref     : *${updated.ref}*\n` +
+            ` Service : *${updated.service}*\n` +
+            ` Nomor   : *${updated.phone}*\n` +
+            ` Harga   : *Rp${nokosService.money(updated.sellingPrice)}*\n` +
+            ` Status  : *${String(updated.status).toUpperCase()}*\n` +
+            ` OTP     : *${updated.otp || '-'}*\n` +
+            ` Refund  : *${updated.refunded ? 'YA' : 'TIDAK'}*\n` +
             `╰────────────────\n\n${updated.sms || ''}`
         )
     } catch (e) {
@@ -11663,7 +11720,7 @@ case 'belijadibot': {
     const product = storeService.getProduct(key)
     if (!product) return replyV1(`❌ Produk *${key}* tidak ditemukan. Gunakan ${prefix}listproduk.`)
     if (typeof depositService.ready === 'function' && !depositService.ready()) {
-        return replyV1('❌ Gateway QRIS Store belum dikonfigurasi. Periksa NASIONALPAY_STORE_KEY pada environment atau authen.js lokal, lalu restart bot. Order belum dibuat.')
+        return replyV1('❌ Gateway QRIS Store belum dikonfigurasi. Periksa NASIONALPAY_STORE_KEY pada environment atau nasionalPayStoreKey di settings.js lokal, lalu restart bot. Order belum dibuat.')
     }
     await sendPaymentProgressNotice(`⏳ Menyiapkan invoice QRIS untuk ${product.name}. Tunggu sebentar dan jangan checkout ulang sebelum hasilnya muncul.`)
     try {
@@ -11722,10 +11779,10 @@ case 'orderulangqr': {
         if (!image) console.error('[STORE QR RESEND EMPTY]', JSON.stringify({ orderRef: ref, paymentRef: order?.paymentRef || '', hasQrString: Boolean(order?.qrString), hasQrUrl: Boolean(order?.qrUrl), hasCheckoutUrl: Boolean(order?.checkoutUrl) }))
         const caption =
             `╭─〔 🧾 TAMPILKAN ULANG QRIS STORE 〕\n` +
-            `║ Order   : *${order.ref}*\n` +
-            `║ Produk  : *${order.productName}*\n` +
-            `║ Total   : *Rp${storeService.formatMoney(order.price)}*\n` +
-            `║ Status  : *${paymentStatus || order.paymentStatus || 'UNPAID'}*\n` +
+            ` Order   : *${order.ref}*\n` +
+            ` Produk  : *${order.productName}*\n` +
+            ` Total   : *Rp${storeService.formatMoney(order.price)}*\n` +
+            ` Status  : *${paymentStatus || order.paymentStatus || 'UNPAID'}*\n` +
             `╰────────────────\n\n` +
             `${image ? 'Scan QRIS ini untuk membayar order yang sama.' : `⚠️ Gambar QRIS masih tidak tersedia. ${payment.checkoutUrl ? `Buka link invoice: ${payment.checkoutUrl}` : 'Hubungi owner untuk pemeriksaan; jangan membayar QR lain.'}`}\n` +
             `Tidak ada tagihan baru dibuat. Cek status: ${prefix}orderstatus ${ref}.` +
@@ -11785,11 +11842,11 @@ case 'cekorder': {
         }
         return replyV1(
             `╭─〔 📦 STATUS ORDER 〕\n` +
-            `║ Ref      : *${order.ref}*\n` +
-            `║ Produk   : *${order.productName}*\n` +
-            `║ Harga    : *Rp${storeService.formatMoney(order.price)}*\n` +
-            `║ Bayar    : *${order.paymentStatus}*\n` +
-            `║ Proses   : *${order.status}*\n` +
+            ` Ref      : *${order.ref}*\n` +
+            ` Produk   : *${order.productName}*\n` +
+            ` Harga    : *Rp${storeService.formatMoney(order.price)}*\n` +
+            ` Bayar    : *${order.paymentStatus}*\n` +
+            ` Proses   : *${order.status}*\n` +
             `╰────────────────`
         )
     } catch (e) {
@@ -11882,11 +11939,11 @@ case 'sewastatus': {
     const hours = Math.floor((remaining % 86400000) / 3600000)
     return replyV1(
         `╭─〔 ⏳ STATUS SEWA 〕\n` +
-        `║ 🆔 Sewa    : *${rental.id}*\n` +
-        `║ 📦 Produk  : *${rental.productName}*\n` +
-        `║ ▶️ Mulai   : *${new Date(rental.startAt).toLocaleString('id-ID')}*\n` +
-        `║ ⏰ Expired : *${new Date(rental.expiresAt).toLocaleString('id-ID')}*\n` +
-        `║ ⌛ Sisa    : *${days} hari ${hours} jam*\n` +
+        ` 🆔 Sewa    : *${rental.id}*\n` +
+        ` 📦 Produk  : *${rental.productName}*\n` +
+        ` ▶️ Mulai   : *${new Date(rental.startAt).toLocaleString('id-ID')}*\n` +
+        ` ⏰ Expired : *${new Date(rental.expiresAt).toLocaleString('id-ID')}*\n` +
+        ` ⌛ Sisa    : *${days} hari ${hours} jam*\n` +
         `╰────────────────`
     )
 }
@@ -12108,17 +12165,17 @@ case 'saldo': {
 
     return replyV1(
         `╭─〔 💰 ECONOMY PROFILE 〕\n` +
-        `║ 👤 User: @${m.sender.split('@')[0]}\n` +
-        `║ 💵 Wallet: Rp${economy.formatMoney(p.wallet)}\n` +
-        `║ 🏦 Bank: Rp${economy.formatMoney(p.bank)}\n` +
-        `║ 💰 Total: Rp${economy.formatMoney(p.total)}\n` +
-        `║ ⭐ Level: ${p.level}\n` +
-        `║ ✨ XP: ${p.xp}/${p.nextXp}\n` +
-        `║ ⚡ Energy: ${p.energy}/${p.maxEnergy}\n` +
-        `║ 🔥 Daily Streak: ${p.streak.daily}\n` +
-        `║ 🏆 Achievement: ${p.achievements}\n` +
-        `║ 🏢 Business: ${p.business ? p.business.type : 'Tidak ada'}\n` +
-        `║ 💳 Loan: Rp${economy.formatMoney(p.loan.amount)}\n` +
+        ` 👤 User: @${m.sender.split('@')[0]}\n` +
+        ` 💵 Wallet: Rp${economy.formatMoney(p.wallet)}\n` +
+        ` 🏦 Bank: Rp${economy.formatMoney(p.bank)}\n` +
+        ` 💰 Total: Rp${economy.formatMoney(p.total)}\n` +
+        ` ⭐ Level: ${p.level}\n` +
+        ` ✨ XP: ${p.xp}/${p.nextXp}\n` +
+        ` ⚡ Energy: ${p.energy}/${p.maxEnergy}\n` +
+        ` 🔥 Daily Streak: ${p.streak.daily}\n` +
+        ` 🏆 Achievement: ${p.achievements}\n` +
+        ` 🏢 Business: ${p.business ? p.business.type : 'Tidak ada'}\n` +
+        ` 💳 Loan: Rp${economy.formatMoney(p.loan.amount)}\n` +
         `╰────────────────`,
         { mentions: [m.sender] }
     )
@@ -13284,19 +13341,27 @@ break
 
 case 'pujian': {
     const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || ''
-    const targetName = targetJid
-        ? await conn.getName(targetJid).catch(() => targetJid.split('@')[0])
-        : (text || pushname || m.sender.split('@')[0])
-    return replyV1(funMenu.compliment(targetName))
+    const cleanInput = String(text || '').replace(/@[1-9]\d{4,15}/g, '').trim()
+    const targetName = targetJid ? await getXeryuuMentionLabel(conn, targetJid, 'temanmu') : (cleanInput || pushname || 'Kamu')
+    const result = funMenu.compliment(targetName)
+    if (targetJid) {
+        const taggedResult = withXeryuuTargetMention(result, targetJid, '💌 Untuk')
+        return replyV1(taggedResult.text, { mentions: taggedResult.mentions, includeSenderMention: false })
+    }
+    return replyV1(result)
 }
 break
 
 case 'roast': {
     const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || ''
-    const targetName = targetJid
-        ? await conn.getName(targetJid).catch(() => targetJid.split('@')[0])
-        : (text || pushname || m.sender.split('@')[0])
-    return replyV1(funMenu.roast(targetName))
+    const cleanInput = String(text || '').replace(/@[1-9]\d{4,15}/g, '').trim()
+    const targetName = targetJid ? await getXeryuuMentionLabel(conn, targetJid, 'temanmu') : (cleanInput || pushname || 'Kamu')
+    const result = funMenu.roast(targetName)
+    if (targetJid) {
+        const taggedResult = withXeryuuTargetMention(result, targetJid, '🔥 Untuk')
+        return replyV1(taggedResult.text, { mentions: taggedResult.mentions, includeSenderMention: false })
+    }
+    return replyV1(result)
 }
 break
 
@@ -13912,7 +13977,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
 
     let image = await generateWAMessageContent({
         image: {
-            url: "https://img3.pixhost.to/images/6499/786288369_xeryuu.jpg"
+            url: "https://files.catbox.moe/rukmcl.png"
         },
     }, { upload: conn.waUploadToServer });
 
@@ -13935,11 +14000,12 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
 > 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
+> 彡 Version » 17.0 ✨
 > 彡 Language » JavaScript 🌎
 > 彡 RunTime » ${runtime(process.uptime())} 💫
 > 彡 *Feature* » Multy&Bug 🌟
-╚─═─═─═─═─═─═─═─═─═⪩
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
 
 \`🤖 乂 𝐚 𝐢 & 𝐜 𝐡 𝐚 𝐭 乂\`
  ⪩ .autorespesan *<on/off>*
@@ -14152,7 +14218,10 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .bet <jumlah> <1-6> (saldo virtual)
  ⪩ .casino <jumlah> 
  ⪩ .slot <jumlah> (saldo virtual)
- ⪩ .lotre open|buy|status|cancel
+ ⪩ .lotre open
+ ⪩ .lotre buy <jumlah>
+ ⪩ .lotre status
+ ⪩ .lotre cancel
  ⪩ .poker3 start <jumlah>
  ⪩ .hilo start <jumlah> 
  ⪩ .high 
@@ -14220,9 +14289,6 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .lovelycheck
  ⪩ .uglycheck
  ⪩ .hornycheck
- ⪩ .gaycheck
- ⪩ .lesbiancheck 
- ⪩ .lesbicheck
  ⪩ .cry
  ⪩ .hug
  ⪩ .pat 
@@ -15218,11 +15284,12 @@ text: `
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
 > 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
+> 彡 Version » 17.0 ✨
 > 彡 Language » JavaScript 🌎
 > 彡 RunTime » ${runtime(process.uptime())} 💫
 > 彡 *Feature* » Multy&Bug 🌟
-╚─═─═─═─═─═─═─═─═─═⪩
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
 
 \`🤖 乂 𝐚 𝐢 & 𝐜 𝐡 𝐚 𝐭 乂\`
  ⪩ .autorespesan *<on/off>*
@@ -15435,7 +15502,10 @@ text: `
  ⪩ .bet <jumlah> <1-6> (saldo virtual)
  ⪩ .casino <jumlah> 
  ⪩ .slot <jumlah> (saldo virtual)
- ⪩ .lotre open|buy|status|cancel
+ ⪩ .lotre open
+ ⪩ .lotre buy <jumlah>
+ ⪩ .lotre status
+ ⪩ .lotre cancel
  ⪩ .poker3 start <jumlah>
  ⪩ .hilo start <jumlah> 
  ⪩ .high 
@@ -15503,9 +15573,6 @@ text: `
  ⪩ .lovelycheck
  ⪩ .uglycheck
  ⪩ .hornycheck
- ⪩ .gaycheck
- ⪩ .lesbiancheck 
- ⪩ .lesbicheck
  ⪩ .cry
  ⪩ .hug
  ⪩ .pat 
@@ -16585,17 +16652,19 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
 ╔─═⪩ 『 \`Xeryuu-Md\` 』
 > 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
 > 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
+> 彡 Version » 17.0 ✨
 > 彡 Language » JavaScript 🌎
 > 彡 RunTime » ${runtime(process.uptime())} 💫
 > 彡 *Feature* » Multy&Bug 🌟
-╚─═─═─═─═─═─═─═─═─═⪩
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
 
 ┏━━━〔 SUPPORT SCRIPT 〕━━━
 ┃☇ Xnalz \`Developer\` 
 ┃☇ Orang Tua \`My Support\`  
 ┃☇ Acaa \`My Love\`
 ┃☇ Putztizii \`Support\` 
+┃☇ Setto \`Penyedia Base\`
 ┃☇ Ikyy \`My Support\`  
 ┗━━━━━━━━━━━━━━━━━━
 `
@@ -16656,7 +16725,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Create Panel ⛈️", id: `${prefix}cpanel` }) },
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Buy Script ⛈️", id: `${prefix}buysc` }) },
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Game Menu ⛈️", id: `${prefix}gamemenu` }) },
-                { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "🛍️ Website Store", id: `${prefix}store` }) },
+                { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Website Store ⛈️", id: `${prefix}store` }) },
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: " ⌞愛⌝ Rpg Menu ⛈️", id: `${prefix}rpgmenu` }) },
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Primbon Menu ⛈️", id: `${prefix}primbonmenu` }) },
                 { name: "quick_reply", buttonParamsJson: JSON.stringify({ display_text: "⌞愛⌝ Editing Menu ⛈️", id: `${prefix}editingmenu` }) },
@@ -17035,9 +17104,6 @@ case "aio": {
        }
      }
 
-   // Scrapr handles supported non-Spotify platforms first. Spotify keeps its
-   // existing Xeryuu downloader, and MediaFire keeps its dedicated command.
-   // The original universal extractor remains as fallback if Scrapr is down.
    const scraprCommandName = String(command || '').toLowerCase();
    const scraprInputUrl = String(text || '').trim().split(/\s+/)[0];
    let scraprPlatform = null;
@@ -17059,8 +17125,7 @@ case "aio": {
        return;
      } catch (scraprError) {
        console.warn(`[SCRAPR ${scraprCommandName.toUpperCase()} FALLBACK]`, scraprError?.message || scraprError);
-       // Continue to the existing downloader; a provider failure must not
-       // make the whole command fail when its original fallback still works.
+       
      }
    }
 
@@ -17368,15 +17433,15 @@ break
 case 'downloadmenu': {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
 
-╔─═⪩ 『 \`ABOUT SCRIPT\` 』
-║ 彡 *Name Bot* » Xeryuu-Md V17 × Sendrich
-║ 彡 *Developer* » *XnalzNotDev*
-║ 彡 *Version* » 16.0
-║ 彡 *Language* » JavaScript
-║ 彡 *RunTime* » ${runtime(process.uptime())}
-║ 彡 *Feature* » Multy & Tools
-║ 彡 *Status Script* » buyVip/buyer
-╚─═─═─═─═─═─═⪩
+\`ABOUT SCRIPT\`
+ 彡 *Name Bot* » Xeryuu-Md V17 × Sendrich
+ 彡 *Developer* » *XnalzNotDev*
+ 彡 *Version* » 17.0
+ 彡 *Language* » JavaScript
+ 彡 *RunTime* » ${runtime(process.uptime())}
+ 彡 *Feature* » Multy & Tools
+ 彡 *Status Script* » buyVip/buyer
+
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -17396,90 +17461,90 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐝 𝐨 𝐰 𝐧 𝐥 𝐨 𝐚 𝐝 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ \`🎬 乂 𝐯 𝐢 𝐝 𝐞 𝐨 - 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 乂\`
-║ ⪩ .youtube
-║ ⪩ .twitter
-║ ⪩ .bilibili
-║ ⪩ .dailymotion
-║ ⪩ .vimeo
-║ ⪩ .rumble
-║ ⪩ .bitchute
-║ ⪩ .streamable
-║ ⪩ .febspot
-║ ⪩ .cted
-║
-║\`📱 乂 𝐬 𝐨 𝐜 𝐢 𝐚 𝐥 - 𝐦 𝐞 𝐝 𝐢 𝐚 乂\`
-║ ⪩ .capcut
-║ ⪩ .instagram
-║ ⪩ .tiktok
-║ ⪩ .douyin
-║ ⪩ .threads
-║ ⪩ .kuaishou
-║ ⪩ .reddit
-║ ⪩ .snapchat
-║ ⪩ .linkedin
-║ ⪩ .tumblr
-║ ⪩ .telegram
-║ ⪩ .sharechat
-║ ⪩ .likee
-║ ⪩ .bluesky
-║
-║\`🖼 乂 𝐢 𝐦 𝐚 𝐠 𝐞 / 𝐠 𝐢 𝐟 乂\`
-║ ⪩ .pinterest
-║ ⪩ .imgur
-║ ⪩ .ifunny
-║ ⪩ .9gag
-║
-║\`🌏 乂 𝐜 𝐡 𝐢 𝐧 𝐚 - 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 乂\`
-║ ⪩ .xiaohongshu
-║ ⪩ .ixigua
-║ ⪩ .weibo
-║ ⪩ .miaopai
-║ ⪩ .meipai
-║ ⪩ .xiaoying
-║ ⪩ .yingke
-║ ⪩ .sina
-║ ⪩ .sohutv
-║
-║\`🎵 乂 𝐦 𝐮 𝐬 𝐢 𝐜 乂\`
-║ ⪩ .soundcloud
-║ ⪩ .mixcloud
-║ ⪩ .spotify
-║ ⪩ .rspotify (Rich Spotify)
-║ ⪩ .zingmp3
-║ ⪩ .bandcamp
-║ ⪩ .applemusic
-║
-║\`📦 乂 𝐟 𝐢 𝐥 𝐞 / 𝐥 𝐢 𝐧 𝐤 - 𝐫 𝐞 𝐬 𝐨 𝐥 𝐯 𝐞 𝐫 乂\`
-║ ⪩ .terabox
-║ ⪩ .sfile
-║ ⪩ .safelinku
-║ ⪩ .sub2unlock
-║ ⪩ .rekonise
-║ ⪩ .unshorten
-║ ⪩ .scrapr <url> (deteksi otomatis)
-║
-║\`🎨 乂 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 - 𝐭 𝐚 𝐦 𝐛 𝐚 𝐡 𝐚 𝐧 乂\`
-║ ⪩ .pixiv
-║ ⪩ .rednote
-║
-║\`🔞 乂 𝐚 𝐝 𝐮 𝐥 𝐭 乂\`
-║ ⪩ .pornbox
-║ ⪩ .xvideos
-║ ⪩ .xnxx
-║
-║\`⚙️ 乂 𝐨 𝐭 𝐡 𝐞 𝐫 乂\`
-║ ⪩ .qq
-║ ⪩ .espn
-║ ⪩ .imdb
-║ ⪩ .izlesene
-║ ⪩ .hipi
-║ ⪩ .getstickerpack
-║ ⪩ .download
-║ ⪩ .aio
-║
-╚─═─═─═─═─═─═⪩`,
+\`乂 𝐝 𝐨 𝐰 𝐧 𝐥 𝐨 𝐚 𝐝 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ \`🎬 乂 𝐯 𝐢 𝐝 𝐞 𝐨 - 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 乂\`
+ ⪩ .youtube
+ ⪩ .twitter
+ ⪩ .bilibili
+ ⪩ .dailymotion
+ ⪩ .vimeo
+ ⪩ .rumble
+ ⪩ .bitchute
+ ⪩ .streamable
+ ⪩ .febspot
+ ⪩ .cted
+
+\`📱 乂 𝐬 𝐨 𝐜 𝐢 𝐚 𝐥 - 𝐦 𝐞 𝐝 𝐢 𝐚 乂\`
+ ⪩ .capcut
+ ⪩ .instagram
+ ⪩ .tiktok
+ ⪩ .douyin
+ ⪩ .threads
+ ⪩ .kuaishou
+ ⪩ .reddit
+ ⪩ .snapchat
+ ⪩ .linkedin
+ ⪩ .tumblr
+ ⪩ .telegram
+ ⪩ .sharechat
+ ⪩ .likee
+ ⪩ .bluesky
+
+\`🖼 乂 𝐢 𝐦 𝐚 𝐠 𝐞 / 𝐠 𝐢 𝐟 乂\`
+ ⪩ .pinterest
+ ⪩ .imgur
+ ⪩ .ifunny
+ ⪩ .9gag
+
+\`🌏 乂 𝐜 𝐡 𝐢 𝐧 𝐚 - 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 乂\`
+ ⪩ .xiaohongshu
+ ⪩ .ixigua
+ ⪩ .weibo
+ ⪩ .miaopai
+ ⪩ .meipai
+ ⪩ .xiaoying
+ ⪩ .yingke
+ ⪩ .sina
+ ⪩ .sohutv
+
+\`🎵 乂 𝐦 𝐮 𝐬 𝐢 𝐜 乂\`
+ ⪩ .soundcloud
+ ⪩ .mixcloud
+ ⪩ .spotify
+ ⪩ .rspotify (Rich Spotify)
+ ⪩ .zingmp3
+ ⪩ .bandcamp
+ ⪩ .applemusic
+
+\`📦 乂 𝐟 𝐢 𝐥 𝐞 / 𝐥 𝐢 𝐧 𝐤 - 𝐫 𝐞 𝐬 𝐨 𝐥 𝐯 𝐞 𝐫 乂\`
+ ⪩ .terabox
+ ⪩ .sfile
+ ⪩ .safelinku
+ ⪩ .sub2unlock
+ ⪩ .rekonise
+ ⪩ .unshorten
+ ⪩ .scrapr <url> (deteksi otomatis)
+
+\`🎨 乂 𝐩 𝐥 𝐚 𝐭 𝐟 𝐨 𝐫 𝐦 - 𝐭 𝐚 𝐦 𝐛 𝐚 𝐡 𝐚 𝐧 乂\`
+ ⪩ .pixiv
+ ⪩ .rednote
+
+\`🔞 乂 𝐚 𝐝 𝐮 𝐥 𝐭 乂\`
+ ⪩ .pornbox
+ ⪩ .xvideos
+ ⪩ .xnxx
+
+\`⚙️ 乂 𝐨 𝐭 𝐡 𝐞 𝐫 乂\`
+ ⪩ .qq
+ ⪩ .espn
+ ⪩ .imdb
+ ⪩ .izlesene
+ ⪩ .hipi
+ ⪩ .getstickerpack
+ ⪩ .download
+ ⪩ .aio
+
+`,
 
 thumbnail: randomThumb,
 
@@ -17516,15 +17581,6 @@ id: `${prefix}allmenu`
 break
 case 'gamemenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug 🌟
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -17544,33 +17600,43 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐠 𝐚 𝐦 𝐞 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .tebakkata
-║ ⪩ .asahotak
-║ ⪩ .susunkata
-║ ⪩ .tebakgambar
-║ ⪩ .tebakbendera
-║ ⪩ .tebakkimia
-║ ⪩ .family100
-║ ⪩ .caklontong
-║ ⪩ .tebakemoji
-║ ⪩ .siapaaku
-║ ⪩ .cepattepat
-║
-║⟦ *GAME CENTER BARU* ⟧
-║ ⪩ .ttt *<PvP @user>*
-║ ⪩ .suit *<PvP @user>*
-║ ⪩ .connect4 *<PvP @user>*
-║ ⪩ .tebakangka *<angka 1-100>*
-║ ⪩ .dadu *<sisi> <jumlah>*
-║ ⪩ .highlow *<high/low>*
-║ ⪩ .memory *<2 kartu>*
-║ ⪩ .speedtype *<jawaban>*
-║ ⪩ .mathbattle *<jawaban>*
-║ ⪩ .gamestats *<statistikmu>*
-║ ⪩ .gamerank *<ranking>*
-║ ⪩ .gamehelp *<panduan>*
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`乂 𝐠 𝐚 𝐦 𝐞 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .tebakkata
+ ⪩ .asahotak
+ ⪩ .susunkata
+ ⪩ .tebakgambar
+ ⪩ .tebakbendera
+ ⪩ .tebakkimia
+ ⪩ .family100
+ ⪩ .caklontong
+ ⪩ .tebakemoji
+ ⪩ .siapaaku
+ ⪩ .cepattepat
+
+⟦ *GAME CENTER BARU* ⟧
+ ⪩ .ttt *<PvP @user>*
+ ⪩ .suit *<PvP @user>*
+ ⪩ .connect4 *<PvP @user>*
+ ⪩ .tebakangka *<angka 1-100>*
+ ⪩ .dadu *<sisi> <jumlah>*
+ ⪩ .highlow *<high/low>*
+ ⪩ .memory *<2 kartu>*
+ ⪩ .speedtype *<jawaban>*
+ ⪩ .mathbattle *<jawaban>*
+ ⪩ .gamestats *<statistikmu>*
+ ⪩ .gamerank *<ranking>*
+ ⪩ .gamehelp *<panduan>*
+`,
 
 thumbnail: randomThumb,
 
@@ -17608,15 +17674,6 @@ break
 
 case 'rpgmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug 🌟
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -17636,87 +17693,139 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐫 𝐩 𝐠 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .adventure
-║ ⪩ .beli
-║ ⪩ .bank
-║ ⪩ .shop
-║ ⪩ .berburu
-║ ⪩ .crafting
-║ ⪩ .heal
-║ ⪩ .nyampah
-║ ⪩ .inventory
-║ ⪩ .dailymisi
-║ ⪩ .weekly
-║ ⪩ .monthly
-║ ⪩ .yearly
-║ ⪩ .ngojek
-║ ⪩ .polisi
-║ ⪩ .roket
-║ ⪩ .wikwik (dinonaktifkan)
-║ ⪩ .ewe-paksa (dinonaktifkan)
-║ ⪩ .open-bo (dinonaktifkan)
-║ ⪩ .selectskill
-║ ⪩ .cekskill
-║ ⪩ .makan
-║ ⪩ .tidur
-║ ⪩ .mengaji
-║ ⪩ .transfer
-║ ⪩ .joinrpg
-║ ⪩ .exitrpg
-║ ⪩ .jual
-║ ⪩ .kerja
-║ ⪩ .redeem
-║ ⪩ .memancing
-║ ⪩ .merampok
-║ ⪩ .mining
-║ ⪩ .nebang
-║ ⪩ .repair
-║ ⪩ .atmall
-║ ⪩ .dompet
-║ ⪩ .werewolf
-║
-║ 〔 ⚔️ PETUALANGAN & PERTARUNGAN 〕
-║ ⪩ .fightnaga / .fightkucing / .fightphonix
-║ ⪩ .fightgriffin / .fightkyubi / .fightcentaur / .fight
-║ ⪩ .duel / .perangsarung / .ulartangga
-║ ⪩ .koboy / .petualang
-║
-║ 〔 💰 EKONOMI & KEGIATAN RPG 〕
-║ ⪩ .nabung / .bankcek / .banknabung / .banktarik
-║ ⪩ .bonus / .bansos / .gajian / .maling
-║ ⪩ .buah / .berkebon / .collect / .feed
-║ ⪩ .taxy / .mulung / .berdagang / .nguli
-║ ⪩ .petshop / .kolam / .referal / .upgrade
-║ ⪩ .sampah / .rob / .rampok / .leaderboard
-║
-║ 〔 💼 RPG EKONOMI VIRTUAL 〕
-║ ⪩ .pinjol <jumlah> / bayar <jumlah>
-║ ⪩ .belivga [jumlah]
-║ ⪩ .nambangkripto
-║ ⪩ .jualkripto <jumlah|all>
-║ ⪩ .pilihclass
-║ ⪩ .mystats
-║ ⪩ .battle
-║ ⪩ .invest
-║ ⪩ .portofolio
-║ ⪩ .blackinvest
-║ ⪩ .balapan
-║ ⪩ .nyawit
-║
-║ 〔 🎮 GAME ARCADE VIRTUAL 〕
-║ ⪩ .bet <jumlah> <1-6>
-║ ⪩ .casino <jumlah> / .slot <jumlah>
-║ ⪩ .blackjack [hit|stand]
-║ ⪩ .lotre open|buy|status|cancel
-║ ⪩ .poker3 start <jumlah>
-║ ⪩ .hilo start <jumlah> / high / low / take / cancel
-║ ⪩ .rr join <jumlah> / spin / claim / cancel
-║ ⪩ .sabung <jumlah>
-║ ⪩ .bomb start / pilih <1-5>
-║ ⪩ .heist / .begal
-║ ⓘ Semua saldo permainan adalah saldo virtual bot.
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
 ╚─═─═─═─═─═─═⪩
+
+\`乂 𝐫 𝐩 𝐠 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .adventure
+ ⪩ .beli
+ ⪩ .bank
+ ⪩ .shop
+ ⪩ .berburu
+ ⪩ .crafting
+ ⪩ .heal
+ ⪩ .nyampah
+ ⪩ .inventory
+ ⪩ .dailymisi
+ ⪩ .weekly
+ ⪩ .monthly
+ ⪩ .yearly
+ ⪩ .ngojek
+ ⪩ .polisi
+ ⪩ .roket
+ ⪩ .wikwik (dinonaktifkan)
+ ⪩ .ewe-paksa (dinonaktifkan)
+ ⪩ .open-bo (dinonaktifkan)
+ ⪩ .selectskill
+ ⪩ .cekskill
+ ⪩ .makan
+ ⪩ .tidur
+ ⪩ .mengaji
+ ⪩ .transfer
+ ⪩ .joinrpg
+ ⪩ .exitrpg
+ ⪩ .jual
+ ⪩ .kerja
+ ⪩ .redeem
+ ⪩ .memancing
+ ⪩ .merampok
+ ⪩ .mining
+ ⪩ .nebang
+ ⪩ .repair
+ ⪩ .atmall
+ ⪩ .dompet
+ ⪩ .werewolf
+
+ 〔 ⚔️ PETUALANGAN & PERTARUNGAN 〕
+ ⪩ .fightnaga
+ ⪩ .fightkucing
+ ⪩ .fightphonix
+ ⪩ .fightgriffin
+ ⪩ .fightkyubi
+ ⪩ .fightcentaur
+ ⪩ .fight
+ ⪩ .duel
+ ⪩ .perangsarung
+ ⪩ .ulartangga
+ ⪩ .koboy
+ ⪩ .petualang
+
+ 〔 💰 EKONOMI & KEGIATAN RPG 〕
+ ⪩ .nabung
+ ⪩ .bankcek
+ ⪩ .banknabung
+ ⪩ .banktarik
+ ⪩ .bonus
+ ⪩ .bansos
+ ⪩ .gajian
+ ⪩ .maling
+ ⪩ .buah
+ ⪩ .berkebon
+ ⪩ .collect
+ ⪩ .feed
+ ⪩ .taxy
+ ⪩ .mulung
+ ⪩ .berdagang
+ ⪩ .nguli
+ ⪩ .petshop
+ ⪩ .kolam
+ ⪩ .referal
+ ⪩ .upgrade
+ ⪩ .sampah
+ ⪩ .rob
+ ⪩ .rampok
+ ⪩ .leaderboard
+
+ 〔 💼 RPG EKONOMI VIRTUAL 〕
+ ⪩ .pinjol <jumlah>
+ ⪩ .pinjol bayar <jumlah>
+ ⪩ .belivga [jumlah]
+ ⪩ .nambangkripto
+ ⪩ .jualkripto <jumlah|all>
+ ⪩ .pilihclass
+ ⪩ .mystats
+ ⪩ .battle
+ ⪩ .invest
+ ⪩ .portofolio
+ ⪩ .blackinvest
+ ⪩ .balapan
+ ⪩ .nyawit
+
+ 〔 🎮 GAME ARCADE VIRTUAL 〕
+ ⪩ .bet <jumlah> <1-6>
+ ⪩ .casino <jumlah>
+ ⪩ .slot <jumlah>
+ ⪩ .blackjack hit
+ ⪩ .blackjack stand
+ ⪩ .lotre open
+ ⪩ .lotre buy <jumlah>
+ ⪩ .lotre status
+ ⪩ .lotre cancel
+ ⪩ .poker3 start <jumlah>
+ ⪩ .hilo start <jumlah>
+ ⪩ .hilo high
+ ⪩ .hilo low
+ ⪩ .hilo take
+ ⪩ .hilo cancel
+ ⪩ .rr join <jumlah>
+ ⪩ .rr spin
+ ⪩ .rr claim
+ ⪩ .rr cancel
+ ⪩ .sabung <jumlah>
+ ⪩ .bomb start
+ ⪩ .bomb pilih <1-5>
+ ⪩ .bomb cancel
+ ⪩ .heist
+ ⪩ .begal
+ ⓘ Semua saldo permainan adalah saldo virtual bot.
+
 `,
 
 thumbnail: randomThumb,
@@ -17762,15 +17871,6 @@ break
 
 case 'primbonmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug 🌟
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -17790,37 +17890,47 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐩 𝐫 𝐢 𝐦 𝐛 𝐨 𝐧 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .artinama
-║ ⪩ .artimimpi
-║ ⪩ .ramaljodoh
-║ ⪩ .ramaljodohbali
-║ ⪩ .ramalcinta
-║ ⪩ .cocoknama
-║ ⪩ .pasangan
-║ ⪩ .suamiistri
-║ ⪩ .jadiannikah
-║ ⪩ .sifatusaha
-║ ⪩ .rezeki
-║ ⪩ .pekerjaan
-║ ⪩ .nasib
-║ ⪩ .penyakit
-║ ⪩ .tarot
-║ ⪩ .fengshui
-║ ⪩ .haribaik
-║ ⪩ .harisangar
-║ ⪩ .harisial
-║ ⪩ .nagahari
-║ ⪩ .arahrezeki
-║ ⪩ .peruntungan
-║ ⪩ .weton
-║ ⪩ .karakter
-║ ⪩ .keberuntungan
-║ ⪩ .memancing
-║ ⪩ .masabubur
-║ ⪩ .zodiak
-║ ⪩ .shio
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`乂 𝐩 𝐫 𝐢 𝐦 𝐛 𝐨 𝐧 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .artinama
+ ⪩ .artimimpi
+ ⪩ .ramaljodoh
+ ⪩ .ramaljodohbali
+ ⪩ .ramalcinta
+ ⪩ .cocoknama
+ ⪩ .pasangan
+ ⪩ .suamiistri
+ ⪩ .jadiannikah
+ ⪩ .sifatusaha
+ ⪩ .rezeki
+ ⪩ .pekerjaan
+ ⪩ .nasib
+ ⪩ .penyakit
+ ⪩ .tarot
+ ⪩ .fengshui
+ ⪩ .haribaik
+ ⪩ .harisangar
+ ⪩ .harisial
+ ⪩ .nagahari
+ ⪩ .arahrezeki
+ ⪩ .peruntungan
+ ⪩ .weton
+ ⪩ .karakter
+ ⪩ .keberuntungan
+ ⪩ .memancing
+ ⪩ .masabubur
+ ⪩ .zodiak
+ ⪩ .shio
+`,
 
 thumbnail: randomThumb,
 
@@ -17865,15 +17975,6 @@ break
 
 case 'editingmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug ?
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -17893,38 +17994,48 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐞 𝐝 𝐢 𝐭 𝐢 𝐧 𝐠 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .putihkan
-║ ⪩ .hitamkan
-║ ⪩ .edit
-║ ⪩ .tobersama
-║ ⪩ .toblonde
-║ ⪩ .tobotak
-║ ⪩ .tohijab
-║ ⪩ .tomekah
-║ ⪩ .tomirror
-║ ⪩ .tovintage
-║ ⪩ .toanime
-║ ⪩ .tofigura
-║ ⪩ .tovigurav2
-║ ⪩ .tofigurav3
-║ ⪩ .tobabi
-║ ⪩ .tobrewok
-║ ⪩ .tochibi
-║ ⪩ .todpr
-║ ⪩ .toghibli
-║ ⪩ .tojepang
-║ ⪩ .tokacamata
-║ ⪩ .tolego
-║ ⪩ .tomaya
-║ ⪩ .tomoai
-║ ⪩ .toreal
-║ ⪩ .tosdmtinggi
-║ ⪩ .tosatan
-║ ⪩ .tosad
-║ ⪩ .tosexy
-║ ⪩ .tobugil
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`乂 𝐞 𝐝 𝐢 𝐭 𝐢 𝐧 𝐠 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .putihkan
+ ⪩ .hitamkan
+ ⪩ .edit
+ ⪩ .tobersama
+ ⪩ .toblonde
+ ⪩ .tobotak
+ ⪩ .tohijab
+ ⪩ .tomekah
+ ⪩ .tomirror
+ ⪩ .tovintage
+ ⪩ .toanime
+ ⪩ .tofigura
+ ⪩ .tovigurav2
+ ⪩ .tofigurav3
+ ⪩ .tobabi
+ ⪩ .tobrewok
+ ⪩ .tochibi
+ ⪩ .todpr
+ ⪩ .toghibli
+ ⪩ .tojepang
+ ⪩ .tokacamata
+ ⪩ .tolego
+ ⪩ .tomaya
+ ⪩ .tomoai
+ ⪩ .toreal
+ ⪩ .tosdmtinggi
+ ⪩ .tosatan
+ ⪩ .tosad
+ ⪩ .tosexy
+ ⪩ .tobugil
+`,
 
 thumbnail: randomThumb,
 
@@ -17969,15 +18080,6 @@ break
 
 case 'stalkmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug ?
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -17997,14 +18099,24 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐬 𝐭 𝐚 𝐥 𝐤 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .stalkig
-║ ⪩ .stalktt
-║ ⪩ .stalktele
-║ ⪩ .stalkyt
-║ ⪩ .stalkroblox
-║ ⪩ .stalkml
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`乂 𝐬 𝐭 𝐚 𝐥 𝐤 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .stalkig
+ ⪩ .stalktt
+ ⪩ .stalktele
+ ⪩ .stalkyt
+ ⪩ .stalkroblox
+ ⪩ .stalkml
+`,
 
 thumbnail: randomThumb,
 
@@ -18048,15 +18160,6 @@ id: `${prefix}menu`
 break
 case 'beritamenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug ?
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -18076,15 +18179,25 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐛 𝐞 𝐫 𝐢 𝐭 𝐚 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .antara
-║ ⪩ .cnbc
-║ ⪩ .cnn
-║ ⪩ .kompas
-║ ⪩ .merdeka
-║ ⪩ .sindonews
-║ ⪩ .suara
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`乂 𝐛 𝐞 𝐫 𝐢 𝐭 𝐚 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .antara
+ ⪩ .cnbc
+ ⪩ .cnn
+ ⪩ .kompas
+ ⪩ .merdeka
+ ⪩ .sindonews
+ ⪩ .suara
+`,
 
 thumbnail: randomThumb,
 
@@ -18128,15 +18241,6 @@ id: `${prefix}menu`
 break
 case 'ephotomenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug ?
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -18156,38 +18260,48 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐞 𝐩 𝐡 𝐨 𝐭 𝐨 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .glitchtext
-║ ⪩ .writetext
-║ ⪩ .advancedglow
-║ ⪩ .typographytext
-║ ⪩ .pixelglitch
-║ ⪩ .neonglitch
-║ ⪩ .flagtext
-║ ⪩ .flag3dtext
-║ ⪩ .deletingtext
-║ ⪩ .blackpinkstyle
-║ ⪩ .glowingtext
-║ ⪩ .underwatertext
-║ ⪩ .logomaker
-║ ⪩ .cartoonstyle
-║ ⪩ .papercutstyle
-║ ⪩ .watercolortext
-║ ⪩ .effectclouds
-║ ⪩ .blackpinklogo
-║ ⪩ .gradienttext
-║ ⪩ .summerbeach
-║ ⪩ .luxurygold
-║ ⪩ .multicoloyellowneon
-║ ⪩ .sandsummer
-║ ⪩ .galaxywallpaper
-║ ⪩ .1917style
-║ ⪩ .makingneon
-║ ⪩ .royaltext
-║ ⪩ .freecreate
-║ ⪩ .galaxystyle
-║ ⪩ .lighteffects
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`乂 𝐞 𝐩 𝐡 𝐨 𝐭 𝐨 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .glitchtext
+ ⪩ .writetext
+ ⪩ .advancedglow
+ ⪩ .typographytext
+ ⪩ .pixelglitch
+ ⪩ .neonglitch
+ ⪩ .flagtext
+ ⪩ .flag3dtext
+ ⪩ .deletingtext
+ ⪩ .blackpinkstyle
+ ⪩ .glowingtext
+ ⪩ .underwatertext
+ ⪩ .logomaker
+ ⪩ .cartoonstyle
+ ⪩ .papercutstyle
+ ⪩ .watercolortext
+ ⪩ .effectclouds
+ ⪩ .blackpinklogo
+ ⪩ .gradienttext
+ ⪩ .summerbeach
+ ⪩ .luxurygold
+ ⪩ .multicoloyellowneon
+ ⪩ .sandsummer
+ ⪩ .galaxywallpaper
+ ⪩ .1917style
+ ⪩ .makingneon
+ ⪩ .royaltext
+ ⪩ .freecreate
+ ⪩ .galaxystyle
+ ⪩ .lighteffects
+`,
 
 thumbnail: randomThumb,
 
@@ -18232,15 +18346,6 @@ break
 
 case 'islamicmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug ?
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -18260,18 +18365,28 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐢 𝐬 𝐥 𝐚 𝐦 𝐢 𝐜 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .jadwalsholat
-║ ⪩ .alquran
-║ ⪩ .asmaulhusna
-║ ⪩ .niatsholat
-║ ⪩ .surah
-║ ⪩ .berdoa
-║ ⪩ .ayatkursi
-║ ⪩ .gislam
-║ ⪩ .kataislam
-║ ⪩ .pantunislam
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`乂 𝐢 𝐬 𝐥 𝐚 𝐦 𝐢 𝐜 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .jadwalsholat
+ ⪩ .alquran
+ ⪩ .asmaulhusna
+ ⪩ .niatsholat
+ ⪩ .surah
+ ⪩ .berdoa
+ ⪩ .ayatkursi
+ ⪩ .gislam
+ ⪩ .kataislam
+ ⪩ .pantunislam
+`,
 
 thumbnail: randomThumb,
 
@@ -18316,15 +18431,6 @@ break
 
 case 'quotesmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug ?
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -18344,19 +18450,29 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐪 𝐮 𝐨 𝐭 𝐞 𝐬 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .faktaunik
-║ ⪩ .katailham
-║ ⪩ .katasenja
-║ ⪩ .motivasi
-║ ⪩ .pantun
-║ ⪩ .puisi
-║ ⪩ .quotes
-║ ⪩ .quotesanime
-║ ⪩ .quotesbucin
-║ ⪩ .quotesdilan
-║ ⪩ .quotesislamic
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`乂 𝐪 𝐮 𝐨 𝐭 𝐞 𝐬 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .faktaunik
+ ⪩ .katailham
+ ⪩ .katasenja
+ ⪩ .motivasi
+ ⪩ .pantun
+ ⪩ .puisi
+ ⪩ .quotes
+ ⪩ .quotesanime
+ ⪩ .quotesbucin
+ ⪩ .quotesdilan
+ ⪩ .quotesislamic
+`,
 
 thumbnail: randomThumb,
 
@@ -18401,15 +18517,6 @@ break
 
 case 'convertmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug ?
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -18429,20 +18536,30 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐜 𝐨 𝐧 𝐯 𝐞 𝐫 𝐭 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .bass
-║ ⪩ .blown
-║ ⪩ .deep
-║ ⪩ .earrrape
-║ ⪩ .fast
-║ ⪩ .fat
-║ ⪩ .nightcore
-║ ⪩ .reverse
-║ ⪩ .robot
-║ ⪩ .slow
-║ ⪩ .smooth
-║ ⪩ .tupai
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`乂 𝐜 𝐨 𝐧 𝐯 𝐞 𝐫 𝐭 - 𝐦 𝐞 𝐧 𝐮 乂\`
+ ⪩ .bass
+ ⪩ .blown
+ ⪩ .deep
+ ⪩ .earrrape
+ ⪩ .fast
+ ⪩ .fat
+ ⪩ .nightcore
+ ⪩ .reverse
+ ⪩ .robot
+ ⪩ .slow
+ ⪩ .smooth
+ ⪩ .tupai
+`,
 
 thumbnail: randomThumb,
 
@@ -18487,15 +18604,6 @@ break
 
 case 'funmenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug ?
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -18515,115 +18623,134 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐟 𝐮 𝐧 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .apakah
-║ ⪩ .bisakah
-║ ⪩ .kapankah
-║ ⪩ .bagaimanakah
-║ ⪩ .cekganteng
-║ ⪩ .cekcantik
-║ ⪩ .cekgay
-║ ⪩ .ceklesbi
-║ ⪩ .ceksifat
-║ ⪩ .cekhoby
-║ ⪩ .cekjodoh
-║ ⪩ .jodoh *<nama1|nama2>*
-║ ⪩ .kerangajaib
-║ ⪩ .coinflip
-║ ⪩ .8ball *<pertanyaan>*
-║ ⪩ .pujian *<nama/tag>*
-║ ⪩ .roast *<nama/tag>*
-║ ⪩ .pantun
-║ ⪩ .cekkhodam
-║ ⪩ .cekgila
-║ ⪩ .cekwaras
-║ ⪩ .jadian
-║ ⪩ .terima
-║ ⪩ .tolak
-║ ⪩ .putus
-║ ⪩ .cekpasangan
-║ ⪩ .wangy
-║ ⪩ .rate
-║ ⪩ .top
-║ ⪩ .bego
-║ ⪩ .goblok
-║ ⪩ .janda
-║ ⪩ .perawan (dinonaktifkan)
-║ ⪩ .babi
-║ ⪩ .tolol
-║ ⪩ .pekok
-║ ⪩ .jancok
-║ ⪩ .pinter
-║ ⪩ .pintar
-║ ⪩ .asu
-║ ⪩ .bodoh
-║ ⪩ .gay
-║ ⪩ .lesby
-║ ⪩ .bajingan
-║ ⪩ .jancok
-║ ⪩ .anjing
-║ ⪩ .anjg
-║ ⪩ .anjj
-║ ⪩ .anj
-║ ⪩ .ngentod
-║ ⪩ .ngentot
-║ ⪩ .monyet
-║ ⪩ .mastah
-║ ⪩ .newbie
-║ ⪩ .bangsat
-║ ⪩ .bangke
-║ ⪩ .sange (dinonaktifkan)
-║ ⪩ .sangean (dinonaktifkan)
-║ ⪩ .dakjal
-║ ⪩ .horny (dinonaktifkan)
-║ ⪩ .wibu
-║ ⪩ .puki
-║ ⪩ .puqi
-║ ⪩ .peak
-║ ⪩ .pantex
-║ ⪩ .pantek
-║ ⪩ .setan
-║ ⪩ .iblis
-║ ⪩ .cacat
-║ ⪩ .yatim
-║ ⪩ .piatu
-║
-║ 〔 🧩 FUN TOOLS TAMBAHAN 〕
-║ ⪩ .math <ekspresi>
-║ ⪩ .fact
-║ ⪩ .pick <opsi1 | opsi2>
-║ ⪩ .soulmate <nama1 | nama2>
-║ ⪩ .fitnah <pesan target|pesan mu|nomor/tag target>
-║ ⪩ .can <pertanyaan>
-║ ⪩ .is <pertanyaan>
-║ ⪩ .when <pertanyaan>
-║ ⪩ .where <pertanyaan>
-║ ⪩ .what <pertanyaan>
-║ ⪩ .how <pertanyaan>
-║ ⪩ .stupidcheck <nama> (skor vibe random)
-║ ⪩ .handsomecheck <nama> (skor vibe random)
-║ ⪩ .uncleancheck <nama> (skor vibe random)
-║ ⪩ .hotcheck <nama> (skor vibe random)
-║ ⪩ .smartcheck <nama>
-║ ⪩ .greatcheck <nama>
-║ ⪩ .evilcheck <nama>
-║ ⪩ .dogcheck <nama>
-║ ⪩ .coolcheck <nama>
-║ ⪩ .waifucheck <nama>
-║ ⪩ .awesomecheck <nama>
-║ ⪩ .cutecheck <nama>
-║ ⪩ .prettycheck <nama> (skor vibe random)
-║ ⪩ .lovelycheck <nama>
-║ ⪩ .uglycheck <nama> (skor vibe random)
-║ ⪩ .gaycheck / .lesbiancheck / .lesbicheck / .hornycheck
-║ ⪩ .cry / .hug / .pat / .wink / .poke
-║ ⪩ .smile / .wave / .blush / .smug
-║ ⪩ .happy / .dance / .cringe / .highfive
-║ ⪩ .shinobu / .foxgirl / .avatar / .awoo / .nom
-║
-║ ⓘ Skor hanya acak untuk hiburan; bukan penilaian fisik atau identitas.
-║ ⓘ Game arcade menggunakan saldo virtual; bukan uang nyata.
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`😂 乂 𝐟 𝐮 𝐧 - 𝐰 𝐨 𝐫 𝐝 𝐬 乂\`
+ ⪩ .bego
+ ⪩ .goblok
+ ⪩ .janda
+ ⪩ .perawan
+ ⪩ .babi
+ ⪩ .tolol
+ ⪩ .pekok
+ ⪩ .jancok
+ ⪩ .pinter
+ ⪩ .pintar
+ ⪩ .asu
+ ⪩ .bodoh
+ ⪩ .gay
+ ⪩ .lesby
+ ⪩ .bajingan
+ ⪩ .jancok
+ ⪩ .anjing
+ ⪩ .anjg
+ ⪩ .anjj
+ ⪩ .anj
+ ⪩ .ngentod
+ ⪩ .ngentot
+ ⪩ .monyet
+ ⪩ .mastah
+ ⪩ .newbie
+ ⪩ .bangsat
+ ⪩ .bangke
+ ⪩ .sange
+ ⪩ .sangean
+ ⪩ .dakjal
+ ⪩ .horny
+ ⪩ .wibu
+ ⪩ .puki
+ ⪩ .puqi
+ ⪩ .peak
+ ⪩ .pantex
+ ⪩ .pantek
+ ⪩ .setan
+ ⪩ .iblis
+ ⪩ .cacat
+ ⪩ .yatim
+ ⪩ .piatu
+
+\`🎲 乂 𝐟 𝐮 𝐧 - 𝐭 𝐨 𝐨 𝐥 𝐬 乂\`
+ ⪩ .apakah
+ ⪩ .bisakah
+ ⪩ .kapankah
+ ⪩ .bagaimanakah
+ ⪩ .cekganteng
+ ⪩ .cekcantik
+ ⪩ .ceksifat
+ ⪩ .cekhoby
+ ⪩ .cekjodoh
+ ⪩ .jodoh *<nama1|nama2>*
+ ⪩ .kerangajaib
+ ⪩ .coinflip
+ ⪩ .8ball *<pertanyaan>*
+ ⪩ .pujian *<nama/tag>*
+ ⪩ .roast *<nama/tag>*
+ ⪩ .pantun
+ ⪩ .cekkhodam
+ ⪩ .cekgila
+ ⪩ .cekwaras
+ ⪩ .jadian
+ ⪩ .terima
+ ⪩ .tolak
+ ⪩ .putus
+ ⪩ .cekpasangan
+ ⪩ .wangy
+ ⪩ .rate
+ ⪩ .top
+ ⪩ .math <ekspresi>
+ ⪩ .fact
+ ⪩ .pick <opsi1 | opsi2>
+ ⪩ .soulmate <nama1 | nama2>
+ ⪩ .fitnah <pesan target|pesan mu|nomor/tag target>
+ ⪩ .can <pertanyaan>
+ ⪩ .is <pertanyaan>
+ ⪩ .when <pertanyaan>
+ ⪩ .where <pertanyaan>
+ ⪩ .what <pertanyaan>
+ ⪩ .how <pertanyaan>
+ ⪩ .stupidcheck <nama>
+ ⪩ .handsomecheck <nama>
+ ⪩ .uncleancheck <nama>
+ ⪩ .hotcheck <nama>
+ ⪩ .smartcheck <nama>
+ ⪩ .greatcheck <nama>
+ ⪩ .evilcheck <nama>
+ ⪩ .dogcheck <nama>
+ ⪩ .coolcheck <nama>
+ ⪩ .waifucheck <nama>
+ ⪩ .awesomecheck <nama>
+ ⪩ .cutecheck <nama>
+ ⪩ .prettycheck <nama>
+ ⪩ .lovelycheck <nama>
+ ⪩ .uglycheck <nama>
+ ⪩ .cry
+ ⪩ .hug
+ ⪩ .pat
+ ⪩ .wink
+ ⪩ .poke
+ ⪩ .smile
+ ⪩ .wave
+ ⪩ .blush
+ ⪩ .smug
+ ⪩ .happy
+ ⪩ .dance
+ ⪩ .cringe
+ ⪩ .highfive
+ ⪩ .shinobu
+ ⪩ .foxgirl
+ ⪩ .avatar
+ ⪩ .awoo
+ ⪩ .nom
+
+ⓘ Game arcade menggunakan saldo virtual; bukan uang nyata.`,
 
 thumbnail: randomThumb,
 
@@ -18656,7 +18783,7 @@ id: `${prefix}menu`
 }
 
 }
-}, { quoted: lol })
+}, { quoted: qtoko })
   // kirim voice note / musik
   await conn.sendMessage(m.chat, {
     audio: readProjectAsset('media/menu.mp3'),
@@ -18668,15 +18795,6 @@ break
 
 case 'makermenu' : {
   let caption = `halo @${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda, gunakan bot ini dengan bijak karena tanggung jawab ada di pengguna 🙏
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug ?
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
@@ -18696,19 +18814,28 @@ serverMessageId: 1
 title: caption,
 
 footer: `
-╔─═⪩ 『 \`乂 𝐦 𝐚 𝐤 𝐞 𝐫 - 𝐦 𝐞 𝐧 𝐮 乂\` 』
-║ ⪩ .animegirl
-║ ⪩ .carbonify
-║ ⪩ .fakecall
-║ ⪩ .bratgenerator
-║ ⪩ .pak-ustad
-║ ⪩ .ngl
-║ ⪩ .togura
-║ ⪩ .fakeml *<reply gambar + nickname>*
-║ ⪩ .fakeff *<template|nama>*
-║ ⪩ .fakedana *<nominal simulasi>*
-║ ⪩ .fakestory *<reply foto + username|caption>*
-╚─═─═─═─═─═─═⪩`,
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
+\`🎨 乂 𝐜 𝐫 𝐞 𝐚 𝐭 𝐢 𝐯 𝐞 乂\`
+ ⪩ .animegirl
+ ⪩ .carbonify
+ ⪩ .fakecall
+ ⪩ .bratgenerator
+ ⪩ .pak-ustad
+ ⪩ .ngl
+ ⪩ .togura
+ ⪩ .fakeml *<reply gambar + nickname>*
+ ⪩ .fakeff *<template|nama>*
+ ⪩ .fakedana *<nominal simulasi>*
+ ⪩ .fakestory *<reply foto + username|caption>*`,
 
 thumbnail: randomThumb,
 
@@ -18754,15 +18881,13 @@ break
 case 'jasher':
 case 'jashermenu': {
     return replyV1(
-        `╭── • 🛠️ *JASHER* • ──╮\n` +
-        `┃\n` +
-        `│⦿ ➕ *${prefix}addid*\n` +
-        `│⦿ 🗑️ *${prefix}delid*\n` +
-        `│⦿ 📜 *${prefix}listid*\n` +
-        `│⦿ ⚡ *${prefix}addhyd (Own JS)*\n` +
-        `│⦿ ⚡ *${prefix}addalya (PT JS)*\n` +
-        `│⦿ 📢 *${prefix}jpmch*\n` +
-        `◣──────────❈\n\n` +
+        '`🛠️ 乂 𝐣 𝐚 𝐬 𝐡 𝐞 𝐫 - 𝐦 𝐞 𝐧 𝐮 乂`\n' +
+        ` ⪩ *${prefix}addid*\n` +
+        ` ⪩ *${prefix}delid*\n` +
+        ` ⪩ *${prefix}listid*\n` +
+        ` ⪩ *${prefix}addhyd (Own JS)*\n` +
+        ` ⪩ *${prefix}addalya (PT JS)*\n` +
+        ` ⪩ *${prefix}jpmch*\n\n` +
         `Catatan: ${prefix}addhyd dan ${prefix}addalya tercantum di menu Xeryuu, tetapi handler fungsionalnya tidak ditemukan pada source yang dikirim; perintah itu belum menjalankan tindakan. Daftar tujuan menggunakan nama chat/anggota jika dapat diambil, bukan ID mentah.`
     );
 }
@@ -18787,10 +18912,10 @@ case 'jasherbuy': {
         try { image = await storeService.qrBuffer(created.order) } catch (e) { console.error('[JASHER QR]', e?.message || e) }
         const caption =
             `╭─〔 💸 JASHER CHECKOUT 〕\n` +
-            `║ 🧾 Order : *${created.order.ref}*\n` +
-            `║ 📦 Paket : *${created.order.productName}*\n` +
-            `║ 💰 Total : *Rp${storeService.formatMoney(created.order.price)}*\n` +
-            `║ ⏳ Status: *MENUNGGU PEMBAYARAN*\n` +
+            ` 🧾 Order : *${created.order.ref}*\n` +
+            ` 📦 Paket : *${created.order.productName}*\n` +
+            ` 💰 Total : *Rp${storeService.formatMoney(created.order.price)}*\n` +
+            ` ⏳ Status: *MENUNGGU PEMBAYARAN*\n` +
             `╰────────────────\n\n` +
             `${image ? 'Scan QRIS. Setelah PAID, bot akan meminta materi share.' : `⚠️ QRIS belum berhasil ditampilkan sebagai gambar. ${created.order.checkoutUrl ? `Buka link invoice: ${created.order.checkoutUrl}` : 'Jangan membayar melalui QR lain; hubungi owner untuk memeriksa data invoice.'}`}\n` +
             `Cek status: ${prefix}orderstatus ${created.order.ref}\n` +
@@ -18835,12 +18960,12 @@ case 'jasherstatus': {
     if (order.jid !== m.sender && !isCreator) return replyV1(mess.owner)
     return replyV1(
         `╭─〔 📣 STATUS JASHER 〕\n` +
-        `║ 🧾 Order  : *${order.ref}*\n` +
-        `║ 📦 Paket  : *${order.productName}*\n` +
-        `║ 💰 Harga  : *Rp${storeService.formatMoney(order.price)}*\n` +
-        `║ 💳 Bayar  : *${order.paymentStatus}*\n` +
-        `║ 📌 Proses : *${order.status}*\n` +
-        `║ 🎯 Target : *${order.jasher?.target || '-'}*\n` +
+        ` 🧾 Order  : *${order.ref}*\n` +
+        ` 📦 Paket  : *${order.productName}*\n` +
+        ` 💰 Harga  : *Rp${storeService.formatMoney(order.price)}*\n` +
+        ` 💳 Bayar  : *${order.paymentStatus}*\n` +
+        ` 📌 Proses : *${order.status}*\n` +
+        ` 🎯 Target : *${order.jasher?.target || '-'}*\n` +
         `╰────────────────`
     )
 }
@@ -24226,13 +24351,13 @@ case 'grouplink': {
         }
         const link = `https://chat.whatsapp.com/${inviteCode}`
         let teks = `╭───「 *GROUP LINK* 」───
-║
-║ ◦ *Nama* : ${metadata.subject}
-║ ◦ *ID*   : ${groupId}
-║
-║ 🔗 *Link Grup:*
-║ ${link}
-║
+
+ ◦ *Nama* : ${metadata.subject}
+ ◦ *ID*   : ${groupId}
+
+ 🔗 *Link Grup:*
+ ${link}
+
 ╰──────────────────`
         await replyV1(teks)
     } catch (err) {
@@ -24383,7 +24508,18 @@ conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
 break
 case "sc":
 case "buysc":{
-    let buy = `-- 💸 *Script For Sale*
+    let buy = `
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩ 
+       
+-- 💸 *Script For Sale*
 ───────────────────
 \`HARGA SC : 35k\`
 ───────────────────
@@ -24435,15 +24571,6 @@ break
 case "bug":
 case "bugmenu":{
     let bug = `*${greeting()}* ${pushname}, perkenalkan saya adalah bot Whatsapp yang diciptakan oleh *XnalzNotDev*, bertujuan untuk membantu anda
-
-╔─═⪩ 『 \`Xeryuu-Md\` 』
-> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
-> 彡 Developer » XnalzNotDev 🍃
-> 彡 Version » 16.0 ✨
-> 彡 Language » JavaScript 🌎
-> 彡 RunTime » ${runtime(process.uptime())} 💫
-> 彡 *Feature* » Multy&Bug 🌟
-╚─═─═─═─═─═─═─═─═─═⪩
 `
 const randomThumb = thumbnails[Math.floor(Math.random() * thumbnails.length)]
 
@@ -24463,6 +24590,16 @@ serverMessageId: 1
 title: bug,
 
 footer: `
+╔─═⪩ 『 \`Xeryuu-Md\` 』
+> 彡 Name Bot » Xeryuu-Md V17 × Sendrich 🍁
+> 彡 Developer » XnalzNotDev 🍃
+> 彡 Version » 17.0 ✨
+> 彡 Language » JavaScript 🌎
+> 彡 RunTime » ${runtime(process.uptime())} 💫
+> 彡 *Feature* » Multy&Bug 🌟
+> 彡 *StatusScriptz*  » buyVip/buyer 🎋
+╚─═─═─═─═─═─═⪩
+
   ━  *｢ \`ATTACT ANTI KENON\` ｣*
  *(recomend bug bebas spam)*
 ┏━━━━━━━━━━━━━━━━
@@ -27145,13 +27282,13 @@ case 'listgrup': {
         }
 
         let teks = `╭─「 📋 LIST GRUP BOT 」\n`
-        teks += `║ Total Grup : ${groupList.length}\n`
+        teks += ` Total Grup : ${groupList.length}\n`
         teks += `╰──────────────\n\n`
 
         groupList.forEach((group, index) => {
             teks += `╭─「 ${index + 1}. ${group.subject || 'Tanpa Nama'} 」\n`
-            teks += `║ 🆔 ID : ${group.id}\n`
-            teks += `║ 👥 Member : ${group.participants?.length || 0}\n`
+            teks += ` 🆔 ID : ${group.id}\n`
+            teks += ` 👥 Member : ${group.participants?.length || 0}\n`
             teks += `╰──────────────\n\n`
         })
 
@@ -27328,7 +27465,7 @@ case 'gpt': {
     try {
         if (!text) return replyV1('gpt versi -3 apa yg kamu cari')
         const aiProxyToken = getXeryuuPrivateKey('aiProxyBearer', 'XERYUU_AI_PROXY_TOKEN', ['aiProxyToken']);
-        if (!aiProxyToken) return replyV1('⚙️ API GPT belum dikonfigurasi. Isi XERYUU_AI_PROXY_TOKEN atau apiKeys.aiProxyBearer di authen.js lokal.');
+        if (!aiProxyToken) return replyV1('⚙️ API GPT belum dikonfigurasi. Isi XERYUU_AI_PROXY_TOKEN atau xeryuuApiKeys.aiProxyBearer di settings.js lokal.');
         
         
         let { data } = await axios.post(
@@ -27758,7 +27895,11 @@ case 'supportdev': {
 break
 
 case 'cekgila': {
-  const nama = text||m.pushName||'Kamu'
+  const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || m.quoted?.participant || ''
+  const cleanInput = String(text || '').replace(/@[1-9]\d{4,15}/g, '').replace(/\s+/g, ' ').trim()
+  const nama = targetJid
+    ? await getXeryuuMentionLabel(conn, targetJid, 'Anggota')
+    : (cleanInput || m.pushName || 'Kamu')
   const persen = Math.floor(Math.random() * 101)
 
   const komentar = [
@@ -27772,12 +27913,21 @@ case 'cekgila': {
 
   const kata = komentar[Math.floor(Math.random() * komentar.length)]
 
-  await replyV1(`🧠 Tes Kegilaan Hari Ini\n\n👤 Nama: ${nama}\n📊 Tingkat Gila: ${persen}%\n🗯️ Komentar: ${kata}`)
+  const result = `🧠 Tes Kegilaan Hari Ini\n\n👤 Nama: ${nama}\n📊 Tingkat Gila: ${persen}%\n🗯️ Komentar: ${kata}`
+  if (targetJid) {
+    const taggedResult = withXeryuuTargetMention(result, targetJid)
+    return replyV1(taggedResult.text, { mentions: taggedResult.mentions, includeSenderMention: false })
+  }
+  await replyV1(result)
 }
 break
 
 case 'cekwaras': {
-  const nama = text || m.pushName || 'Kamu'
+  const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || m.quoted?.participant || ''
+  const cleanInput = String(text || '').replace(/@[1-9]\d{4,15}/g, '').replace(/\s+/g, ' ').trim()
+  const nama = targetJid
+    ? await getXeryuuMentionLabel(conn, targetJid, 'Anggota')
+    : (cleanInput || m.pushName || 'Kamu')
   const persen = Math.floor(Math.random() * 101)
   const komentar = [
     'Udah gila akut anjing inimah',
@@ -27790,7 +27940,12 @@ case 'cekwaras': {
     'Jir waras banget, curigua pendukung prabowo'
   ]
   const kata = komentar[Math.floor(Math.random() * komentar.length)]
-  await replyV1(`🧘 *TES KEWARASAN*\n\n👤 Nama: ${nama}\n📊 Tingkat waras: ${persen}%`)
+  const result = `🧘 *TES KEWARASAN*\n\n👤 Nama: ${nama}\n📊 Tingkat waras: ${persen}%`
+  if (targetJid) {
+    const taggedResult = withXeryuuTargetMention(result, targetJid)
+    return replyV1(taggedResult.text, { mentions: taggedResult.mentions, includeSenderMention: false })
+  }
+  await replyV1(result)
 }
 break
 
@@ -27826,11 +27981,11 @@ case 'anonymouschat': {
             await conn.sendMessage(m.chat, {
                 text:
 `
-╔─═⪩ 『 \`ANONYMOUS CHAT\` 』
-║ ⪩ .anon start
-║ ⪩ .anon stop
-║ ⪩ .anon status
-╚─═─═─═─═─═─═⪩`
+\`ANONYMOUS CHAT\`
+ ⪩ .anon start
+ ⪩ .anon stop
+ ⪩ .anon status
+`
             })
     }
     break
@@ -27843,13 +27998,13 @@ case 'jodoh': {
   const tagged = Array.isArray(m.mentionedJid) ? m.mentionedJid.filter(jid => typeof jid === 'string' && jid.trim()) : []
   if (!nama1 || !nama2) {
     if (tagged.length >= 2) {
-      nama1 = await getXeryuuContactNameSafe(conn, tagged[0])
-      nama2 = await getXeryuuContactNameSafe(conn, tagged[1])
+      nama1 = await getXeryuuMentionLabel(conn, tagged[0], 'Anggota')
+      nama2 = await getXeryuuMentionLabel(conn, tagged[1], 'Anggota')
       return sendCompatibilityMentionReply(nama1, nama2, tagged[0], tagged[1])
     } else if (tagged.length === 1 || m.quoted?.sender) {
       const target = tagged[0] || m.quoted.sender
-      nama1 = pushname || await getXeryuuContactNameSafe(conn, m.sender, 'Pengguna')
-      nama2 = await getXeryuuContactNameSafe(conn, target)
+      nama1 = pushname || await getXeryuuMentionLabel(conn, m.sender, 'Pengguna')
+      nama2 = await getXeryuuMentionLabel(conn, target, 'Anggota')
       return sendCompatibilityMentionReply(nama1, nama2, m.sender, target)
     }
   }
@@ -28308,7 +28463,7 @@ case 'kontol': {
     try {
         if (!text) return replyV1('Nn?')
         const aiProxyToken = getXeryuuPrivateKey('aiProxyBearer', 'XERYUU_AI_PROXY_TOKEN', ['aiProxyToken']);
-        if (!aiProxyToken) return replyV1('⚙️ API GPT belum dikonfigurasi. Isi XERYUU_AI_PROXY_TOKEN atau apiKeys.aiProxyBearer di authen.js lokal.');
+        if (!aiProxyToken) return replyV1('⚙️ API GPT belum dikonfigurasi. Isi XERYUU_AI_PROXY_TOKEN atau xeryuuApiKeys.aiProxyBearer di settings.js lokal.');
         
         
         let { data } = await axios.post(
@@ -28508,7 +28663,7 @@ case 'google': {
               if (!text) return replyV1(`Contoh: ${cmd} lyrra`)
               const apiKey = getXeryuuPrivateKey('googleCustomSearchApiKey', 'GOOGLE_CUSTOM_SEARCH_API_KEY', ['googleCustomSearchApiKey', 'googleApiKey'])
               const cx = getXeryuuPrivateKey('googleCustomSearchCx', 'GOOGLE_CUSTOM_SEARCH_CX', ['googleCustomSearchCx', 'googleSearchCx'])
-              if (!apiKey || !cx) return replyV1('⚙️ Google Search belum dikonfigurasi. Isi GOOGLE_CUSTOM_SEARCH_API_KEY dan GOOGLE_CUSTOM_SEARCH_CX atau apiKeys di authen.js lokal.');
+              if (!apiKey || !cx) return replyV1('⚙️ Google Search belum dikonfigurasi. Isi GOOGLE_CUSTOM_SEARCH_API_KEY dan GOOGLE_CUSTOM_SEARCH_CX atau googleCustomSearchApiKey/googleCustomSearchCx di settings.js lokal.');
               const query = text
               const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&key=${apiKey}&cx=${cx}`
               fetch(url).then(response => response.json()).then(data => {
@@ -29215,7 +29370,11 @@ await fs.unlinkSync(image)
 break
 
             case 'cekkhodam': case 'cekkodam': {
-                const namaKhodam = String(text || m.pushName || m.sender?.split('@')[0] || 'Kamu').trim().slice(0, 60)
+                const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || m.quoted?.participant || ''
+                const cleanInput = String(text || '').replace(/@[1-9]\d{4,15}/g, '').replace(/\s+/g, ' ').trim()
+                const namaKhodam = String(targetJid
+                    ? await getXeryuuMentionLabel(conn, targetJid, 'Anggota')
+                    : (cleanInput || m.pushName || m.sender?.split('@')[0] || 'Kamu')).trim().slice(0, 60)
 
                 const khodam = pickRandom([
                     "Kaleng Cat Avian",
@@ -29345,7 +29504,12 @@ break
                     "Gorong-gorong",
                 ])
                 const response = `🔮 CEK KHODAM\n\n👤 Nama: ${namaKhodam}\n🧿 Khodam: ${khodam}\n\n_Hasil acak, hanya untuk hiburan._`
-                await replyV1(response)
+                if (targetJid) {
+                    const taggedResult = withXeryuuTargetMention(response, targetJid)
+                    await replyV1(taggedResult.text, { mentions: taggedResult.mentions, includeSenderMention: false })
+                } else {
+                    await replyV1(response)
+                }
             }
                 break
 
@@ -30989,6 +31153,8 @@ case 'roasting':
 case 'roasting': {
  let orang = m.mentionedJid && m.mentionedJid[0]
  ? m.mentionedJid[0]
+ : m.quoted && m.quoted.sender
+ ? m.quoted.sender
  : text
  ? text.replace(/[^0-9]/g, '') + '@s.whatsapp.net'
  : null;
@@ -31116,7 +31282,7 @@ if (!text) return replyV1(example('😀|😍'))
 if (!text.split("|")) return replyV1(example('😀|??'))
 let [e1, e2] = text.split("|")
 const tenorApiKey = getXeryuuPrivateKey('tenorApiKey', 'TENOR_API_KEY', ['tenorApiKey']);
-if (!tenorApiKey) return replyV1('⚙️ API Emoji Kitchen belum dikonfigurasi. Isi TENOR_API_KEY atau apiKeys.tenorApiKey di authen.js lokal.');
+if (!tenorApiKey) return replyV1('⚙️ API Emoji Kitchen belum dikonfigurasi. Isi TENOR_API_KEY atau xeryuuApiKeys.tenorApiKey di settings.js lokal.');
 let brat = `https://tenor.googleapis.com/v2/featured?key=${encodeURIComponent(tenorApiKey)}&contentfilter=high&media_filter=png_transparent&component=proactive&collection=emoji_kitchen_v5&q=${encodeURIComponent(e1)}&emoji2=${encodeURIComponent(e2)}`
 let videoBuffer = await getBuffer(brat)
 try {
@@ -31786,11 +31952,11 @@ case 'ytrich': {
 
             const results = await searchYouTube(text, 6)
             if (!results.length) throw new Error('Video YouTube tidak ditemukan')
-            let out = `╔─═⪩ 『 ▶️ YTRICH FALLBACK 』\n║ 🔎 Query: *${text}*\n║ Rich Player gagal dikirim: ${richError?.message || richError}\n╚─═─═─═─═─═─═⪩\n\n`
+            let out = `▶️ YTRICH FALLBACK\n 🔎 Query: *${text}*\n Rich Player gagal dikirim: ${richError?.message || richError}\n\n\n`
             results.forEach((item, i) => {
-                out += `╔─═⪩ 『 HASIL ${i + 1} 』\n`
-                out += `║ 🎵 *${item.title}*\n║ 👤 ${item.channel}\n║ 🔗 ${item.url}\n║ ⏱️ ${item.duration || '-'}\n`
-                out += `╚─═─═─═─═─═─═⪩\n\n`
+                out += `HASIL ${i + 1}\n`
+                out += ` 🎵 *${item.title}*\n 👤 ${item.channel}\n 🔗 ${item.url}\n ⏱️ ${item.duration || '-'}\n`
+                out += `\n\n`
             })
             await conn.sendMessage(m.chat, { text: out.trim() }, { quoted: m })
         }
@@ -31810,8 +31976,8 @@ case 'richstatus': {
     if (!base) {
         return replyV1(
             `╭─〔 🔎 RICH API STATUS 〕\n` +
-            `║ Status : *BELUM DIKONFIGURASI*\n` +
-            `║ Port   : *${global.richApiConfig?.port || 3001}*\n` +
+            ` Status : *BELUM DIKONFIGURASI*\n` +
+            ` Port   : *${global.richApiConfig?.port || 3001}*\n` +
             `╰────────────────\n\n` +
             `Isi *global.richApiConfig.publicUrl* atau *global.richApiUrl* di settings.js dengan URL HTTPS yang bisa diakses dari internet.\n` +
             `Contoh: *https://rich.domainmu.tld:3001*\n\n` +
@@ -31826,9 +31992,9 @@ case 'richstatus': {
         const data = await response.json().catch(() => ({}))
         return replyV1(
             `╭─〔 🔎 RICH API STATUS 〕\n` +
-            `║ URL    : *${base}*\n` +
-            `║ HTTP   : *${response.status}*\n` +
-            `║ Status : *${data?.ok ? 'ONLINE ✅' : 'ERROR ❌'}*\n` +
+            ` URL    : *${base}*\n` +
+            ` HTTP   : *${response.status}*\n` +
+            ` Status : *${data?.ok ? 'ONLINE ✅' : 'ERROR ❌'}*\n` +
             `╰────────────────`
         )
     } catch (e) {
@@ -31849,7 +32015,7 @@ case 'youtube': {
  const subcmd = text.split(' ')[0].toLowerCase();
  const query = text.replace(subcmd, '').trim();
  const apikey = getXeryuuPrivateKey('youtubeApiKey', 'YOUTUBE_API_KEY', ['youtubeApiKey', 'googleApiKey']);
-  if (!apikey) return replyV1('⚙️ YouTube Data API belum dikonfigurasi. Isi YOUTUBE_API_KEY atau apiKeys.youtubeApiKey di authen.js lokal.');
+  if (!apikey) return replyV1('⚙️ YouTube Data API belum dikonfigurasi. Isi YOUTUBE_API_KEY atau xeryuuApiKeys.youtubeApiKey di settings.js lokal.');
 
  if (!['search', 'channel', 'latest', 'stat'].includes(subcmd))
  return replyV1('Subfitur tidak dikenal. Gunakan salah satu: search, channel, latest, stat');
@@ -32504,18 +32670,28 @@ break
             case 'cekgay':
             case 'ceklesbi': {
               const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || ''
-              let subject = text.replace(/@[0-9]+/g, '').replace(/\s+/g, ' ').trim()
-              if (targetJid) subject = await conn.getName(targetJid).catch(() => targetJid.split('@')[0])
-              if (!subject) subject = pushname || m.sender.split('@')[0]
-              return replyV1(funMenu.scoreCheck(command, subject))
+              const cleanInput = String(text || '').replace(/@[1-9]\d{4,15}/g, '').replace(/\s+/g, ' ').trim()
+              const subject = targetJid ? await getXeryuuMentionLabel(conn, targetJid, 'Anggota') : (cleanInput || pushname || 'Kamu')
+              const result = funMenu.scoreCheck(command, subject)
+              if (targetJid) {
+                const taggedResult = withXeryuuTargetMention(result, targetJid)
+                return replyV1(taggedResult.text, { mentions: taggedResult.mentions, includeSenderMention: false })
+              }
+              return replyV1(result)
             }
             break
 
             case 'sifat':
             case 'ceksifat': {
               const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || ''
-              let subject = targetJid ? await conn.getName(targetJid).catch(() => targetJid.split('@')[0]) : (text || pushname)
-              return replyV1(funMenu.traitReport(subject))
+              const cleanInput = String(text || '').replace(/@[1-9]\d{4,15}/g, '').replace(/\s+/g, ' ').trim()
+              const subject = targetJid ? await getXeryuuMentionLabel(conn, targetJid, 'Anggota') : (cleanInput || pushname || 'Kamu')
+              const result = funMenu.traitReport(subject)
+              if (targetJid) {
+                const taggedResult = withXeryuuTargetMention(result, targetJid)
+                return replyV1(taggedResult.text, { mentions: taggedResult.mentions, includeSenderMention: false })
+              }
+              return replyV1(result)
             }
             break
 
@@ -32523,8 +32699,14 @@ break
             case 'cekhoby':
             case 'cekhobby': {
               const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || ''
-              let subject = targetJid ? await conn.getName(targetJid).catch(() => targetJid.split('@')[0]) : (text || pushname)
-              return replyV1(funMenu.hobbyReport(subject))
+              const cleanInput = String(text || '').replace(/@[1-9]\d{4,15}/g, '').replace(/\s+/g, ' ').trim()
+              const subject = targetJid ? await getXeryuuMentionLabel(conn, targetJid, 'Anggota') : (cleanInput || pushname || 'Kamu')
+              const result = funMenu.hobbyReport(subject)
+              if (targetJid) {
+                const taggedResult = withXeryuuTargetMention(result, targetJid)
+                return replyV1(taggedResult.text, { mentions: taggedResult.mentions, includeSenderMention: false })
+              }
+              return replyV1(result)
             }
             break
 
@@ -32541,13 +32723,13 @@ break
                   return replyV1(funMenu.scoreCompatibility(namedPair[0], namedPair[1]).text)
                 }
                 if (tagged.length >= 2) {
-                  const name1 = await getXeryuuContactNameSafe(conn, tagged[0])
-                  const name2 = await getXeryuuContactNameSafe(conn, tagged[1])
+                  const name1 = await getXeryuuMentionLabel(conn, tagged[0], 'Anggota')
+                  const name2 = await getXeryuuMentionLabel(conn, tagged[1], 'Anggota')
                   return sendCompatibilityMentionReply(name1, name2, tagged[0], tagged[1])
                 }
                 if (!m.isGroup && requestedTarget) {
-                  const name1 = await getXeryuuContactNameSafe(conn, m.sender, pushname || 'Pengguna')
-                  const name2 = await getXeryuuContactNameSafe(conn, requestedTarget)
+                  const name1 = pushname || await getXeryuuMentionLabel(conn, m.sender, 'Pengguna')
+                  const name2 = await getXeryuuMentionLabel(conn, requestedTarget, 'Anggota')
                   return sendCompatibilityMentionReply(name1, name2, m.sender, requestedTarget)
                 }
                 if (unique.length < 2) return replyV1(`Gunakan ${prefix}jodoh Nama 1|Nama 2 di chat pribadi, tag dua orang, atau jalankan ${prefix}cekjodoh di grup.`)
@@ -32557,8 +32739,8 @@ break
                 if (!candidates.length) candidates = unique.filter(jid => !sameParticipantIdentity(jid, m.sender))
                 if (!candidates.length) return replyV1('❌ Belum ada anggota lain untuk dipasangkan.')
                 const partner = funMenu.pickRandom(candidates)
-                const name1 = await getXeryuuContactNameSafe(conn, target)
-                const name2 = await getXeryuuContactNameSafe(conn, partner)
+                const name1 = await getXeryuuMentionLabel(conn, target, 'Anggota')
+                const name2 = await getXeryuuMentionLabel(conn, partner, 'Anggota')
                 return sendCompatibilityMentionReply(name1, name2, target, partner)
               } catch (err) {
                 console.error('[CEKJODOH]', err?.stack || err)
@@ -32578,8 +32760,17 @@ break
 case 'wangy':
 case 'rate':
 case 'top': {
-    const subject = text || pushname || m.sender.split('@')[0]
-    return replyV1(funMenu.scoreCheck(command, subject))
+    const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || m.quoted?.participant || ''
+    const cleanInput = String(text || '').replace(/@[1-9]\d{4,15}/g, '').replace(/\s+/g, ' ').trim()
+    const subject = targetJid
+      ? await getXeryuuMentionLabel(conn, targetJid, 'Anggota')
+      : (cleanInput || pushname || 'Kamu')
+    const result = funMenu.scoreCheck(command, subject)
+    if (targetJid) {
+      const taggedResult = withXeryuuTargetMention(result, targetJid)
+      return replyV1(taggedResult.text, { mentions: taggedResult.mentions, includeSenderMention: false })
+    }
+    return replyV1(result)
 }
 break
 case 'jadian':
@@ -32597,7 +32788,7 @@ case 'cekpasangan': {
         if (targetJid === me) return replyV1('❌ Tidak bisa jadian dengan diri sendiri 😭')
         proposals[targetJid] = { from: me, at: Date.now() }
         saveDB(global.db)
-        return conn.sendMessage(m.chat, { text: `💌 @${me.split('@')[0]} mengajak @${targetJid.split('@')[0]} jadian.\n\nBalas ${prefix}terima atau ${prefix}tolak.`, mentions: [me, targetJid] }, { quoted: m })
+        return replyV1(`💌 @${me.split('@')[0]} mengajak @${targetJid.split('@')[0]} jadian.\n\nBalas ${prefix}terima atau ${prefix}tolak.`, { mentions: [me, targetJid] })
     }
     if (command === 'terima') {
         const proposal = proposals[me]
@@ -32606,14 +32797,14 @@ case 'cekpasangan': {
         relations[proposal.from] = me
         delete proposals[me]
         saveDB(global.db)
-        return conn.sendMessage(m.chat, { text: `💞 @${me.split('@')[0]} dan @${proposal.from.split('@')[0]} resmi jadian!`, mentions: [me, proposal.from] }, { quoted: m })
+        return replyV1(`💞 @${me.split('@')[0]} dan @${proposal.from.split('@')[0]} resmi jadian!`, { mentions: [me, proposal.from] })
     }
     if (command === 'tolak') {
         const proposal = proposals[me]
         if (!proposal) return replyV1('❌ Tidak ada ajakan jadian yang pending.')
         delete proposals[me]
         saveDB(global.db)
-        return conn.sendMessage(m.chat, { text: `💔 Ajakan dari @${proposal.from.split('@')[0]} ditolak.`, mentions: [proposal.from] }, { quoted: m })
+        return replyV1(`💔 Ajakan dari @${proposal.from.split('@')[0]} ditolak.`, { mentions: [proposal.from] })
     }
     if (command === 'putus') {
         const partner = relations[me]
@@ -32621,7 +32812,7 @@ case 'cekpasangan': {
         delete relations[me]
         delete relations[partner]
         saveDB(global.db)
-        return conn.sendMessage(m.chat, { text: `💔 @${me.split('@')[0]} dan @${partner.split('@')[0]} resmi putus.`, mentions: [me, partner] }, { quoted: m })
+        return replyV1(`💔 @${me.split('@')[0]} dan @${partner.split('@')[0]} resmi putus.`, { mentions: [me, partner] })
     }
     if (command === 'cekpasangan') {
         const textPair = funMenu.parsePairText(text)
@@ -32633,14 +32824,14 @@ case 'cekpasangan': {
                 ? [me, normalize(tagged[0] || m.quoted.sender)]
                 : null
         if (pairJids && pairJids.length >= 2 && pairJids[0] !== pairJids[1]) {
-            const name1 = await getXeryuuContactNameSafe(conn, pairJids[0])
-            const name2 = await getXeryuuContactNameSafe(conn, pairJids[1])
+            const name1 = await getXeryuuMentionLabel(conn, pairJids[0], 'Anggota')
+            const name2 = await getXeryuuMentionLabel(conn, pairJids[1], 'Anggota')
             return sendCompatibilityMentionReply(name1, name2, pairJids[0], pairJids[1])
         }
         const partnerJid = relations[me]
         if (partnerJid) {
-            const name1 = await getXeryuuContactNameSafe(conn, me)
-            const name2 = await getXeryuuContactNameSafe(conn, partnerJid)
+            const name1 = await getXeryuuMentionLabel(conn, me, 'Anggota')
+            const name2 = await getXeryuuMentionLabel(conn, partnerJid, 'Anggota')
             return sendCompatibilityMentionReply(name1, name2, me, partnerJid)
         }
         if (m.isGroup && Array.isArray(participants)) {
@@ -32648,16 +32839,16 @@ case 'cekpasangan': {
             const candidates = memberJids.filter(jid => !sameParticipantIdentity(jid, me))
             if (candidates.length) {
                 const chosen = funMenu.pickRandom(candidates)
-                const name1 = await getXeryuuContactNameSafe(conn, me)
-                const name2 = await getXeryuuContactNameSafe(conn, chosen)
+                const name1 = await getXeryuuMentionLabel(conn, me, 'Anggota')
+                const name2 = await getXeryuuMentionLabel(conn, chosen, 'Anggota')
                 return sendCompatibilityMentionReply(name1, name2, me, chosen)
             }
         }
         return replyV1(`Cara pakai: ${prefix}cekpasangan @orang1 @orang2\nAtau: ${prefix}cekpasangan Nama 1|Nama 2`)
     }
     const partner = relations[me]
-    if (!partner) return conn.sendMessage(m.chat, { text: `💔 @${me.split('@')[0]} masih jomblo.`, mentions: [me] }, { quoted: m })
-    return conn.sendMessage(m.chat, { text: `💘 Pasangan kamu: @${partner.split('@')[0]}`, mentions: [partner] }, { quoted: m })
+    if (!partner) return replyV1(`💔 @${me.split('@')[0]} masih jomblo.`, { mentions: [me] })
+    return replyV1(`💘 Pasangan kamu: @${partner.split('@')[0]}`, { mentions: [partner] })
 }
 break
 case 'bego':
@@ -35297,11 +35488,14 @@ memberikan hiburan, dan membantu berbagai kebutuhan di grup maupun chat pribadi.
 Semoga pengalaman menggunakan xeryuu Md menyenangkan, interaktif, dan bermanfaat! 
 `;
 
-    let vid = await generateWAMessageContent({
-        video: {
-            url: "https://cdn.nekohime.site/file/5L3fjZaq.mp4"
-        },
-        gifPlayback: true
+    // Gunakan foto lokal agar case request tidak bergantung pada URL video eksternal.
+    const requestImagePath = projectPath('media', 'xeryuu.png');
+    if (!fs.existsSync(requestImagePath)) {
+        return replyV1('❌ Foto menu request tidak ditemukan: media/xeryuu.png');
+    }
+
+    const requestPhoto = await generateWAMessageContent({
+        image: { url: requestImagePath }
     }, { upload: conn.waUploadToServer });
 
     const msg = generateWAMessageFromContent(m.chat, {
@@ -35311,7 +35505,7 @@ Semoga pengalaman menggunakan xeryuu Md menyenangkan, interaktif, dan bermanfaat
 
                     header: {
                         hasMediaAttachment: true,
-                        videoMessage: vid.videoMessage
+                        imageMessage: requestPhoto.imageMessage
                     },
 
                     body: {
@@ -35408,40 +35602,41 @@ case 'cpanel': {
 > 彡 RunTime » ${runtime(process.uptime())} 💫
 > 彡 *Feature* » Multy&Bug 🌟
 > 彡 *StatusScriptz*  » buyVip/buyer 🎋
-╚─═─═─═─═─═─═─═─═─═⪩
+╚─═─═─═─═─═─═⪩
+
 ╭━〔 CPANEL SERVER 1 〕━
-║
-║ .5gb1 < username >
-║ .6gb1 < username >
-║ .7gb1 < username >
-║ .8gb1 < username >
-║ .9gb1 < username >
-║ .10gb1 < username >
-║ .unli1 < username >
+
+ .5gb1 < username >
+ .6gb1 < username >
+ .7gb1 < username >
+ .8gb1 < username >
+ .9gb1 < username >
+ .10gb1 < username >
+ .unli1 < username >
 ╰━━━━━━━━━━━━━━━
 
 ╭━〔 CPANEL SERVER 2 〕━
-║ .1gb-v2 < username >
-║ .2gb-v2 < username >
-║ .3gb-v2 < username >
-║ .4gb-v2 < username >
-║ .5gb-v2 < username >
-║ .6gb-v2 < username >
-║ .7gb-v2 < username >
-║ .8gb-v2 < username >
-║ .9gb-v2 < username >
-║ .10gb-v2 < username >
-║ .unli-v2 < username >
+ .1gb-v2 < username >
+ .2gb-v2 < username >
+ .3gb-v2 < username >
+ .4gb-v2 < username >
+ .5gb-v2 < username >
+ .6gb-v2 < username >
+ .7gb-v2 < username >
+ .8gb-v2 < username >
+ .9gb-v2 < username >
+ .10gb-v2 < username >
+ .unli-v2 < username >
 ╰━━━━━━━━━━━━━━━━
 
 ╭━〔 CPANEL MANAGEMENT 〕━
-║ .listpanel < button >
-║ .delpanel < button >
-║ .cadmin < username >
-║ .deladmin < button >
-║ .listserver < serverpanel >
-║ .addpremium < akses >
-║ .addowner < akses >
+ .listpanel < button >
+ .delpanel < button >
+ .cadmin < username >
+ .deladmin < button >
+ .listserver < serverpanel >
+ .addpremium < akses >
+ .addowner < akses >
 ╰━━━━━━━━━━━━━━━━
 
  `
@@ -38579,7 +38774,12 @@ await replyV1(`Berhasil menambah owner ✅`)
 
 
 case "cekjawa": {
-    if (!text) return replyV1("Contoh penggunaan: .cekjawa XnalzNotDev");
+    const targetJid = m.mentionedJid?.[0] || m.quoted?.sender || m.quoted?.participant || ''
+    const cleanInput = String(text || '').replace(/@[1-9]\d{4,15}/g, '').replace(/\s+/g, ' ').trim()
+    if (!cleanInput && !targetJid) return replyV1("Contoh penggunaan: .cekjawa XnalzNotDev atau tag/reply seseorang.")
+    const targetName = targetJid
+      ? await getXeryuuMentionLabel(conn, targetJid, 'Anggota')
+      : cleanInput
 
     let jawaban = [
         "🔥 Wah, *100% Jawa tulen* bro 😎, ngoko-ngokone kenceng!",
@@ -38607,7 +38807,12 @@ case "cekjawa": {
     let randomIndex = Math.floor(Math.random() * jawaban.length);
     let result = jawaban[randomIndex];
 
-    await replyV1(`Hasil *cekJawa* untuk *${text}*:\n${result}`);
+    const response = `Hasil *cekJawa* untuk *${targetName}*:\n${result}`
+    if (targetJid) {
+      const taggedResult = withXeryuuTargetMention(response, targetJid)
+      return replyV1(taggedResult.text, { mentions: taggedResult.mentions, includeSenderMention: false })
+    }
+    await replyV1(response);
 }
 break
 case "panduan": {
