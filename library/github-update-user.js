@@ -6,6 +6,7 @@ const os = require('os')
 const crypto = require('crypto')
 const axios = require('axios')
 const { verifyManifestSignature } = require('./update-signature')
+const { isSafeDistributionPath } = require('./update-path-policy')
 
 // This must point to a PUBLIC, sanitized distribution repository. Never embed a GitHub token here.
 // The full developer repository can remain private; publish only approved files to this repository.
@@ -17,7 +18,6 @@ const UPDATE_SOURCE = Object.freeze({
 
 const MANIFEST_NAME = '.xeryuu-update.json'
 const STATE_NAME = '.xeryuu-update-state.json'
-const LEGACY_BASE_DIR_NAMES = ['.xeryuu-update-base', 'xeryuu-update-base']
 const BACKUP_DIR_NAME = 'update-backups'
 const MAX_FILES = 300
 const MAX_FILE_BYTES = 15 * 1024 * 1024
@@ -28,44 +28,7 @@ function normalizeRelativePath(value) {
     return String(value || '').replace(/\\/g, '/').replace(/^\.\//, '')
 }
 
-function isSafeDistributionPath(value) {
-    const relative = normalizeRelativePath(value)
-    if (!relative || relative.startsWith('/') || /^[A-Za-z]:/.test(relative)) return false
 
-    const parts = relative.split('/')
-    if (parts.some(part => !part || part === '.' || part === '..')) return false
-
-    const lower = relative.toLowerCase()
-    const base = parts[parts.length - 1].toLowerCase()
-    if (['index.js', 'settings.js', 'authen.js', 'authen.example.js', 'qris.jpg'].includes(lower)) return false
-    if (lower.startsWith('.git/') || lower.startsWith('node_modules/')) return false
-    if (lower.startsWith('connection/') || lower.startsWith('session/') || lower.startsWith('sessions/')) return false
-    if (lower.startsWith('update-staging/') || lower.startsWith('update-backups/')) return false
-    if (LEGACY_BASE_DIR_NAMES.some(name => lower.startsWith(`${name.toLowerCase()}/`))) return false
-    if (lower === STATE_NAME || lower === MANIFEST_NAME) return false
-    if (lower.startsWith('.env') || base.endsWith('.log') || base.endsWith('.pem') || base.endsWith('.key')) return false
-    if (lower.startsWith('library/database/')) {
-        const staticGameData = /^library\/database\/games\/(?:README\.md|legacy\/[^/]+\.json)$/i.test(relative)
-        if (!staticGameData) return false
-    }
-    if (lower === 'library/savesaluran.json') return false
-    if (lower === 'library/amprem.js') return false
-    if (lower === 'library/github-update-developer.js') return false
-
-    const extension = path.posix.extname(relative).toLowerCase()
-    const allowedExtensions = new Set([
-        '.js', '.cjs', '.mjs', '.json', '.html', '.css', '.md', '.txt',
-        '.png', '.jpg', '.jpeg', '.webp', '.gif', '.mp3', '.ogg', '.svg', '.yml', '.yaml'
-    ])
-    if (!allowedExtensions.has(extension)) return false
-
-    const first = parts[0].toLowerCase()
-    if (first === 'source' || first === 'library' || first === 'media' || first === 'tests') return true
-    if (parts.length === 1) {
-        return ['xeryuu.js', 'telegram.js', 'stalk-check.js', 'package.json', 'tqto.md'].includes(lower)
-    }
-    return false
-}
 
 function sha256(buffer) {
     return crypto.createHash('sha256').update(buffer).digest('hex')
