@@ -206,19 +206,27 @@ function questionAnswer(command, text) {
 function scoreCheck(kind, name) {
   const subject = cleanName(name, 'Kamu');
   const score = Math.floor(Math.random() * 100) + 1;
-  // Legacy Furina-style aliases return a random percentage instead of a
-  // hard-coded refusal so the existing fun commands remain callable.
-  if (kind === 'cekgay' || kind === 'ceklesbi') return `${score}%`;
+  // Keep the legacy score checks functional, but render a clean WhatsApp
+  // message without an ASCII frame or a long disclaimer footer.
+  if (kind === 'cekgay' || kind === 'ceklesbi') {
+    const title = kind === 'cekgay' ? 'CEK GAY' : 'CEK LESBI'
+    const note = score >= 75
+      ? 'Skor random tinggi! ✨'
+      : score >= 45
+        ? 'Skor random berada di tengah. 🎲'
+        : 'Skor random rendah. 🌱'
+    return `🎲 *${title}*\n\n👤 Nama: ${subject}\n📊 Skor: *${score}%*\n✨ ${note}`
+  }
   const configs = {
-    cekganteng: { title: 'CEK AURA PERCAYA DIRI', high: 'Aura percaya dirimu lagi naik! ✨', mid: 'Energi positif mulai terlihat.', low: 'Angka acak ini tidak mengukur penampilan atau nilai dirimu.' },
-    cekcantik: { title: 'CEK ENERGI POSITIF', high: 'Energi positifmu lagi tinggi! 🌟', mid: 'Vibe ceriamu cukup terasa.', low: 'Angka acak ini tidak mengukur penampilan atau nilai dirimu.' },
+    cekganteng: { title: 'CEK AURA PERCAYA DIRI', high: 'Aura percaya dirimu lagi naik! ✨', mid: 'Energi positif mulai terlihat.', low: 'Vibe santai hari ini 😄' },
+    cekcantik: { title: 'CEK ENERGI POSITIF', high: 'Energi positifmu lagi tinggi! 🌟', mid: 'Vibe ceriamu cukup terasa.', low: 'Tetap bersinar dengan caramu sendiri ✨' },
     wangy: { title: 'CEK WANGY', high: 'Aroma bunga satu taman! 🌸', mid: 'Vibe segar hari ini! 🌼', low: 'Ini hanya tebak-tebakan acak 😄' },
     rate: { title: 'RATE AURA', high: 'Energi positif lagi tinggi!', mid: 'Vibe santai dan seimbang.', low: 'Ini cuma angka random, jangan dimasukkan hati.' },
     top: { title: 'TOP FUN SCORE', high: 'Aura juara fiksi terdeteksi! 🏆', mid: 'Masuk papan skor hiburan.', low: 'Latihan lagi, champion! 🔥' }
   };
   const config = configs[kind] || configs.rate;
   const note = score >= 75 ? config.high : score >= 45 ? config.mid : config.low;
-  return `╭━━━〔 🎭 ${config.title} 〕━━━╮\n│ 👤 Nama: ${subject}\n│ 📊 Skor aura: ${score}/100\n│ ✨ ${note}\n╰━━━━━━━━━━━━━━━━━━╯\n_Ini fitur hiburan, bukan penilaian fisik atau identitas._`;
+  return `🎭 *${config.title}*\n\n👤 Nama: ${subject}\n📊 Skor aura: *${score}/100*\n✨ ${note}`;
 }
 
 function makePantun() {
