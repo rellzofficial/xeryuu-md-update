@@ -91,7 +91,19 @@ function save(ctx) {
 }
 async function send(ctx, text, options = {}) {
     if (typeof ctx.reply === 'function') return ctx.reply(text, options)
-    return ctx.conn.sendMessage(ctx.m.chat, { text, ...options }, { quoted: ctx.m })
+    return ctx.conn.sendMessage(ctx.m.chat, { text, ...options }, { quoted: ctx.qtoko || ctx.m })
+}
+async function sendChatReply(ctx, chat, text, options = {}) {
+    const quoted = ctx.qtoko || ctx.m
+    if (typeof ctx.reply === 'function') {
+        return ctx.reply(text, {
+            ...options,
+            chatOverride: chat,
+            includeSenderMention: false,
+            quoted
+        })
+    }
+    return ctx.conn.sendMessage(chat, { text, ...options }, { quoted })
 }
 function money(ctx) { return Math.max(0, Number(ctx.economy?.getBalance?.(ctx.m.sender) || 0)) }
 function formatMoney(ctx, amount) {
@@ -311,7 +323,7 @@ async function sendAction(ctx, command) {
         // fallback so a missing converter doesn't make the command unusable.
         if (typeof ctx.conn.sendImageAsSticker === 'function') {
             try {
-                await ctx.conn.sendImageAsSticker(ctx.m.chat, url, ctx.m, {
+                await ctx.conn.sendImageAsSticker(ctx.m.chat, url, ctx.qtoko || ctx.m, {
                     packname: global.packname || 'Xeryuu-Md',
                     author: global.author || 'XnalzNotDev'
                 })
@@ -326,7 +338,7 @@ async function sendAction(ctx, command) {
             message.video = { url }
             message.gifPlayback = true
         } else message.image = { url }
-        await ctx.conn.sendMessage(ctx.m.chat, message, { quoted: ctx.m })
+        await ctx.conn.sendMessage(ctx.m.chat, message, { quoted: ctx.qtoko || ctx.m })
         return true
     } catch (error) {
         await send(ctx, `❌ Media untuk .${command} gagal dimuat. Coba lagi sebentar.`)
@@ -512,21 +524,48 @@ async function handleBattle(ctx, user) {
 async function handleSoulmate(ctx, args) {
     const raw = String(ctx.text || '').trim()
     const pairText = raw.includes('|') ? raw.split('|').map(value => safeText(value, 40)).filter(Boolean) : []
-    const mentioned = Array.isArray(ctx.m.mentionedJid) ? ctx.m.mentionedJid : []
-    const quoted = ctx.m.quoted?.sender
-    if (pairText.length >= 2) {
+    const mentioned = Array.isArray(ctx.m.mentionedJid)
+        ? ctx.m.mentionedJid.map(jid => String(jid || '').replace(/:\d+(?=@)/, '')).filter(Boolean)
+        : []
+    const quoted = String(ctx.m.quoted?.sender || ctx.m.quoted?.participant || '').replace(/:\d+(?=@)/, '')
+
+    // Prefer actual WhatsApp mention metadata over the @number text. This avoids
+    // showing literal IDs in the names row when the command contains a pipe.
+    let pair = mentioned.slice(0, 2)
+    if (pair.length < 2 && mentioned.length === 1 && !pairText.length) {
+        pair = [ctx.m.sender, mentioned[0]]
+    } else if (pair.length < 2 && quoted && !pairText.length) {
+        pair = [ctx.m.sender, quoted]
+    }
+
+    if (pair.length < 2 && pairText.length >= 2 && mentioned.length === 0) {
         const first = pairText[0]
         const second = pairText.slice(1).join(' | ')
-        return send(ctx, `🤝 *SOULMATE TEAM CHECK*\n\n${first} + ${second}\n\nPasangan tim random untuk tantangan dan kerja sama. Angka tidak menentukan hubungan nyata.`)
+        return send(ctx, `🤝 *SOULMATE TEAM CHECK*\n\n${first} + ${second}\n\nPasangan tim random untuk tantangan dan kerja sama.`)
     }
-    let pair = mentioned.slice(0, 2)
-    if (pair.length < 2 && quoted && !pair.includes(quoted)) pair = [ctx.m.sender, quoted]
-    if (pair.length < 2) return send(ctx, `Contoh: ${ctx.prefix}soulmate nama1 | nama2 atau tag dua anggota grup.`)
+    if (pair.length < 2) {
+        return send(ctx, `Contoh: ${ctx.prefix}soulmate nama1 | nama2 atau tag dua anggota grup.`)
+    }
+
+    const senderJid = String(ctx.m.sender || '').replace(/:\d+(?=@)/, '')
     const names = await Promise.all(pair.map(async jid => {
-        try { return safeText(await ctx.conn.getName(jid), 40) || jid.split('@')[0] }
-        catch { return jid.split('@')[0] }
+        if (String(jid).replace(/:\d+(?=@)/, '') === senderJid) {
+            const senderName = safeText(ctx.m.pushName || '', 40)
+            if (senderName && !/^\+?[0-9 .()-]+$/.test(senderName)) return senderName
+        }
+        try {
+            const resolved = safeText(await ctx.conn.getName(jid), 40)
+            return resolved && !/^\+?[0-9 .()-]+$/.test(resolved) ? resolved : 'Anggota'
+        } catch {
+            return 'Anggota'
+        }
     }))
-    return send(ctx, `🤝 *SOULMATE TEAM CHECK*\n\n@${pair[0].split('@')[0]} + @${pair[1].split('@')[0]}\nNama: ${names[0]} & ${names[1]}\n\nKalian dipilih sebagai duo random untuk bermain atau bekerja sama!`, { mentions: pair })
+    const mentionTokens = pair.map(jid => {
+        const local = String(jid).split('@')[0].split(':')[0]
+        return /^[1-9]\d{4,15}$/.test(local) ? `@${local}` : ''
+    })
+    const mentionLine = mentionTokens.every(Boolean) ? `\n\n🎯 Mention: ${mentionTokens[0]} + ${mentionTokens[1]}` : ''
+    return send(ctx, `🤝 *SOULMATE TEAM CHECK*\n\nNama: ${names[0]} & ${names[1]}${mentionLine}\n\nKalian dipilih sebagai duo random untuk bermain atau bekerja sama!`, { mentions: pair })
 }
 function normalizeFitnahJid(value) {
     const raw = String(value || '').trim().replace(/:\d+(?=@)/, '')
@@ -593,7 +632,7 @@ function resolveFitnahGroupIdentity(ctx, requestedTarget) {
     if (!found) return { target: requestedTarget, participantAlt: '' }
 
     const aliases = fields(found)
-    // Pada grup yang memakai LID, quote harus menggunakan identitas peserta di
+    // Pada grup yang memakai LID, mention harus memakai identitas peserta di
     // grup (@lid), bukan sekadar PN dari teks mention. PN disimpan sebagai alias.
     const lid = aliases.find(jid => jid.endsWith('@lid'))
     const primary = lid || normalizeFitnahJid(found.id) || normalizeFitnahJid(found.jid) || requestedTarget
@@ -635,45 +674,90 @@ async function handleFitnah(ctx) {
 
     await ctx.conn.sendMessage(ctx.m.chat, { text: replyMessage }, { quoted: fakeQuoted })
 }
+
+function scoreDisplayName(command) {
+    const labels = {
+        stupidcheck: 'STUPID CHECK', handsomecheck: 'HANDSOME CHECK', uncleancheck: 'UNCLEAN CHECK',
+        hotcheck: 'HOT CHECK', smartcheck: 'SMART CHECK', greatcheck: 'GREAT CHECK',
+        evilcheck: 'EVIL CHECK', dogcheck: 'DOG CHECK', coolcheck: 'COOL CHECK',
+        waifucheck: 'WAIFU CHECK', awesomecheck: 'AWESOME CHECK', cutecheck: 'CUTE CHECK',
+        prettycheck: 'PRETTY CHECK', lovelycheck: 'LOVELY CHECK', uglycheck: 'UGLY CHECK',
+        gaycheck: 'GAYCHECK', lesbiancheck: 'LESBIAN CHECK', lesbicheck: 'LESBI CHECK',
+        hornycheck: 'HORNY CHECK'
+    }
+    return labels[command] || String(command || 'FUN CHECK').replace(/check/ig, ' CHECK').replace(/[-_]+/g, ' ').toUpperCase()
+}
+
+function makeScoreCard(command, subject, score, detail = '') {
+    const title = scoreDisplayName(command)
+    const label = safeText(subject || 'Kamu', 100) || 'Kamu'
+    const resultNote = score >= 80
+        ? 'Skor random tinggi. ✨'
+        : score >= 50
+            ? 'Skor random berada di tengah. 🎲'
+            : 'Skor random rendah. 🌱'
+    // Plain WhatsApp-friendly copy: no box drawing and no repeated disclaimer.
+    if (FURINA_GROUP_PERCENT_CHECKS.has(command)) {
+        return `🎲 *${title}*
+
+👤 Target: ${label}
+📊 Hasil: *${score}%*
+✨ ${resultNote}`
+    }
+    return `🎲 *${title}*
+
+👤 Nama: ${label}
+📊 Hasil: *${score}%*
+✨ ${resultNote}`
+}
+
 async function handleScore(ctx, command, args) {
     const m = ctx.m
     const score = randInt(1, 100)
     const tagged = Array.isArray(m.mentionedJid) ? m.mentionedJid.filter(Boolean) : []
     const quotedSender = m.quoted?.sender || m.quoted?.participant || ''
-    const checkerJid = quotedSender || tagged[0] || m.sender
-    const commandText = String(ctx.body || `${ctx.prefix || '.'}${command}${ctx.text ? ` ${ctx.text}` : ''}`).trim()
-
-    // Furina V18 grouped checks are only available in groups. The result is a
-    // random game percentage, not a real identification or profile lookup.
-    if (FURINA_GROUP_PERCENT_CHECKS.has(command)) {
-        if (!m.isGroup) return send(ctx, 'Perintah ini digunakan di grup.')
-        const checkerNumber = String(checkerJid).split('@')[0].split(':')[0]
-        const payload = {
-            text: `Question : *${commandText}*\nChecker : @${checkerNumber}\nAnswer : ${score}%`,
-            mentions: [checkerJid]
-        }
-        await ctx.conn.sendMessage(m.chat, payload, { quoted: m })
-        return true
+    // Only an explicit mention/reply makes a user the target. Otherwise use the
+    // supplied name or sender display name; never treat a sender JID as a name.
+    const targetJid = tagged[0] || quotedSender || ''
+    const canonicalTarget = String(targetJid || '').replace(/:\d+(?=@)/, '')
+    const targetLocalId = canonicalTarget.split('@')[0].split(':')[0]
+    const targetToken = /^[1-9]\d{4,15}$/.test(targetLocalId) ? `@${targetLocalId}` : ''
+    const mentions = targetJid ? [canonicalTarget] : []
+    const inputText = String(ctx.text || args.join(' ') || '')
+    const cleanInput = safeText(inputText.replace(/@[1-9]\d{4,15}/g, ''), 100)
+    const pushName = safeText(m.pushName || 'Kamu', 100) || 'Kamu'
+    let targetName = 'Anggota'
+    if (targetJid && typeof ctx.conn?.getName === 'function') {
+        try {
+            const resolved = safeText(await ctx.conn.getName(canonicalTarget), 100)
+            if (resolved && !/^\+?[0-9 .()-]+$/.test(resolved)) targetName = resolved
+        } catch {}
+    }
+    const makeReply = (subject) => {
+        const card = makeScoreCard(command, subject, score)
+        // Keep a separate native @mention token so WhatsApp can render it as a
+        // tappable mention, while the visible subject line uses the contact name.
+        return targetJid && targetToken ? `${card}\n\n🎯 Mention: ${targetToken}` : card
     }
 
-    // Furina's simpler checks return the randomized value directly.
-    if (FURINA_BARE_PERCENT_CHECKS.has(command)) return send(ctx, String(score))
+    if (FURINA_GROUP_PERCENT_CHECKS.has(command)) {
+        if (!m.isGroup) return send(ctx, '🔒 Perintah ini digunakan di grup.')
+        return send(ctx, makeReply(targetJid ? targetName : (cleanInput || pushName)), { mentions })
+    }
+
+    if (FURINA_BARE_PERCENT_CHECKS.has(command)) {
+        return send(ctx, makeReply(targetJid ? targetName : (cleanInput || pushName)), { mentions })
+    }
 
     if (command === 'handsomecheck') {
-        const input = String(ctx.text || args.join(' ') || '').trim()
-        if (!input) return send(ctx, `Tag Someone, Example : ${ctx.prefix || '.'}${command} @Xeon`)
-        const targetJid = tagged[0] || quotedSender
-        const name = targetJid ? `@${String(targetJid).split('@')[0].split(':')[0]}` : safeText(input, 100)
-        const payload = { text: `*${command}*\n\nName : ${name}\nAnswer : *${score}%*` }
-        if (targetJid) payload.mentions = [targetJid]
-        await ctx.conn.sendMessage(m.chat, payload, { quoted: m })
-        return true
+        if (!cleanInput && !targetJid) {
+            return send(ctx, `Tag/reply seseorang atau tulis nama. Contoh: ${ctx.prefix || '.'}${command} @nomor`)
+        }
+        return send(ctx, makeReply(targetJid ? targetName : cleanInput), { mentions })
     }
 
-    const subject = safeText(args.join(' ') || ctx.text || m.pushName || m.sender?.split('@')[0] || 'Kamu', 80)
-    return send(ctx, `*${command}*\n\nName : ${subject}\nAnswer : *${score}%*`)
+    return send(ctx, makeReply(targetJid ? targetName : (cleanInput || pushName)), { mentions })
 }
-
 async function handleQuestion(ctx, command, args) {
     const input = safeText(args.join(' '), 180)
     if (!input) return send(ctx, `Masukkan pertanyaan. Contoh: ${ctx.prefix}${command} aku bisa belajar hal baru?`)
@@ -814,7 +898,7 @@ function scheduleLotteryDraw(ctx, chat, game) {
             ACTIVE_LOTTERIES.delete(chat)
             deleteArcadeGame(ctx, 'lotteries', chat)
             arcadeSave(ctx)
-            try { await ctx.conn.sendMessage(chat, { text: '🎟️ Lotre ditutup karena tidak ada peserta. Tidak ada saldo yang dipotong.' }) } catch {}
+            try { await sendChatReply(ctx, chat, '🎟️ Lotre ditutup karena tidak ada peserta. Tidak ada saldo yang dipotong.') } catch {}
             return
         }
         const winner = active.tickets[randInt(0, active.tickets.length - 1)]
@@ -824,17 +908,17 @@ function scheduleLotteryDraw(ctx, chat, game) {
             ACTIVE_LOTTERIES.delete(chat)
             deleteArcadeGame(ctx, 'lotteries', chat)
             arcadeSave(ctx)
-            await ctx.conn.sendMessage(chat, {
-                text: `🎉 *LOTRE SELESAI*\n\nPemenang: @${winner.jid.split('@')[0]}\nTiket diundi: ${active.tickets.length}\nHadiah saldo virtual: Rp${arcadeMoney(ctx, active.pool)}`,
-                mentions: [winner.jid]
-            })
+            await sendChatReply(ctx, chat,
+                `🎉 *LOTRE SELESAI*\n\nPemenang: @${winner.jid.split('@')[0]}\nTiket diundi: ${active.tickets.length}\nHadiah saldo virtual: Rp${arcadeMoney(ctx, active.pool)}`,
+                { mentions: [winner.jid] }
+            )
         } catch (error) {
             console.error('[XERYUU LOTRE SETTLE]', error?.stack || error)
             active.status = 'settlement_failed'
             active.timer = null
             persistArcadeGame(ctx, 'lotteries', chat, active)
             arcadeSave(ctx)
-            try { await ctx.conn.sendMessage(chat, { text: '❌ Lotre selesai, tetapi hadiah belum berhasil dicatat. Tiket tetap tersimpan; owner perlu memeriksa saldo virtual.' }) } catch {}
+            try { await sendChatReply(ctx, chat, '❌ Lotre selesai, tetapi hadiah belum berhasil dicatat. Tiket tetap tersimpan; owner perlu memeriksa saldo virtual.') } catch {}
         }
     }, remaining)
     if (typeof game.timer.unref === 'function') game.timer.unref()
