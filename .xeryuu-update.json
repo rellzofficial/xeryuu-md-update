@@ -1,15 +1,20 @@
 {
   "schemaVersion": 1,
-  "version": "v20261021075650",
-  "updatedAt": "2026-10-21T07:56:50.051Z",
+  "version": "v20261022101028",
+  "updatedAt": "2026-10-22T10:10:28.065Z",
   "branch": "main",
-  "previousVersion": "v20261020211847",
-  "previousCommitSha": "cb144949290de338df9b552d14347f65a87f7a58",
+  "previousVersion": "v20261021075650",
+  "previousCommitSha": "6b2dfc641b32b1626ee35c847f235e90eb746883",
   "files": [
     {
       "path": "library/afk.js",
       "sha256": "f5cf46d4dd2aa704e831dc85d3806f28d40c88b2921c0c70da6b20309900eddc",
       "size": 1668
+    },
+    {
+      "path": "library/amprem.js",
+      "sha256": "c74c10b9bc792cb2461c809a7552a7f019a34f8c9ab17c3bb0bc04b560d236ca",
+      "size": 12530
     },
     {
       "path": "library/antibot.js",
@@ -47,9 +52,14 @@
       "size": 7413
     },
     {
+      "path": "library/canvas-text.js",
+      "sha256": "8fd34c5fc166ebbafab36b42b596439829e6a41a52ad3eb0e74c5ecacc3f1b41",
+      "size": 8393
+    },
+    {
       "path": "library/channel-monitor.js",
-      "sha256": "e9abffa5a5b70ee9a8483ee354811dfa688c26496405f818f34ac8c991fe95f1",
-      "size": 30552
+      "sha256": "26defc758d0670ecec9100091ff843db06f3812db9f6232475454fd98aea623e",
+      "size": 30764
     },
     {
       "path": "library/convert-pulsa-card.js",
@@ -143,8 +153,8 @@
     },
     {
       "path": "library/funmenu.js",
-      "sha256": "8499dcf6875a99e39ac42d152f7e66beaf13b8d1fb9ac8d31c8d2d2b597efeb8",
-      "size": 15801
+      "sha256": "37c73b717afdbc76e6fb8f078dcc6913d21c4b8f987c9ca8c6be0fac4d750aa9",
+      "size": 15890
     },
     {
       "path": "library/games.js",
@@ -153,8 +163,8 @@
     },
     {
       "path": "library/github-update-user.js",
-      "sha256": "4909778f986d52fb206468cce14c8e06641811cc18d225b050aadda2ca97cb37",
-      "size": 15865
+      "sha256": "f9187bbb266482b6cf5d3675a9cd86a1692a737fbf783bdfce1e10c6aa121500",
+      "size": 13725
     },
     {
       "path": "library/global-database.js",
@@ -177,19 +187,9 @@
       "size": 25518
     },
     {
-      "path": "library/integrity-monitor-core.js",
-      "sha256": "807a1499ee704bde2423450ad4db9afff6989a497a64eb60084ac2754b620983",
-      "size": 2358
-    },
-    {
-      "path": "library/integrity-notification.js",
-      "sha256": "b92669937056a767a1dc8912e5fab4caa71edc4c96a2d63f5f1fc18c824aae4c",
-      "size": 2329
-    },
-    {
       "path": "library/jadibot.js",
-      "sha256": "d7abce0d61711899bd139f7db4bd6602589fed63ec91ce30671ada8aad2fb913",
-      "size": 37380
+      "sha256": "10626deb3c2b243adbe9792464524cf32545fc3876fe9a03eceee39640b71ec9",
+      "size": 45885
     },
     {
       "path": "library/judi.js",
@@ -208,8 +208,8 @@
     },
     {
       "path": "library/music-downloader.js",
-      "sha256": "6ac4471b6eddd8769743acd67a17e196ea283614bcd4daaed0ca0d96d3904ef4",
-      "size": 58420
+      "sha256": "465cc31a8afa5803aadc18bda2d95f35be08ee2519b5eaa8990acbb1ecbfbc22",
+      "size": 58550
     },
     {
       "path": "library/nokos.js",
@@ -353,8 +353,8 @@
     },
     {
       "path": "library/rpg-fun-integration.js",
-      "sha256": "7a05dbe021ba61564e5ebc855172c6ea105d532f714d46c848bf24d4657bafce",
-      "size": 69150
+      "sha256": "5321fc64c91c741c65a8adb24cadbe8c5aa52c458e28ad87a7628a54594c5bd8",
+      "size": 72548
     },
     {
       "path": "library/rwm.js",
@@ -388,8 +388,8 @@
     },
     {
       "path": "library/store.js",
-      "sha256": "a978eae2534a6dcadfd5462c4efea233360f958db6dbfce65cb22d983af56d19",
-      "size": 56239
+      "sha256": "03606ef6e56fd527de9f1e80c3da11080edeccfd91ef4a0f94c059e40a17c0c2",
+      "size": 56378
     },
     {
       "path": "library/storyedit.js",
@@ -422,6 +422,11 @@
       "size": 977
     },
     {
+      "path": "library/update-path-policy.js",
+      "sha256": "53ddc00d91e7f2cca7e4b280d2c4fcca7550d87c8cb71c850fa4ec1279e69091",
+      "size": 2866
+    },
+    {
       "path": "library/update-signature.js",
       "sha256": "e9019cba61a4751772f2f7c078d9d8e92b9d316e693defc034bbdb59ac6e66af",
       "size": 915
@@ -438,8 +443,8 @@
     },
     {
       "path": "library/wa-connection.js",
-      "sha256": "d8202316f16c0f30fefecb4631de41e7201efb91abc3df39971dfb05eeb85866",
-      "size": 7531
+      "sha256": "9d52cd0f9b14faf565ce29b79bd1b5691efd206dc0ce9e46631ad609a3553499",
+      "size": 6887
     },
     {
       "path": "library/welcome.js",
@@ -458,8 +463,8 @@
     },
     {
       "path": "library/xeryuu-extras.js",
-      "sha256": "0cb2cad34d32ea0b27e967eb62dbebf822507a94e820e18bef92b7a71f71a0ec",
-      "size": 14929
+      "sha256": "2be773c7d2e50ba0e925f0d7b45a1d9df0b78e71c018d8b4628bf948fa90997e",
+      "size": 15111
     },
     {
       "path": "library/XeryuuV17.js",
@@ -608,118 +613,8 @@
     },
     {
       "path": "telegram.js",
-      "sha256": "486385853558ad95ec71c00e3c08fd3f26d9429cf7f8410cdcbee27813ca64de",
-      "size": 320725
-    },
-    {
-      "path": "tests/channel-monitor.test.js",
-      "sha256": "52da0c490627d4d789c16c10ddee08fb73d3fba7a18f85971d1677c36840fc62",
-      "size": 4714
-    },
-    {
-      "path": "tests/convert-pulsa.test.js",
-      "sha256": "358542743a82045bbf58be3d5400d6fadbff39174c3d0a71dbf8b247e32e388a",
-      "size": 3485
-    },
-    {
-      "path": "tests/deposit-qr.test.js",
-      "sha256": "665c30ab623bc66cc2239c303562950944ea6b889c737e76d6f483b47d8c7861",
-      "size": 5804
-    },
-    {
-      "path": "tests/feature-integration.test.js",
-      "sha256": "f1a0d20ad003684d05b737b087b505e7f1d7a1b94d929abff86915cbfdd82d29",
-      "size": 4560
-    },
-    {
-      "path": "tests/integrity-monitor.test.js",
-      "sha256": "b3ba062831ce4f802ec9cfaad91c2bff2aa11511ff7b73793998812628d6cad4",
-      "size": 2346
-    },
-    {
-      "path": "tests/integrity-notification.test.js",
-      "sha256": "beb72118ce2cacb18479f14d3fd58a2cee01372896f9800923136984ce1a09a2",
-      "size": 1679
-    },
-    {
-      "path": "tests/payment-carousel.test.js",
-      "sha256": "9ca89f0c01b865f86c13d6bfaa7411b4b335e9c6b6499f65743f72a465c280f1",
-      "size": 6446
-    },
-    {
-      "path": "tests/persistent-group-settings.test.js",
-      "sha256": "bd3e28ef38235a5af673a9e1b768b9408aa36f60f468bb199b89c4d476861c81",
-      "size": 3244
-    },
-    {
-      "path": "tests/pinterest-carousel.test.js",
-      "sha256": "81ec060997e7e8c7c1491efdbac1c4e35f603673d46c092e63ff6054be13d613",
-      "size": 4363
-    },
-    {
-      "path": "tests/pinterest-scraper.test.js",
-      "sha256": "12ad2309bf68939f77ee9c577b7b795b0ed67db2214384152caa082292333b94",
-      "size": 1941
-    },
-    {
-      "path": "tests/replyv1-consistency.test.js",
-      "sha256": "682b0778ca7dba986f715064abe3c5ed4308e44c6829baf6f8d288706ef15c66",
-      "size": 6190
-    },
-    {
-      "path": "tests/restored-games.test.js",
-      "sha256": "8223d27bc6b049b9419af46b0f861a28fe2d56c07f993192a4defa08086954c4",
-      "size": 4388
-    },
-    {
-      "path": "tests/richstalk.test.js",
-      "sha256": "08c19f1610cf15347bd85191015b7aca92f245cb5ca891f6933ea2f008e7e533",
-      "size": 15979
-    },
-    {
-      "path": "tests/rpg-fun-integration.test.js",
-      "sha256": "6b9627a8e5bfb8b1edc2ae599ac796e5a674d417eb6b7f3d5e4918a4945e94e2",
-      "size": 15800
-    },
-    {
-      "path": "tests/scheduled-broadcast-reliability.test.js",
-      "sha256": "92b3103d26e7e63dbd3893f4c526329212bdefea7ed29d8e6349d35626e398d3",
-      "size": 5156
-    },
-    {
-      "path": "tests/scrapr-downloader.test.js",
-      "sha256": "4594b74cc5e8194611f348286e0d077ab85752f3790b7cfa3b2e519699f30492",
-      "size": 4444
-    },
-    {
-      "path": "tests/transaction-qr-delivery.test.js",
-      "sha256": "917e841faf0d90200c61932c421fcd1ed5f5b3769270b0a2aaae314e2e300b25",
-      "size": 3810
-    },
-    {
-      "path": "tests/transaction-qr-interactive.test.js",
-      "sha256": "97c94c74d105a579ce93b95cdcb735424fb24ced943b528f447d5b9ceaec9dd8",
-      "size": 3412
-    },
-    {
-      "path": "tests/update-signature.test.js",
-      "sha256": "588d5f286da872ff500e4db988a5cd43097ecd5df96aac3da88de7a63c6b8e81",
-      "size": 1213
-    },
-    {
-      "path": "tests/upsert-policy.test.js",
-      "sha256": "8b155b26f3939b21d85ae1881b5b57dbbc2de070f763f3e61c9217353c3ddaca",
-      "size": 3535
-    },
-    {
-      "path": "tests/wa-connection.test.js",
-      "sha256": "362f418928a0796a4b01392d10cd76b9b9508c339f7544ed165a462f9ea128d0",
-      "size": 4334
-    },
-    {
-      "path": "tests/xeryuu-extras.test.js",
-      "sha256": "9a965f144fe37f5d6f6b585e809b532426669dbd9a0a6171499c4c313fea7a4e",
-      "size": 1129
+      "sha256": "15d95b6fc6771cefcefc65b295b6bf21ef550934d33c58d463d9b40e187e1c88",
+      "size": 320055
     },
     {
       "path": "TqTo.md",
@@ -728,8 +623,8 @@
     },
     {
       "path": "xeryuu.js",
-      "sha256": "7b1401374ee6ac40d6290054bd180ff5d663a1c5d667ca187c8558b29de1553f",
-      "size": 1493559
+      "sha256": "8bed01f7deb5e30b456c90a03e669557a4e13884d1f6e65a24ccc52760c8e9ee",
+      "size": 1498465
     }
   ]
 }
