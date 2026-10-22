@@ -56,6 +56,14 @@ const sessions = new Map()
 const pendingPairs = new Map()
 let notify = null
 let shuttingDown = false
+const JADIBOT_DAY_MS = 24 * 60 * 60 * 1000
+const JADIBOT_EXPIRY_INTERVAL_MS = 60 * 1000
+let expirySweepInFlight = false
+
+function normalizeDurationDays(value) {
+    const days = Number(value)
+    return Number.isSafeInteger(days) && days >= 1 && days <= 3650 ? days : 0
+}
 
 function ensureDirs() {
     fs.mkdirSync(ROOT, { recursive: true })
@@ -353,6 +361,9 @@ function scheduleReconnect(next, delay = 5000) {
                 ownerJid: next.ownerJid,
                 phoneNumber: next.phoneNumber,
                 orderRef: next.orderRef,
+                durationDays: next.durationDays,
+                activatedAt: next.activatedAt,
+                expiresAt: next.expiresAt,
                 waAttempt: next.waAttempt,
                 failures: next.failures,
                 status: requestCode ? 'PAIRING' : 'CONNECTING'
@@ -367,6 +378,9 @@ function scheduleReconnect(next, delay = 5000) {
                 ownerJid: next.ownerJid,
                 phoneNumber: next.phoneNumber,
                 orderRef: next.orderRef,
+                durationDays: next.durationDays,
+                activatedAt: next.activatedAt,
+                expiresAt: next.expiresAt,
                 status: next.credentialsRegistered ? 'RECONNECT_FAILED' : 'PAIRING',
                 lastError: String(err?.message || err).slice(0, 300)
             })
@@ -414,6 +428,9 @@ async function openSession(meta, requestCode = false) {
         ownerJid: String(meta.ownerJid || ''),
         phoneNumber: normalizePhone(meta.phoneNumber),
         orderRef: String(meta.orderRef || ''),
+        durationDays: normalizeDurationDays(meta.durationDays),
+        activatedAt: Number(meta.activatedAt || 0),
+        expiresAt: Number(meta.expiresAt || 0),
         waAttempt: Number(meta.waAttempt) || 0,
         failures: Number(meta.failures) || 0,
         pairingCode: '',
@@ -519,16 +536,28 @@ async function openSession(meta, requestCode = false) {
                 next.pairingRequested = true
                 next.failures = 0
                 next.waAttempt = 0
+                const storedBeforeOpen = allMetas().find(item => item.sessionId === sessionId) || {}
+                const activationNow = Number(storedBeforeOpen.activatedAt || next.activatedAt || Date.now())
+                const effectiveDays = normalizeDurationDays(storedBeforeOpen.durationDays || next.durationDays)
+                next.durationDays = effectiveDays
+                next.activatedAt = activationNow
+                next.expiresAt = Number(storedBeforeOpen.expiresAt || next.expiresAt || (effectiveDays ? activationNow + effectiveDays * JADIBOT_DAY_MS : 0))
                 saveMeta(sessionId, {
                     ownerJid: next.ownerJid,
                     phoneNumber: next.phoneNumber,
                     orderRef: next.orderRef,
+                    durationDays: next.durationDays || undefined,
+                    activatedAt: next.activatedAt || undefined,
+                    expiresAt: next.expiresAt || undefined,
                     status: 'CONNECTED',
                     connectedAt: Date.now()
                 })
+                const expiryLine = next.expiresAt
+                    ? `\n> ⏳ Masa aktif sampai: *${new Date(next.expiresAt).toLocaleString('id-ID')}*`
+                    : ''
                 await sendNotice(
                     next.ownerJid,
-                    `> ✅ *JADIBOT BERHASIL TERHUBUNG*\n> \n> 📱 Nomor: *${next.phoneNumber}*\n> 🧾 Order: *${next.orderRef || '-'}*\n> \n> Session bot kamu sekarang sudah aktif.`
+                    `> ✅ *JADIBOT BERHASIL TERHUBUNG*\n> \n> 📱 Nomor: *${next.phoneNumber}*\n> 🧾 Order: *${next.orderRef || '-'}*${expiryLine}\n> \n> Session bot kamu sekarang sudah aktif.`
                 )
                 return
             }
@@ -548,6 +577,9 @@ async function openSession(meta, requestCode = false) {
                     ownerJid: next.ownerJid,
                     phoneNumber: next.phoneNumber,
                     orderRef: next.orderRef,
+                    durationDays: next.durationDays || undefined,
+                    activatedAt: next.activatedAt || undefined,
+                    expiresAt: next.expiresAt || undefined,
                     status: 'LOGGED_OUT',
                     loggedOutAt: Date.now()
                 })
@@ -564,6 +596,9 @@ async function openSession(meta, requestCode = false) {
                 ownerJid: next.ownerJid,
                 phoneNumber: next.phoneNumber,
                 orderRef: next.orderRef,
+                durationDays: next.durationDays || undefined,
+                activatedAt: next.activatedAt || undefined,
+                expiresAt: next.expiresAt || undefined,
                 status: pairingPending ? 'PAIRING' : 'RECONNECTING',
                 lastDisconnectAt: Date.now(),
                 lastDisconnectCode: code || null
@@ -585,6 +620,9 @@ async function openSession(meta, requestCode = false) {
                     ownerJid: next.ownerJid,
                     phoneNumber: next.phoneNumber,
                     orderRef: next.orderRef,
+                    durationDays: next.durationDays || undefined,
+                    activatedAt: next.activatedAt || undefined,
+                    expiresAt: next.expiresAt || undefined,
                     status: 'RECONNECT_FAILED',
                     lastError: 'Session dipakai koneksi lain (440). Pastikan hanya satu instance bot berjalan.'
                 })
@@ -596,6 +634,9 @@ async function openSession(meta, requestCode = false) {
                     ownerJid: next.ownerJid,
                     phoneNumber: next.phoneNumber,
                     orderRef: next.orderRef,
+                    durationDays: next.durationDays || undefined,
+                    activatedAt: next.activatedAt || undefined,
+                    expiresAt: next.expiresAt || undefined,
                     status: pairingPending ? 'PAIRING' : 'RECONNECT_FAILED',
                     lastError: `Gagal tersambung ${next.failures} kali beruntun (kode terakhir ${code || 'unknown'}).`
                 })
@@ -632,7 +673,61 @@ async function openSession(meta, requestCode = false) {
     }
 }
 
-async function pairSession({ ownerJid, phoneNumber, orderRef = '' }) {
+async function expireSession(meta) {
+    if (!meta) return false
+    const sessionId = safeSessionId(meta.sessionId || makeSessionId(meta))
+    const current = sessions.get(sessionId)
+    if (current) {
+        clearTimeout(current.reconnectTimer)
+        current.loggedOut = true
+        current.connectionClosed = true
+        current.reconnecting = false
+        if (sessions.get(sessionId) === current) sessions.delete(sessionId)
+        try { current.socket?.ws?.close() } catch {}
+        try { current.socket?.end?.(undefined) } catch {}
+    }
+    clearAuthFiles(sessionId)
+    const alreadyExpired = String(meta.status || '').toUpperCase() === 'EXPIRED'
+    const expiredAt = Number(meta.expiredAt || Date.now())
+    saveMeta(sessionId, {
+        ownerJid: meta.ownerJid,
+        phoneNumber: meta.phoneNumber,
+        orderRef: meta.orderRef || '',
+        durationDays: normalizeDurationDays(meta.durationDays) || undefined,
+        activatedAt: Number(meta.activatedAt || 0) || undefined,
+        expiresAt: Number(meta.expiresAt || 0) || undefined,
+        status: 'EXPIRED',
+        expiredAt
+    })
+    if (!alreadyExpired) {
+        const expiryText = Number(meta.expiresAt || 0) > 0
+            ? new Date(Number(meta.expiresAt)).toLocaleString('id-ID')
+            : new Date(expiredAt).toLocaleString('id-ID')
+        await sendNotice(
+            meta.ownerJid,
+            `> ⏰ *MASA AKTIF JADIBOT BERAKHIR*\n> \n> 📱 Nomor: *${meta.phoneNumber || '-'}*\n> 🧾 Order: *${meta.orderRef || '-'}*\n> 📅 Berakhir: *${expiryText}*\n> \n> Session sudah dihentikan. Untuk melanjutkan, buat order Jadibot baru.`
+        )
+    }
+    return true
+}
+
+async function sweepExpiredSessions() {
+    if (expirySweepInFlight || shuttingDown) return false
+    expirySweepInFlight = true
+    try {
+        const now = Date.now()
+        const expired = allMetas().filter(meta =>
+            String(meta.status || '').toUpperCase() !== 'EXPIRED' &&
+            Number(meta.expiresAt || 0) > 0 && now >= Number(meta.expiresAt)
+        )
+        for (const meta of expired) await expireSession(meta)
+        return expired.length > 0
+    } finally {
+        expirySweepInFlight = false
+    }
+}
+
+async function pairSession({ ownerJid, phoneNumber, orderRef = '', durationDays }) {
     const owner = String(ownerJid || '')
     const phone = normalizePhone(phoneNumber)
     if (!owner) throw new Error('Pemilik jadibot tidak valid.')
@@ -640,26 +735,71 @@ async function pairSession({ ownerJid, phoneNumber, orderRef = '' }) {
 
     const meta = { ownerJid: owner, phoneNumber: phone, orderRef: String(orderRef || '') }
     const sessionId = makeSessionId(meta)
-    const existingLive = sessions.get(sessionId)
+    let existingLive = sessions.get(sessionId)
     if (existingLive) {
         if (!sameOwner(existingLive.ownerJid, owner)) throw new Error('Order Jadibot ini dimiliki user lain.')
-        if (isConnected(existingLive)) return { status: 'CONNECTED', socket: existingLive.socket, sessionId }
-        if (existingLive.pairingCode && !existingLive.connectionClosed && !existingLive.reconnecting) {
+        const oldPhone = normalizePhone(existingLive.phoneNumber)
+        if (oldPhone && oldPhone !== phone) {
+            // orderRef is the session key; do not accidentally return a pairing code for a
+            // different phone when the customer retries after an earlier pairing error.
+            if (isConnected(existingLive) || existingLive.credentialsRegistered || existingLive.socket?.user) {
+                throw new Error(`Order ini sudah terhubung/terdaftar pada nomor ${existingLive.phoneNumber}. Untuk memakai nomor lain, buat order Jadibot baru.`)
+            }
+            clearTimeout(existingLive.reconnectTimer)
+            try { existingLive.socket?.ws?.close() } catch {}
+            try { existingLive.socket?.end?.(undefined) } catch {}
+            if (sessions.get(sessionId) === existingLive) sessions.delete(sessionId)
+            clearAuthFiles(sessionId)
+            clearMeta(sessionId)
+            existingLive = null
+        }
+        if (existingLive && Number(existingLive.expiresAt || 0) > 0 && Date.now() >= Number(existingLive.expiresAt)) {
+            const expiredMeta = allMetas().find(item => item.sessionId === sessionId) || existingLive
+            await expireSession(expiredMeta)
+            throw new Error('Masa aktif paket Jadibot untuk order ini sudah berakhir. Silakan buat order baru untuk memperpanjang layanan.')
+        }
+        if (existingLive && isConnected(existingLive)) return { status: 'CONNECTED', socket: existingLive.socket, sessionId }
+        if (existingLive && existingLive.pairingCode && !existingLive.connectionClosed && !existingLive.reconnecting) {
             return { status: 'PAIRING', code: existingLive.pairingCode, socket: existingLive.socket, sessionId }
         }
-        if (!existingLive.connectionClosed) throw new Error('Session Jadibot sedang diproses, coba lagi sebentar.')
+        if (existingLive && !existingLive.connectionClosed) throw new Error('Session Jadibot sedang diproses, coba lagi sebentar.')
         // A reconnect timer/in-flight replacement already owns this auth folder.
         // Do not start another socket in parallel; the caller can wait for the
         // normal connection notice rather than receive a stale pairing code.
-        if (existingLive.reconnecting || existingLive.reconnectTimer) {
+        if (existingLive && (existingLive.reconnecting || existingLive.reconnectTimer)) {
             return { status: 'CONNECTING', socket: existingLive.socket, sessionId }
         }
     }
 
-    const persisted = allMetas().find(item => item.sessionId === sessionId)
+    let persisted = allMetas().find(item => item.sessionId === sessionId)
     if (persisted?.ownerJid && !sameOwner(persisted.ownerJid, owner)) {
         throw new Error('Order Jadibot ini dimiliki user lain.')
     }
+    const persistedPhone = normalizePhone(persisted?.phoneNumber)
+    if (persistedPhone && persistedPhone !== phone) {
+        let credentialsAlreadyRegistered = false
+        try {
+            const { state } = await useMultiFileAuthState(sessionPath(sessionId))
+            credentialsAlreadyRegistered = Boolean(state?.creds?.registered)
+        } catch {}
+        const persistedStatus = String(persisted?.status || '').toUpperCase()
+        const wasActive = ['CONNECTED', 'CONNECTING', 'RECONNECT_FAILED'].includes(persistedStatus) ||
+            Number(persisted?.activatedAt || 0) > 0 || Number(persisted?.expiresAt || 0) > 0
+        if (credentialsAlreadyRegistered || wasActive) {
+            throw new Error(`Order ini sudah terdaftar pada nomor ${persisted.phoneNumber}. Untuk memakai nomor lain, buat order Jadibot baru.`)
+        }
+        clearAuthFiles(sessionId)
+        clearMeta(sessionId)
+        persisted = null
+    }
+    if (String(persisted?.status || '').toUpperCase() === 'EXPIRED' || (Number(persisted?.expiresAt || 0) > 0 && Date.now() >= Number(persisted.expiresAt))) {
+        await expireSession(persisted)
+        throw new Error('Masa aktif paket Jadibot untuk order ini sudah berakhir. Silakan buat order baru untuk memperpanjang layanan.')
+    }
+    const effectiveDurationDays = normalizeDurationDays(persisted?.durationDays || durationDays)
+    meta.durationDays = effectiveDurationDays || undefined
+    meta.activatedAt = Number(persisted?.activatedAt || 0) || undefined
+    meta.expiresAt = Number(persisted?.expiresAt || 0) || undefined
 
     // If this exact order's linked device was already restored from disk, reuse
     // it instead of creating a second socket for the same auth directory. When
@@ -696,6 +836,9 @@ async function pairSession({ ownerJid, phoneNumber, orderRef = '' }) {
     saveMeta(sessionId, {
         ...meta,
         status: 'PAIRING',
+        durationDays: meta.durationDays,
+        activatedAt: meta.activatedAt,
+        expiresAt: meta.expiresAt,
         createdAt: persisted?.createdAt || Date.now(),
         pairingStartedAt: Date.now()
     })
@@ -737,17 +880,21 @@ async function pair(options = {}) {
     const sessionId = safeSessionId(makeSessionId(meta))
     const existingPending = pendingPairs.get(sessionId)
     if (existingPending) {
+        if (normalizePhone(existingPending.phoneNumber) !== meta.phoneNumber) {
+            throw new Error('Permintaan Jadibot untuk order ini masih diproses dengan nomor berbeda. Tunggu hasil proses sebelumnya terlebih dahulu.')
+        }
         // Share the same in-flight result rather than constructing a duplicate
         // Baileys socket/auth-state writer for this order.
-        return existingPending
+        return existingPending.promise
     }
 
-    const task = pairSession(meta)
-    pendingPairs.set(sessionId, task)
+    const task = pairSession({ ...meta, durationDays: normalizeDurationDays(options.durationDays) || undefined })
+    const pendingEntry = { phoneNumber: meta.phoneNumber, promise: task }
+    pendingPairs.set(sessionId, pendingEntry)
     try {
         return await task
     } finally {
-        if (pendingPairs.get(sessionId) === task) pendingPairs.delete(sessionId)
+        if (pendingPairs.get(sessionId) === pendingEntry) pendingPairs.delete(sessionId)
     }
 }
 
@@ -770,7 +917,8 @@ async function repair({ ownerJid, orderRef = '' }) {
         return await pair({
             ownerJid: meta.ownerJid,
             phoneNumber: meta.phoneNumber,
-            orderRef: meta.orderRef || ''
+            orderRef: meta.orderRef || '',
+            durationDays: meta.durationDays
         })
     } catch (err) {
         saveMeta(sessionId, {
@@ -786,12 +934,13 @@ async function repair({ ownerJid, orderRef = '' }) {
 }
 
 async function startExisting() {
+    await sweepExpiredSessions()
     const metas = allMetas()
     let started = 0
     for (const meta of metas) {
         const sessionId = safeSessionId(meta.sessionId || makeSessionId(meta))
         if (!meta.ownerJid || !meta.phoneNumber) continue
-        if (String(meta.status || '').toUpperCase() === 'LOGGED_OUT') continue
+        if (['LOGGED_OUT', 'EXPIRED'].includes(String(meta.status || '').toUpperCase())) continue
         if (sessions.has(sessionId)) continue
         try {
             const { state } = await useMultiFileAuthState(sessionPath(sessionId))
@@ -861,6 +1010,11 @@ async function stop(clear = false) {
 function setNotifier(fn) {
     notify = typeof fn === 'function' ? fn : null
 }
+
+const jadibotExpiryTimer = setInterval(() => {
+    void sweepExpiredSessions().catch(error => console.error('[JADIBOT EXPIRY SWEEP]', error?.stack || error))
+}, JADIBOT_EXPIRY_INTERVAL_MS)
+jadibotExpiryTimer.unref?.()
 
 module.exports = {
     pair,
