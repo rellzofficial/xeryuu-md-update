@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Brick Breaker — Rich Game</title>
+<style>
+:root{--cyan:#35e7ff;--blue:#4285ff;--pink:#ff3df2;--gold:#ffd76a;--bg:#050816}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:#eef7ff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:radial-gradient(ellipse at 20% 0%,#17245b 0,transparent 40%),radial-gradient(ellipse at 90% 40%,#35104b 0,transparent 36%),var(--bg);overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;background-image:radial-gradient(#8ceaff 1px,transparent 1px),radial-gradient(#b76cff 1px,transparent 1px);background-size:53px 53px,87px 87px;background-position:0 0,25px 31px}
+.app{position:relative;width:min(100%,760px);margin:auto;padding:18px 14px 30px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}
+.brand{font-weight:900;letter-spacing:2px;font-size:clamp(18px,4vw,27px);text-shadow:0 0 18px var(--cyan)}
+.brand small{display:block;color:#83a7d9;font-size:10px;letter-spacing:4px;font-weight:700}
+.pill{border:1px solid #3e9bff77;border-radius:999px;padding:8px 12px;background:#07142bd9;color:#bdeeff;font-size:12px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.stat{border:1px solid #3579ba66;background:linear-gradient(145deg,#0c1a35e8,#080c20e8);border-radius:12px;padding:9px 10px;box-shadow:inset 0 0 16px #173f7230}
+.stat span{display:block;color:#8ba9d2;font-size:10px;letter-spacing:1px;text-transform:uppercase}
+.stat strong{font-size:clamp(15px,3.8vw,21px);color:#f3fbff}
+.game-shell{position:relative;border:1px solid #42dfff;border-radius:16px;padding:5px;background:linear-gradient(135deg,#30dfff,#813cff,#ff3df2);box-shadow:0 0 20px #267aff55,0 0 55px #a328ff24}
+.game-inner{position:relative;overflow:hidden;border-radius:11px;background:#050b20}
+canvas{display:block;width:100%;height:auto;aspect-ratio:360/560;touch-action:none;background:radial-gradient(ellipse at 50% 0%,#11295b,#040817 70%)}
+.hud{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:12px 0}
+.btn{border:1px solid #36dfff;background:linear-gradient(135deg,#0d2c58,#12103c);color:white;border-radius:10px;padding:11px 14px;font-weight:800;letter-spacing:.4px;cursor:pointer;box-shadow:0 0 12px #1e8cff30;transition:.15s}
+.btn:active{transform:scale(.97)}.btn.primary{background:linear-gradient(100deg,#6b25f6,#174cff,#a21caf);border-color:#b9a0ff;box-shadow:0 0 20px #883cff77}
+.btn:focus-visible{outline:2px solid white;outline-offset:3px}
+.controls{display:flex;gap:8px}.controls .btn{flex:1}
+.hint{text-align:center;color:#8fa9ce;font-size:12px;margin:9px 0 16px}
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.feature{border:1px solid #315c8b77;border-radius:12px;padding:12px;background:#08132ce0}
+.feature b{display:block;font-size:13px;margin-bottom:4px}.feature span{font-size:11px;color:#91a9cd}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:#020616c9;backdrop-filter:blur(7px);z-index:2}
+.panel{width:min(100%,330px);text-align:center;border:1px solid #48dcff;border-radius:18px;padding:24px 18px;background:linear-gradient(160deg,#0d1e42f5,#100b2cf5);box-shadow:0 0 35px #278cff40}
+.panel h1{font-size:clamp(26px,7vw,38px);line-height:1.05;margin:0 0 8px;font-weight:1000;font-style:italic;text-shadow:0 0 22px #5b66ff}
+.panel p{color:#a6c4e7;font-size:13px;line-height:1.55;margin:10px 0 18px}
+.panel .btn{width:100%;margin-top:8px}
+.hidden{display:none!important}
+.power-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:12px 0}
+.power{font-size:11px;color:#9fc5ef;border:1px solid #2c5885;border-radius:9px;padding:8px 10px;background:#08142c}
+footer{text-align:center;color:#647fa7;font-size:11px;margin-top:20px}
+@media(max-width:420px){.app{padding:12px 9px}.stat{padding:8px}.stats{gap:5px}.btn{padding:10px 9px;font-size:12px}.feature{padding:9px 7px}.feature b{font-size:12px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header><div class="brand">BRICK BREAKER <small>RICH GAME • ARCADE EDITION</small></div><div class="pill">✦ NEON MODE</div></header>
+<div class="stats">
+ <div class="stat"><span>Score</span><strong id="score">0</strong></div>
+ <div class="stat"><span>Level</span><strong id="level">1</strong></div>
+ <div class="stat"><span>Lives</span><strong id="lives">♥ ♥ ♥</strong></div>
+ <div class="stat"><span>Best</span><strong id="best">0</strong></div>
+</div>
+<div class="game-shell"><div class="game-inner">
+<canvas id="game" width="360" height="560" aria-label="Permainan Brick Breaker"></canvas>
+<div class="overlay" id="overlay"><div class="panel">
+<h1 id="panelTitle">BRICK<br>BREAKER</h1>
+<p id="panelText">Hancurkan semua balok, kumpulkan power-up, dan pecahkan skor tertinggi!</p>
+<button class="btn primary" id="playBtn">▶ &nbsp; MULAI MAIN</button>
+<button class="btn" id="boardBtn">🏆 &nbsp; SKOR TERBAIK</button>
+</div></div>
+</div></div>
+<div class="hud"><div class="pill" id="status">SIAP BERMAIN</div><button class="btn" id="pauseBtn">Ⅱ PAUSE</button><button class="btn" id="restartBtn">↻ RESET</button></div>
+<div class="controls"><button class="btn" id="leftBtn">◀ KIRI</button><button class="btn" id="launchBtn">● LEMPAR BOLA</button><button class="btn" id="rightBtn">KANAN ▶</button></div>
+<div class="hint">Geser jari di area game atau gunakan tombol kiri/kanan. Tekan “Lempar Bola” untuk mulai.</div>
+<div class="features">
+ <div class="feature"><b>⚡ Power-up</b><span>Paddle lebar, multi-ball, dan laser bonus.</span></div>
+ <div class="feature"><b>✨ Efek neon</b><span>Partikel, jejak bola, dan balok bercahaya.</span></div>
+ <div class="feature"><b>🏆 Progress</b><span>Level meningkat dan skor terbaik tersimpan.</span></div>
+</div>
+<footer>RICH GAME • HTML + CSS + JAVASCRIPT • MOBILE & DESKTOP</footer>
+</div>
+<script>
+(()=>{
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const W=360,H=560;
+let score=0,level=1,lives=3,best=Number(localStorage.getItem('richBrickBest')||0);
+let running=false,paused=false,gameOver=false,started=false,raf=0,last=0;
+let paddle={x:145,y:520,w:70,h:10,speed:7};
+let balls=[],bricks=[],particles=[],drops=[],keys={left:false,right:false},wideTimer=0;
+$('best').textContent=best;
+const colors=['#ff3df2','#9d55ff','#398cff','#24e4ff','#20f5c3','#ffd34e'];
+function newBall(){return {x:paddle.x+paddle.w/2,y:paddle.y-10,r:6,vx:(Math.random()-.5)*3.2,vy:-4.3,trail:[] ,stuck:true}}
+function resetBall(){balls=[newBall()]}
+function makeBricks(){
+ bricks=[];const cols=8,rows=Math.min(4+Math.floor((level-1)/2),7),gap=4,bw=38,bh=16,startX=18,startY=48;
+ for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+  if(level>2&&Math.random()<.08)continue;
+  bricks.push({x:startX+c*(bw+gap),y:startY+r*(bh+gap),w:bw,h:bh,hp:level>=4&&r<2?2:1,color:colors[(r+level-1)%colors.length]});
+ }
+}
+function init(){score=0;level=1;lives=3;particles=[];drops=[];wideTimer=0;paddle.w=70;paddle.x=(W-paddle.w)/2;makeBricks();resetBall();updateHUD();draw()}
+function updateHUD(){$('score').textContent=score;$('level').textContent=level;$('lives').textContent='♥ '.repeat(lives).trim()||'—';$('best').textContent=best}
+function showOverlay(title,text,buttons){$('panelTitle').innerHTML=title;$('panelText').textContent=text;$('overlay').classList.remove('hidden');$('playBtn').textContent=buttons||'▶  LANJUTKAN';}
+function hideOverlay(){$('overlay').classList.add('hidden')}
+function start(){if(gameOver)init();hideOverlay();running=true;paused=false;started=true;$('status').textContent='GAME BERJALAN';if(balls.every(b=>b.stuck))launch();last=performance.now();cancelAnimationFrame(raf);raf=requestAnimationFrame(loop)}
+function launch(){balls.forEach(b=>{if(b.stuck){b.stuck=false;b.vx=(Math.random()-.5)*3.8;b.vy=-4.4-Math.min(level*.15,2)}})}
+function pause(){if(!started||gameOver)return;if(paused){paused=false;hideOverlay();running=true;last=performance.now();raf=requestAnimationFrame(loop);$('status').textContent='GAME BERJALAN'}else{paused=true;running=false;cancelAnimationFrame(raf);showOverlay('GAME<br>DIJEDA','Tarik napas sebentar. Siap lanjut menghancurkan balok?','▶  LANJUTKAN');$('status').textContent='DIJEDA'}}
+function addParticles(x,y,color,n=8){for(let i=0;i<n;i++){let a=Math.random()*Math.PI*2,s=1+Math.random()*3;particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:25+Math.random()*20,color,size:1+Math.random()*2})}}
+function spawnDrop(x,y){if(Math.random()>.19)return;let types=['wide','multi','laser'];drops.push({x,y,vy:1.8,type:types[Math.floor(Math.random()*types.length)],r:9})}
+function activate(type){if(type==='wide'){paddle.w=105;wideTimer=600}else if(type==='multi'){let b=balls[0]||newBall();balls.push({x:b.x,y:b.y,r:6,vx:-3.2,vy:-4,stuck:false,trail:[]},{x:b.x,y:b.y,r:6,vx:3.2,vy:-4,stuck:false,trail:[]})}else{score+=100;addParticles(paddle.x+paddle.w/2,paddle.y,'#ff3df2',22)}$('status').textContent=type==='wide'?'POWER-UP: PADDLE LEBAR':type==='multi'?'POWER-UP: MULTI-BALL':'BONUS +100'}
+function loseLife(){lives--;updateHUD();addParticles(paddle.x+paddle.w/2,paddle.y,'#ff3d87',20);if(lives<=0){endGame(false)}else{resetBall();$('status').textContent='BOLA HILANG — LEMPAR LAGI'}}
+function endGame(win){running=false;gameOver=true;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem('richBrickBest',best)}updateHUD();$('status').textContent=win?'LEVEL SELESAI':'GAME OVER';showOverlay(win?'LEVEL<br>SELESAI!':'GAME<br>OVER',`Skor: ${score} • Level: ${level}. ${score>=best?'Rekor terbaik tersimpan!':'Coba lagi dan kalahkan rekor terbaikmu.'}`,'↻  MAIN LAGI')}
+function nextLevel(){level++;if(level>10){endGame(true);return}makeBricks();paddle.x=(W-paddle.w)/2;resetBall();updateHUD();$('status').textContent='LEVEL '+level+' — LEMPAR BOLA';}
+function circleRect(b,r){let x=Math.max(r.x,Math.min(b.x,r.x+r.w)),y=Math.max(r.y,Math.min(b.y,r.y+r.h));return (b.x-x)**2+(b.y-y)**2<b.r*b.r}
+function loop(t){if(!running)return;const dt=Math.min((t-last)/16.67,2);last=t;update(dt);draw();raf=requestAnimationFrame(loop)}
+function update(dt){
+ if(keys.left)paddle.x-=paddle.speed*dt;if(keys.right)paddle.x+=paddle.speed*dt;paddle.x=Math.max(0,Math.min(W-paddle.w,paddle.x));
+ if(wideTimer>0){wideTimer-=dt;if(wideTimer<=0)paddle.w=70}
+ balls.forEach((b,bi)=>{
+  if(b.stuck){b.x=paddle.x+paddle.w/2;b.y=paddle.y-9;return}
+  b.trail.unshift({x:b.x,y:b.y});if(b.trail.length>8)b.trail.pop();
+  b.x+=b.vx*dt;b.y+=b.vy*dt;
+  if(b.x-b.r<0){b.x=b.r;b.vx=Math.abs(b.vx)}if(b.x+b.r>W){b.x=W-b.r;b.vx=-Math.abs(b.vx)}
+  if(b.y-b.r<0){b.y=b.r;b.vy=Math.abs(b.vy)}
+  if(b.vy>0&&b.y+b.r>=paddle.y&&b.y-b.r<=paddle.y+paddle.h&&b.x>=paddle.x&&b.x<=paddle.x+paddle.w){
+   b.y=paddle.y-b.r;b.vy=-Math.abs(b.vy);let hit=(b.x-(paddle.x+paddle.w/2))/(paddle.w/2);b.vx=hit*5.2;addParticles(b.x,paddle.y,'#39eaff',4)
+  }
+  for(let i=bricks.length-1;i>=0;i--){let br=bricks[i];if(circleRect(b,br)){br.hp--;b.vy*=-1;addParticles(b.x,b.y,br.color,br.hp?4:10);if(br.hp<=0){bricks.splice(i,1);score+=10*level;spawnDrop(br.x+br.w/2,br.y+br.h/2)}else br.color='#ffffff';updateHUD();break}}
+ });
+ balls=balls.filter(b=>b.y-b.r<=H+8);
+ if(balls.length===0)loseLife();
+ for(let i=drops.length-1;i>=0;i--){let d=drops[i];d.y+=d.vy*dt;if(d.y>paddle.y&&d.x>=paddle.x&&d.x<=paddle.x+paddle.w){activate(d.type);drops.splice(i,1)}else if(d.y>H)drops.splice(i,1)}
+ particles=particles.filter(p=>p.life>0);particles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.98;p.vy*=.98;p.life-=dt});
+ if(bricks.length===0)nextLevel();
+}
+function glow(color,blur){ctx.shadowColor=color;ctx.shadowBlur=blur}
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ // grid and stars
+ ctx.save();ctx.strokeStyle='#315a8b24';ctx.lineWidth=1;for(let x=0;x<W;x+=24){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=0;y<H;y+=24){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}ctx.restore();
+ for(let i=0;i<28;i++){let x=(i*83+17)%W,y=(i*137+31)%H;ctx.fillStyle=i%3?'#7ecfff66':'#ff8dff77';ctx.fillRect(x,y,1.5,1.5)}
+ bricks.forEach(br=>{ctx.save();glow(br.color,10);let grad=ctx.createLinearGradient(br.x,br.y,br.x,br.y+br.h);grad.addColorStop(0,'#ffffff');grad.addColorStop(.18,br.color);grad.addColorStop(1,br.color+'99');ctx.fillStyle=grad;roundRect(br.x,br.y,br.w,br.h,4);ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle='#ffffff88';ctx.lineWidth=1;roundRect(br.x+.7,br.y+.7,br.w-1.4,br.h-1.4,3);ctx.stroke();if(br.hp>1){ctx.fillStyle='#fff';ctx.font='bold 10px Arial';ctx.textAlign='center';ctx.fillText('2',br.x+br.w/2,br.y+11)}ctx.restore()});
+ drops.forEach(d=>{let c=d.type==='wide'?'#35e7ff':d.type==='multi'?'#ff3df2':'#ffd76a';ctx.save();glow(c,15);ctx.fillStyle=c;ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,Math.PI*2);ctx.fill();ctx.fillStyle='#061127';ctx.font='bold 11px Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(d.type==='wide'?'↔':d.type==='multi'?'×':'⚡',d.x,d.y);ctx.restore()});
+ // paddle
+ ctx.save();glow('#28ddff',18);let pg=ctx.createLinearGradient(paddle.x,paddle.y,paddle.x+paddle.w,paddle.y);pg.addColorStop(0,'#ff3df2');pg.addColorStop(.5,'#f5ffff');pg.addColorStop(1,'#2ceaff');ctx.fillStyle=pg;roundRect(paddle.x,paddle.y,paddle.w,paddle.h,6);ctx.fill();ctx.restore();
+ balls.forEach(b=>{b.trail.forEach((p,i)=>{ctx.globalAlpha=(1-i/b.trail.length)*.45;ctx.fillStyle='#31dfff';ctx.beginPath();ctx.arc(p.x,p.y,b.r*(1-i/b.trail.length),0,Math.PI*2);ctx.fill()});ctx.globalAlpha=1;ctx.save();glow('#63f7ff',18);let g=ctx.createRadialGradient(b.x-2,b.y-2,1,b.x,b.y,b.r+2);g.addColorStop(0,'#fff');g.addColorStop(.4,'#8ffaff');g.addColorStop(1,'#328bff');ctx.fillStyle=g;ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();ctx.restore()});
+ particles.forEach(p=>{ctx.globalAlpha=Math.max(0,p.life/40);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,p.size,p.size)});ctx.globalAlpha=1;
+ if(!started||paused||gameOver){ctx.save();ctx.fillStyle='#b8d9ff';ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillText('RICH GAME • BREAK THE LIMIT',W/2,H-18);ctx.restore()}
+}
+function roundRect(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r)}
+function moveTo(clientX){const rect=canvas.getBoundingClientRect();paddle.x=(clientX-rect.left)/rect.width*W-paddle.w/2;paddle.x=Math.max(0,Math.min(W-paddle.w,paddle.x))}
+canvas.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'||e.buttons)moveTo(e.clientX)});
+canvas.addEventListener('pointerdown',e=>{moveTo(e.clientX);if(!started&&!gameOver)start();else if(balls.some(b=>b.stuck))launch()});
+$('playBtn').addEventListener('click',()=>{if(gameOver)init();start()});
+$('pauseBtn').addEventListener('click',pause);
+$('restartBtn').addEventListener('click',()=>{cancelAnimationFrame(raf);init();gameOver=false;started=false;running=false;showOverlay('BRICK<br>BREAKER','Mulai lagi dari awal dan pecahkan rekor skor kamu!','▶  MULAI MAIN');$('status').textContent='SIAP BERMAIN'});
+$('launchBtn').addEventListener('click',()=>{if(!started||gameOver)start();else launch()});
+$('boardBtn').addEventListener('click',()=>{showOverlay('🏆 SKOR<br>TERBAIK',`Skor terbaik di perangkat ini: ${best}. Skor disimpan secara lokal di browser.`,'KEMBALI MAIN');$('playBtn').onclick=()=>{ $('playBtn').onclick=null;if(started&&!gameOver){hideOverlay();if(paused)pause()}else start() }});
+function bindHold(id,key){const el=$(id);const down=e=>{e.preventDefault();keys[key]=true},up=e=>{keys[key]=false};el.addEventListener('pointerdown',down);el.addEventListener('pointerup',up);el.addEventListener('pointerleave',up);el.addEventListener('pointercancel',up)}
+bindHold('leftBtn','left');bindHold('rightBtn','right');
+window.addEventListener('keydown',e=>{if(['ArrowLeft','a','A'].includes(e.key)){keys.left=true;e.preventDefault()}if(['ArrowRight','d','D'].includes(e.key)){keys.right=true;e.preventDefault()}if(e.code==='Space'){e.preventDefault();if(!started||gameOver)start();else if(balls.some(b=>b.stuck))launch();else pause()}});
+window.addEventListener('keyup',e=>{if(['ArrowLeft','a','A'].includes(e.key))keys.left=false;if(['ArrowRight','d','D'].includes(e.key))keys.right=false});
+init();
+})();
+</script>
+</body>
+</html>
