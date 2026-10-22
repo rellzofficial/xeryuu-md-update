@@ -11,7 +11,9 @@ const MAX_PENDING_EVENTS = 30
 
 function renderChannelMonitorCard(channelName, noticeText) {
     try {
-        const { createCanvas } = require('@napi-rs/canvas')
+        const canvasApi = require('@napi-rs/canvas')
+        const { createCanvas } = canvasApi
+        const canvasText = require('./canvas-text').createCanvasText(canvasApi)
         const width = 1200
         const height = 675
         const canvas = createCanvas(width, height)
@@ -53,16 +55,16 @@ function renderChannelMonitorCard(channelName, noticeText) {
         ctx.textAlign = 'left'
         ctx.textBaseline = 'alphabetic'
         ctx.fillStyle = '#91f5df'
-        ctx.font = '700 28px Arial, sans-serif'
-        ctx.fillText('XERYUU-MD  /  SYSTEM NOTICE', 124, 122)
+        ctx.font = `700 28px ${canvasText.family}`
+        canvasText.fillText(ctx, 'XERYUU-MD  /  SYSTEM NOTICE', 124, 122)
         ctx.fillStyle = '#ffffff'
-        ctx.font = '900 56px Arial, sans-serif'
-        ctx.fillText('MONITOR SALURAN', 124, 178)
+        ctx.font = `900 56px ${canvasText.family}`
+        canvasText.fillText(ctx, 'MONITOR SALURAN', 124, 178)
 
         ctx.fillStyle = '#d5e5f4'
-        ctx.font = '600 32px Arial, sans-serif'
+        ctx.font = `600 32px ${canvasText.family}`
         const title = String(channelName || 'Saluran developer').trim().slice(0, 58)
-        ctx.fillText(title, 90, 262, width - 180)
+        canvasText.fillText(ctx, title, 90, 262, width - 180)
 
         const details = String(noticeText || '')
             .split('\n')
@@ -72,18 +74,18 @@ function renderChannelMonitorCard(channelName, noticeText) {
             .slice(0, 5)
         let y = 330
         ctx.fillStyle = '#edf5fc'
-        ctx.font = '500 27px Arial, sans-serif'
+        ctx.font = `500 27px ${canvasText.family}`
         for (const detail of details) {
             let remaining = detail
             const maxWidth = width - 190
             while (remaining && y < 525) {
                 let line = remaining
-                while (ctx.measureText(line).width > maxWidth && line.length > 1) line = line.slice(0, -1)
+                while (canvasText.measureText(ctx, line) > maxWidth && line.length > 1) line = line.slice(0, -1)
                 if (line.length < remaining.length) {
                     const lastSpace = line.lastIndexOf(' ')
                     if (lastSpace > Math.floor(line.length * 0.55)) line = line.slice(0, lastSpace)
                 }
-                ctx.fillText(line, 94, y, maxWidth)
+                canvasText.fillText(ctx, line, 94, y, maxWidth)
                 remaining = remaining.slice(line.length).trim()
                 y += 39
             }
@@ -97,12 +99,12 @@ function renderChannelMonitorCard(channelName, noticeText) {
         ctx.lineTo(width - 92, 566)
         ctx.stroke()
         ctx.fillStyle = '#91f5df'
-        ctx.font = '700 22px Arial, sans-serif'
-        ctx.fillText('PEMANTAUAN OTOMATIS', 94, 610)
+        ctx.font = `700 22px ${canvasText.family}`
+        canvasText.fillText(ctx, 'PEMANTAUAN OTOMATIS', 94, 610)
         ctx.fillStyle = '#aebfd0'
         ctx.textAlign = 'right'
-        ctx.font = '500 22px Arial, sans-serif'
-        ctx.fillText(dateTimeJakarta(), width - 94, 610)
+        ctx.font = `500 22px ${canvasText.family}`
+        canvasText.fillText(ctx, dateTimeJakarta(), width - 94, 610)
         return canvas.toBuffer('image/png')
     } catch (error) {
         console.warn('[CHANNEL MONITOR] Kartu visual gagal dibuat; memakai notifikasi teks:', error?.message || error)
