@@ -16,8 +16,6 @@ const purchasePayment = require('./library/purchase-payment.js')
 const storeService = require('./library/store.js')
 const providerWallets = require('./library/provider-wallets.js')
 const { migrateLegacyCwdDatabaseFile } = require('./library/global-database.js')
-const developerGithubUpdater = require('./library/github-update-developer.js')
-const githubUpdateUser = require('./library/github-update-user.js')
 migrateLegacyCwdDatabaseFile('telegram.json')
 migrateLegacyCwdDatabaseFile('topup-transactions.json')
 
@@ -4995,7 +4993,6 @@ function start(connection) {
     if (bot) return bot
 
     bot = new Telegraf(token)
-    developerGithubUpdater.attachTelegramBot(bot)
     convertPulsaService.setNotifier(async (transaction, previousStatus) => {
         const message = `🔄 UPDATE CONVERT PULSA\n\nReferensi: ${transaction.ref}\nOperator: ${transaction.operatorName || '-'}\nNominal pulsa: Rp${convertPulsaService.formatMoney(transaction.amount)}\nStatus sebelumnya: ${convertPulsaStatusLabel(previousStatus)}\nStatus terbaru: ${convertPulsaStatusLabel(transaction.status)}\n\nCek detail melalui ${transaction.channel === 'telegram' ? '/cpstatus ' : '.' + 'cpstatus '}${transaction.ref}.`
         if (transaction.channel === 'telegram' && bot) {
@@ -5082,18 +5079,6 @@ function start(connection) {
             edit: Boolean(sameChat && existing?.messageId),
             forceImage: true
         })
-    })
-
-    bot.command('update', async ctx => {
-        try {
-            await githubUpdateUser.update({
-                projectRoot: __dirname,
-                reply: message => ctx.reply(message, { disable_web_page_preview: true })
-            })
-        } catch (error) {
-            console.error('[TELEGRAM GITHUB UPDATE]', error?.stack || error)
-            await commandOutput(ctx, `❌ Update gagal.\n${error?.message || 'Kesalahan tidak diketahui.'}`)
-        }
     })
 
     bot.command('richdemo', ctx => showRichShowcase(ctx))
