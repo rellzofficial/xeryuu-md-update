@@ -392,9 +392,14 @@ async function resolveViaXeryuuLbServer(url) {
 async function resolveViaXeryuuSaveNow(url) {
   let localApiKey = ''
   try {
-    const localAuth = require('../authen.js') || {}
-    localApiKey = String(localAuth.apiKeys?.saveNowApiKey || '').trim()
+    localApiKey = String(global.xeryuuApiKeys?.saveNowApiKey || '').trim()
   } catch {}
+  if (!localApiKey) {
+    try {
+      const localAuth = require('../authen.js') || {}
+      localApiKey = String(localAuth.apiKeys?.saveNowApiKey || '').trim()
+    } catch {}
+  }
   const apiKey = String(process.env.SAVENOW_API_KEY || localApiKey).trim()
   if (!apiKey) throw new Error('SaveNow API belum dikonfigurasi (SAVENOW_API_KEY).')
   const headers = { 'User-Agent': USER_AGENT, Accept: 'application/json, text/plain, */*' }
