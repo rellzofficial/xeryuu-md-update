@@ -924,7 +924,8 @@ async function handleCustomerInput(jid, input) {
             const result = await jadibotService.pair({
                 ownerJid: customer,
                 phoneNumber: phone,
-                orderRef: order.ref
+                orderRef: order.ref,
+                durationDays: order.durationDays
             })
             const pairingCode = String(result?.code || '').trim()
             if (!['CONNECTED', 'CONNECTING', 'PAIRING'].includes(String(result?.status || '').toUpperCase())) {
@@ -937,7 +938,8 @@ async function handleCustomerInput(jid, input) {
                 ownerJid: customer,
                 phoneNumber: phone,
                 status: result.status,
-                pairingRequestedAt: Date.now()
+                pairingRequestedAt: Date.now(),
+                durationDays: Math.max(1, Math.floor(Number(order.durationDays || 30)))
             }
             order.status = 'DONE'
             order.fulfilledAt = Date.now()
