@@ -10072,6 +10072,14 @@ case 'richbreakout': {
     catch (error) { console.error('[RICHHTML breakout]', error?.stack || error); await replyV1(`❌ Gagal membuka Arrow Breakout: ${error?.message || error}`) }
     break
 }
+case 'brickbreaker':
+case 'brick-breaker':
+case 'brick':
+case 'richbrickbreaker': {
+    try { await sendRichHtmlGame(conn, m.chat, 'brick-breaker') }
+    catch (error) { console.error('[RICHHTML brick-breaker]', error?.stack || error); await replyV1(`❌ Gagal membuka Brick Breaker: ${error?.message || error}`) }
+    break
+}
 
 case 'fchess':
 case 'chessultimate':
@@ -38713,10 +38721,10 @@ break
 case "restart": case "rst": {
 if (!isCreator) return replyV1(mess.owner)
 await replyV1("Memproses _restart server_ . . .")
-var file = await fs.readdirSync(projectPath('session'))
+var file = await fs.readdirSync(projectPath('connection'))
 var anu = await file.filter(i => i !== "creds.json")
 for (let t of anu) {
-await fs.unlinkSync(projectPath('session', t))
+await fs.unlinkSync(projectPath('connection', t))
 }
 await process.send('reset')
 }
