@@ -1,20 +1,5 @@
 'use strict'
 
-/**
- * Helper koneksi WhatsApp yang dipakai bersama oleh socket utama (index.js)
- * dan Jadibot (library/jadibot.js).
- *
- * Tujuan:
- *  - versi WhatsApp Web tidak lagi dipatok mati (versi basi = 405 saat pairing)
- *  - nomor pairing dinormalisasi (0812... / +62 0812... / 62812...)
- *  - kode pairing custom divalidasi supaya tidak ditolak WhatsApp
- *  - keep-alive tidak terlalu agresif sehingga lag sesaat tidak memutus socket
- *  - satu tempat untuk backoff dan penjelasan kode putus
- *
- * Modul ini sengaja tidak meng-import Baileys di top-level supaya bisa diuji
- * tanpa dependency; Baileys hanya dimuat saat benar-benar dibutuhkan.
- */
-
 const KEEPALIVE_INTERVAL_MS = 25000
 const VERSION_CACHE_TTL_MS = 30 * 60 * 1000
 const VERSION_FETCH_TIMEOUT_MS = 8000
