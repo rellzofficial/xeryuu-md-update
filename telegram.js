@@ -3155,6 +3155,53 @@ async function safeQrBuffer(label, producer) {
     }
 }
 
+// QRIS, rincian invoice, dan tombol aksi disatukan menjadi satu pesan Telegram.
+// Jika foto QR gagal dikirim, fallback tetap satu pesan teks dengan keyboard yang sama.
+async function sendTelegramPaymentCard(ctx, { image = null, caption = '', fallbackCaption = '', keyboard = null, screen = 'payment', label = 'PAYMENT' } = {}) {
+    const chatId = ctx?.callbackQuery?.message?.chat?.id ?? ctx?.chat?.id
+    if (chatId == null) throw new Error('Chat Telegram tidak tersedia untuk mengirim invoice.')
+
+    const photoOptions = {
+        parse_mode: 'HTML',
+        ...(keyboard || {})
+    }
+    const textOptions = {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        ...(keyboard || {})
+    }
+    let sent = null
+    if (image) {
+        try {
+            const photoCaption = String(caption || '')
+            if (photoCaption.length > 1024) throw new Error('Caption invoice melebihi batas Telegram 1024 karakter.')
+            sent = await ctx.telegram.sendPhoto(chatId, { source: image }, {
+                caption: photoCaption,
+                ...photoOptions
+            })
+        } catch (error) {
+            console.error(`[TELEGRAM ${label} PHOTO + BUTTONS]`, error?.description || error?.message || error)
+        }
+    }
+
+    if (!sent) {
+        const text = String(fallbackCaption || caption || '')
+        sent = await ctx.telegram.sendMessage(chatId, text, textOptions)
+    }
+
+    if (privateChat(ctx) && ctx.from?.id && sent?.message_id != null) {
+        const messageType = Array.isArray(sent.photo) && sent.photo.length ? 'photo' : 'text'
+        setUi(ctx.from.id, {
+            chatId: sent.chat?.id ?? chatId,
+            messageId: sent.message_id,
+            messageType,
+            screen
+        })
+        markTelegramRender(ctx.from.id, telegramRenderKey(messageType, messageType === 'photo' ? caption : (fallbackCaption || caption), keyboard))
+    }
+    return sent
+}
+
 async function handleStoreOrder(ctx, index, { edit = true } = {}) {
     if (!privateChat(ctx)) return commandOutput(ctx, '🔒 Checkout Store hanya bisa dibuat di chat pribadi untuk menjaga data pembayaran dan mencegah order ganda.')
     const jid = storeJid(ctx)
@@ -3186,74 +3233,76 @@ async function handleStoreOrder(ctx, index, { edit = true } = {}) {
             }
         }
 
-        let qrMessage = null
+        let paymentCard = null
         if (image) {
-            let paymentCard = null
             try {
                 paymentCard = await makeTelegramStoreCard('qris', {
-                    order, amount: paymentAmount,
+                    order,
+                    amount: paymentAmount,
                     paymentName: `${payment.paymentName || order.paymentMethod || 'QRIS'} via ${payment.providerName || order.paymentProvider || 'NasionalPay'}`,
                     qrBuffer: image
                 })
             } catch (imageError) {
                 console.error('[TELEGRAM STORE QRIS CARD]', imageError?.message || imageError)
             }
-            try {
-                qrMessage = await ctx.replyWithPhoto({ source: paymentCard || image }, {
-                    caption: `💳 QRIS ORDER STORE\nOrder: ${escapeHtml(order.ref)}\nNominal: Rp${escapeHtml(storeService.formatMoney(paymentAmount))}\nMasa berlaku: ${escapeHtml(expiryText)}\n\nGunakan tombol Rich Message di pesan berikut untuk cek status atau membatalkan order.`,
-                    parse_mode: 'HTML'
-                })
-            } catch (imageError) {
-                console.error('[TELEGRAM STORE QRIS PHOTO SEND]', imageError?.message || imageError)
-                qrMessage = null
-            }
         }
 
         const checkoutUrl = String(payment.checkoutUrl || order.checkoutUrl || '').trim()
-        const lines = [
-            `Order: ${order.ref}`,
-            `Produk: ${order.productName}`,
-            `Nominal bayar: Rp${storeService.formatMoney(paymentAmount)}`,
-            `Metode: ${payment.paymentName || order.paymentMethod || 'QRIS'} via ${payment.providerName || order.paymentProvider || 'NasionalPay'}`,
-            `Status: ${String(order.paymentStatus || order.status || 'UNPAID').toUpperCase()}`,
-            `Batas waktu: ${expiryText}`,
+        const paymentState = String(order.paymentStatus || order.status || 'UNPAID').toUpperCase()
+        const method = `${payment.paymentName || order.paymentMethod || 'QRIS'} via ${payment.providerName || order.paymentProvider || 'NasionalPay'}`.slice(0, 120)
+        const safeProductName = String(order.productName || 'Order Store').slice(0, 100)
+        const photoNote = 'Scan QRIS pada gambar ini dan bayar sesuai nominal yang tertera. Gunakan tombol di bawah untuk cek status atau membatalkan order.'
+        const fallbackNote = checkoutUrl && /^https?:\/\//i.test(checkoutUrl)
+            ? 'QRIS tidak dapat ditampilkan sebagai gambar. Gunakan tombol link pembayaran resmi di bawah.'
+            : 'PERINGATAN: QRIS tidak berhasil ditampilkan dan tidak ada link pembayaran resmi. Jangan transfer; cek status atau batalkan invoice.'
+        const photoCaption = [
+            '<b>🧾 ORDER STORE BERHASIL DIBUAT</b>',
             '',
-            qrMessage ? 'QRIS terkirim pada pesan gambar sebelumnya. Bayar hanya sesuai nominal yang tertera.' : checkoutUrl ? 'Gambar QRIS tidak dapat ditampilkan. Gunakan tombol link pembayaran resmi di bawah.' : 'PERINGATAN: QRIS tidak berhasil ditampilkan dan tidak ada link pembayaran resmi. Jangan transfer; cek status atau batalkan invoice.'
+            `Order: <code>${escapeHtml(order.ref)}</code>`,
+            `Produk: <b>${escapeHtml(safeProductName)}</b>`,
+            `Nominal bayar: <b>Rp${escapeHtml(storeService.formatMoney(paymentAmount))}</b>`,
+            `Metode: ${escapeHtml(method)}`,
+            `Status: <b>${escapeHtml(paymentState)}</b>`,
+            `Batas waktu: ${escapeHtml(expiryText)}`,
+            '',
+            photoNote
+        ].join('\n')
+        const fallbackCaption = [
+            '<b>🧾 ORDER STORE BERHASIL DIBUAT</b>',
+            '',
+            `Order: <code>${escapeHtml(order.ref)}</code>`,
+            `Produk: <b>${escapeHtml(safeProductName)}</b>`,
+            `Nominal bayar: <b>Rp${escapeHtml(storeService.formatMoney(paymentAmount))}</b>`,
+            `Metode: ${escapeHtml(method)}`,
+            `Status: <b>${escapeHtml(paymentState)}</b>`,
+            `Batas waktu: ${escapeHtml(expiryText)}`,
+            '',
+            fallbackNote
+        ].join('\n')
+        const rows = [
+            [Markup.button.callback('🔄 CEK STATUS PEMBAYARAN', `tg_store_status:${order.ref}`), Markup.button.callback('❌ BATALKAN ORDER', `tg_store_cancel:${order.ref}`)],
+            ...(checkoutUrl && /^https?:\/\//i.test(checkoutUrl) ? [[Markup.button.url('🔗 BUKA PEMBAYARAN RESMI', checkoutUrl)]] : []),
+            [Markup.button.callback('📦 TOKO', 'tg_home_store'), Markup.button.callback('🏠 MENU UTAMA', 'tg_home')]
         ]
-        const richBlocks = [
-            { type: 'heading', text: '🧾 ORDER STORE BERHASIL DIBUAT', size: 2 },
-            { type: 'paragraph', text: lines.join('\n') },
-            { type: 'divider' },
-            richButtonBlock([
-                makeRichButton('🔄 CEK STATUS PEMBAYARAN', `tg_store_status:${order.ref}`, 'success'),
-                makeRichButton('❌ BATALKAN ORDER', `tg_store_cancel:${order.ref}`, 'danger')
-            ])
-        ]
-        if (checkoutUrl && /^https?:\/\//i.test(checkoutUrl)) richBlocks.push(richButtonBlock([makeRichUrlButton('🔗 BUKA PEMBAYARAN RESMI', checkoutUrl)]))
-        richBlocks.push(richButtonBlock([makeRichButton('📦 TOKO', 'tg_home_store'), makeRichButton('🏠 MENU UTAMA', 'tg_home')]))
-        richBlocks.push({ type: 'footer', text: 'Xeryuu-MD V16 × Sendrich • Pembayaran Store' })
-
-        let controlMessage = null
-        try {
-            controlMessage = await sendOrEditRichMessage(ctx, { blocks: richBlocks }, { edit: false })
-        } catch (richError) {
-            console.warn('[TELEGRAM STORE PAYMENT RICH FALLBACK]', richError?.description || richError?.message || richError)
-            const rows = [
-                [Markup.button.callback('🔄 CEK STATUS', `tg_store_status:${order.ref}`), Markup.button.callback('❌ BATALKAN', `tg_store_cancel:${order.ref}`)],
-                ...(checkoutUrl && /^https?:\/\//i.test(checkoutUrl) ? [[Markup.button.url('🔗 BUKA PEMBAYARAN', checkoutUrl)]] : []),
-                [Markup.button.callback('📦 TOKO', 'tg_home_store'), Markup.button.callback('🏠 MENU', 'tg_home')]
-            ]
-            controlMessage = await ctx.reply(`<b>🧾 ORDER STORE BERHASIL DIBUAT</b>\n\n${lines.map(escapeHtml).join('\n')}`, { parse_mode: 'HTML', ...Markup.inlineKeyboard(rows), disable_web_page_preview: true })
-        }
-        if (paymentRef) await persistTelegramPaymentMessages(paymentRef, [qrMessage, controlMessage])
-        setUi(ctx.from.id, {
-            chatId: controlMessage?.chat?.id || ctx.chat.id,
-            messageId: controlMessage?.message_id,
-            messageType: 'rich', screen: 'store_payment',
-            storeRef: order.ref, storeOrder: order, storePaymentRef: paymentRef,
-            storeQrMessageId: qrMessage?.message_id || null
+        const paymentMessage = await sendTelegramPaymentCard(ctx, {
+            image: paymentCard || image,
+            caption: photoCaption,
+            fallbackCaption,
+            keyboard: Markup.inlineKeyboard(rows),
+            screen: 'store_payment',
+            label: 'STORE QRIS'
         })
-        return controlMessage
+
+        if (paymentRef) await persistTelegramPaymentMessages(paymentRef, [paymentMessage])
+        setUi(ctx.from.id, {
+            chatId: paymentMessage?.chat?.id || ctx.chat?.id,
+            messageId: paymentMessage?.message_id,
+            messageType: Array.isArray(paymentMessage?.photo) && paymentMessage.photo.length ? 'photo' : 'text',
+            screen: 'store_payment',
+            storeRef: order.ref, storeOrder: order, storePaymentRef: paymentRef,
+            storeQrMessageId: paymentMessage?.message_id || null
+        })
+        return paymentMessage
     } catch (error) {
         console.error('[TELEGRAM STORE CREATE ORDER]', error?.stack || error)
         return sendConvertPulsaRich(ctx, {
@@ -3328,6 +3377,13 @@ async function handleStoreStatus(ctx, ref) {
             messageType: 'rich', screen: 'store_status', storeRef: currentOrder.ref,
             storeOrder: currentOrder, storePaymentRef: currentOrder.paymentRef || null
         })
+        if (currentOrder.paymentRef) {
+            const statusMessage = {
+                chat: { id: sent?.chat?.id ?? ctx.callbackQuery?.message?.chat?.id ?? ctx.chat?.id },
+                message_id: sent?.message_id ?? ctx.callbackQuery?.message?.message_id ?? getUi(ctx.from.id)?.messageId
+            }
+            await persistTelegramPaymentMessages(currentOrder.paymentRef, [statusMessage])
+        }
         return sent
     } catch (error) {
         console.error('[TELEGRAM STORE STATUS]', error?.stack || error)
@@ -3617,62 +3673,48 @@ async function handleDeposit(ctx, amount) {
             }
         }
 
-        let qrMessage = null
-        if (image) {
-            try {
-                qrMessage = await ctx.replyWithPhoto({ source: image }, {
-                    caption: `💳 QRIS DEPOSIT\nInvoice: ${escapeHtml(tx.merchantRef)}\nNominal: Rp${escapeHtml(depositService.formatMoney(tx.amount))}${totalPay && totalPay !== Number(tx.amount) ? `\nTotal bayar: Rp${escapeHtml(depositService.formatMoney(totalPay))}` : ''}\nBatas waktu: ${escapeHtml(expiryText)}`,
-                    parse_mode: 'HTML'
-                })
-            } catch (sendError) {
-                console.error('[TELEGRAM DEPOSIT QR PHOTO SEND]', sendError?.stack || sendError)
-                qrMessage = null
-            }
-        }
         const checkoutUrl = String(tx.checkoutUrl || '').trim()
         const txStatus = String(tx.status || '').toUpperCase()
         const canCancelDeposit = !tx.credited && !['PAID', 'SUCCESS', 'SETTLED', 'EXPIRED', 'FAILED', 'REFUNDED', 'CANCELED', 'CANCELLED'].includes(txStatus)
-        const lines = [
-            `Invoice: ${tx.merchantRef}`,
-            `Nominal saldo: Rp${depositService.formatMoney(tx.amount)}`,
-            ...(totalPay && totalPay !== Number(tx.amount) ? [`Total bayar: Rp${depositService.formatMoney(totalPay)}`] : []),
-            `Gateway: ${tx.providerName || 'NasionalPay QRIS'}`,
-            `Status: ${tx.status}`,
-            `Batas waktu: ${expiryText}`,
+        const photoNote = 'Scan QRIS pada gambar ini dan bayar sesuai nominal tepat. Gunakan tombol di bawah untuk cek status atau membatalkan deposit.'
+        const fallbackNote = checkoutUrl && /^https?:\/\//i.test(checkoutUrl)
+            ? 'Gambar QRIS gagal ditampilkan. Gunakan hanya tombol link pembayaran resmi di bawah.'
+            : 'PERINGATAN: QRIS gagal ditampilkan dan link pembayaran tidak tersedia. Jangan transfer; batalkan invoice atau hubungi owner.'
+        const commonLines = [
+            '<b>💳 QRIS DEPOSIT SALDO</b>',
             '',
-            qrMessage ? 'QRIS dikirim pada pesan gambar sebelumnya. Bayar sesuai nominal tepat.' : checkoutUrl ? 'Gambar QRIS gagal ditampilkan. Gunakan hanya tombol link pembayaran resmi di bawah.' : 'PERINGATAN: QRIS gagal ditampilkan dan link pembayaran tidak tersedia. Jangan transfer; batalkan invoice atau hubungi owner.'
+            `Invoice: <code>${escapeHtml(tx.merchantRef)}</code>`,
+            `Nominal saldo: <b>Rp${escapeHtml(depositService.formatMoney(tx.amount))}</b>`,
+            ...(totalPay && totalPay !== Number(tx.amount) ? [`Total bayar: <b>Rp${escapeHtml(depositService.formatMoney(totalPay))}</b>`] : []),
+            `Gateway: ${escapeHtml(String(tx.providerName || 'NasionalPay QRIS').slice(0, 100))}`,
+            `Status: <b>${escapeHtml(tx.status)}</b>`,
+            `Batas waktu: ${escapeHtml(expiryText)}`
         ]
-        const blocks = [
-            { type: 'heading', text: '💳 QRIS DEPOSIT SALDO', size: 2 },
-            { type: 'paragraph', text: lines.join('\n') },
-            { type: 'divider' },
-            richButtonBlock([makeRichButton('🔄 CEK STATUS', `tg_deposit_status:${tx.merchantRef}`, 'success'), ...(canCancelDeposit ? [makeRichButton('❌ BATALKAN DEPOSIT', `tg_deposit_cancel:${tx.merchantRef}`, 'danger')] : [])])
+        const photoCaption = [...commonLines, '', photoNote].join('\n')
+        const fallbackCaption = [...commonLines, '', fallbackNote].join('\n')
+        const keyboardRows = [
+            [Markup.button.callback('🔄 CEK STATUS', `tg_deposit_status:${tx.merchantRef}`), ...(canCancelDeposit ? [Markup.button.callback('❌ BATALKAN DEPOSIT', `tg_deposit_cancel:${tx.merchantRef}`)] : [])],
+            ...(checkoutUrl && /^https?:\/\//i.test(checkoutUrl) ? [[Markup.button.url('🔗 BUKA INVOICE RESMI', checkoutUrl)]] : []),
+            [Markup.button.callback('💳 DEPOSIT LAGI', 'tg_home_deposit'), Markup.button.callback('🏠 MENU UTAMA', 'tg_home')]
         ]
-        if (checkoutUrl && /^https?:\/\//i.test(checkoutUrl)) blocks.push(richButtonBlock([makeRichUrlButton('🔗 BUKA INVOICE RESMI', checkoutUrl)]))
-        blocks.push(richButtonBlock([makeRichButton('💳 DEPOSIT LAGI', 'tg_home_deposit'), makeRichButton('🏠 MENU UTAMA', 'tg_home')]))
-        blocks.push({ type: 'footer', text: 'Xeryuu-MD V16 × Sendrich • Deposit QRIS' })
-
-        let controlMessage = null
-        try {
-            controlMessage = await sendOrEditRichMessage(ctx, { blocks }, { edit: false })
-        } catch (richError) {
-            console.warn('[TELEGRAM DEPOSIT RICH FALLBACK]', richError?.description || richError?.message || richError)
-            const keyboardRows = [
-                [Markup.button.callback('🔄 CEK STATUS', `tg_deposit_status:${tx.merchantRef}`), ...(canCancelDeposit ? [Markup.button.callback('❌ BATALKAN DEPOSIT', `tg_deposit_cancel:${tx.merchantRef}`)] : [])],
-                ...(checkoutUrl && /^https?:\/\//i.test(checkoutUrl) ? [[Markup.button.url('🔗 BUKA INVOICE', checkoutUrl)]] : []),
-                [Markup.button.callback('💳 Deposit Lagi', 'tg_home_deposit'), Markup.button.callback('🏠 Menu', 'tg_home')]
-            ]
-            controlMessage = await ctx.telegram.sendMessage(ctx.chat.id, `<b>💳 QRIS DEPOSIT SALDO</b>\n\n${lines.map(escapeHtml).join('\n')}`, { parse_mode: 'HTML', ...Markup.inlineKeyboard(keyboardRows), disable_web_page_preview: true })
-        }
-        await persistTelegramPaymentMessages(tx.merchantRef, [qrMessage, controlMessage])
-        setUi(ctx.from.id, {
-            chatId: controlMessage?.chat?.id || ctx.chat.id,
-            messageId: controlMessage?.message_id,
-            messageType: 'rich', screen: 'deposit',
-            depositProvider: 'nasionalpay', depositRef: tx.merchantRef,
-            depositPhotoMessageId: qrMessage?.message_id || null
+        const paymentMessage = await sendTelegramPaymentCard(ctx, {
+            image,
+            caption: photoCaption,
+            fallbackCaption,
+            keyboard: Markup.inlineKeyboard(keyboardRows),
+            screen: 'deposit',
+            label: 'DEPOSIT QRIS'
         })
-        return controlMessage
+        await persistTelegramPaymentMessages(tx.merchantRef, [paymentMessage])
+        setUi(ctx.from.id, {
+            chatId: paymentMessage?.chat?.id || ctx.chat?.id,
+            messageId: paymentMessage?.message_id,
+            messageType: Array.isArray(paymentMessage?.photo) && paymentMessage.photo.length ? 'photo' : 'text',
+            screen: 'deposit',
+            depositProvider: 'nasionalpay', depositRef: tx.merchantRef,
+            depositPhotoMessageId: Array.isArray(paymentMessage?.photo) && paymentMessage.photo.length ? paymentMessage.message_id : null
+        })
+        return paymentMessage
     } catch (error) {
         console.error('[TELEGRAM DEPOSIT CREATE]', error?.stack || error)
         const pending = error?.pendingRef ? depositService.get(error.pendingRef) : null
@@ -5335,7 +5377,7 @@ function start(connection) {
             const current = await depositService.check(ref)
             const normalized = String(current.status || '').toUpperCase()
             const cancellable = !current.credited && !['PAID', 'SUCCESS', 'SETTLED', 'EXPIRED', 'FAILED', 'REFUNDED', 'CANCELED'].includes(normalized)
-            return sendConvertPulsaRich(ctx, {
+            const statusMessage = await sendConvertPulsaRich(ctx, {
                 title: '💳 STATUS DEPOSIT SALDO',
                 lines: [
                     `Invoice: ${current.merchantRef}`,
@@ -5352,6 +5394,12 @@ function start(connection) {
                 ],
                 screen: 'deposit_status', edit: Boolean(ctx.callbackQuery)
             })
+            const trackedStatusMessage = {
+                chat: { id: statusMessage?.chat?.id ?? ctx.callbackQuery?.message?.chat?.id ?? ctx.chat?.id },
+                message_id: statusMessage?.message_id ?? ctx.callbackQuery?.message?.message_id ?? getUi(ctx.from?.id)?.messageId
+            }
+            await persistTelegramPaymentMessages(current.merchantRef, [trackedStatusMessage])
+            return statusMessage
         } catch (e) {
             return editTracked(ctx, `❌ Gagal cek deposit: ${escapeHtml(e?.message || e)}`, backHomeKeyboard())
         }
