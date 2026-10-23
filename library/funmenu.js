@@ -236,7 +236,7 @@ function makePantun() {
 function magicShell(question) {
   const input = String(question || '').trim();
   if (!input) return '🐚 KERANG AJAIB\n\nAjukan pertanyaan dulu, ya!\nContoh: .kerangajaib apakah aku bakal sukses?';
-  return `🐚 KERANG AJAIB\n\n❔ Pertanyaan:\n${input}\n\n🔮 Jawaban kerang:\n${pickRandom(SHELL_ANSWERS)}\n\n_Keputusan tetap ada di tanganmu. Ini hanya hiburan._`;
+  return `🐚 KERANG AJAIB\n\n❔ Pertanyaan:\n${input}\n\n🔮 Jawaban kerang:\n${pickRandom(SHELL_ANSWERS)}`;
 }
 
 function truth() { return `🟢 TRUTH\n\n${pickRandom(TRUTHS)}`; }
@@ -251,10 +251,10 @@ function pickOption(input) {
 function randomTrait() { return pickRandom(TRAITS); }
 function randomHobby() { return pickRandom(HOBBIES); }
 function traitReport(name) {
-  return `🎭 CEK SIFAT\n\n👤 Nama: ${cleanName(name, 'Kamu')}\n✨ Sifat random: ${randomTrait()}\n\n_Hanya untuk hiburan, ya!_`;
+  return `🎭 CEK SIFAT\n\n👤 Nama: ${cleanName(name, 'Kamu')}\n✨ Sifat random: ${randomTrait()}`;
 }
 function hobbyReport(name) {
-  return `🎨 CEK HOBI\n\n👤 Nama: ${cleanName(name, 'Kamu')}\n🎯 Hobi random: ${randomHobby()}\n\n_Hanya untuk hiburan, ya!_`;
+  return `🎨 CEK HOBI\n\n👤 Nama: ${cleanName(name, 'Kamu')}\n🎯 Hobi random: ${randomHobby()}`;
 }
 function luck(name) {
   const score = Math.floor(Math.random() * 100) + 1;
@@ -264,7 +264,7 @@ function luck(name) {
 
 function coinFlip() {
   const result = Math.random() < 0.5 ? 'ANGKA' : 'GAMBAR';
-  return `🪙 LEMPAR KOIN\n\nHasil: ${result}\n\n_Ini hasil acak untuk hiburan._`;
+  return `🪙 LEMPAR KOIN\n\nHasil: ${result};`
 }
 
 function eightBall(question) {
