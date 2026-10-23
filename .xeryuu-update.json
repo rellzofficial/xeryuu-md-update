@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261023062747",
-  "updatedAt": "2026-10-23T06:27:47.773Z",
+  "version": "v20261023080057",
+  "updatedAt": "2026-10-23T08:00:57.903Z",
   "branch": "main",
-  "previousVersion": "v20261022141747",
-  "previousCommitSha": "4f3d9dfe3cc917284aeaeaa6a8b1d312fa07ee48",
+  "previousVersion": "v20261023062747",
+  "previousCommitSha": "1258c216e56db3a505880e5159bc7bb04a6ee400",
   "files": [
     {
       "path": "library/afk.js",
@@ -153,8 +153,8 @@
     },
     {
       "path": "library/funmenu.js",
-      "sha256": "37c73b717afdbc76e6fb8f078dcc6913d21c4b8f987c9ca8c6be0fac4d750aa9",
-      "size": 15890
+      "sha256": "dd17ff108ac4a2b60bc2aa214ed2ddff59045e27f1cc6a08e68d3e926cddfd03",
+      "size": 15738
     },
     {
       "path": "library/games.js",
@@ -463,8 +463,8 @@
     },
     {
       "path": "library/xeryuu-extension.js",
-      "sha256": "e2a0648c67c2fe1d6e3389d6c2e3677ca6e597dbb3c6dcc091c94c31b97ab7f5",
-      "size": 60696
+      "sha256": "7d3d62c45f58d5db153b04a05048485abce011c400c9b996f3141889dea1cbff",
+      "size": 60505
     },
     {
       "path": "library/xeryuu-extras.js",
@@ -598,8 +598,8 @@
     },
     {
       "path": "package.json",
-      "sha256": "dbf50b666efde4d8e84118508294394300a9aa4e3164bbdcc89933d3d1ece6eb",
-      "size": 2012
+      "sha256": "37cc41f87061f4632e99e5e405164dd1e7a1988fe76bba03483f5e79c1f74744",
+      "size": 2024
     },
     {
       "path": "source/database.js",
@@ -633,8 +633,8 @@
     },
     {
       "path": "xeryuu.js",
-      "sha256": "726c18455cc72f63e8f818f9ca4687b5f81e766a501a910431deb8e5a8dff9e1",
-      "size": 1499980
+      "sha256": "11bffa7afa44f7ee15551a6550ca0a281f163db3cd3e8d4cddda23f78283d87a",
+      "size": 1502509
     }
   ]
 }
