@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261023080057",
-  "updatedAt": "2026-10-23T08:00:57.903Z",
+  "version": "v20261023112440",
+  "updatedAt": "2026-10-23T11:24:40.476Z",
   "branch": "main",
-  "previousVersion": "v20261023062747",
-  "previousCommitSha": "1258c216e56db3a505880e5159bc7bb04a6ee400",
+  "previousVersion": "v20261023080057",
+  "previousCommitSha": "9274e55c827ef0d7ec92be61b72670f1ed66fe72",
   "files": [
     {
       "path": "library/afk.js",
@@ -75,6 +75,126 @@
       "path": "library/converter.js",
       "sha256": "d7ae964f7341534b410e978d899a28891efaa9ce4b50fae69a6b797224e9de76",
       "size": 2136
+    },
+    {
+      "path": "library/data/furina-randompics/aesthetic.json",
+      "sha256": "2f29cabe90d21693b973b1c910f4eb1e353122ba916aba33270da973f6932679",
+      "size": 16897
+    },
+    {
+      "path": "library/data/furina-randompics/antiwork.json",
+      "sha256": "e0517ed1ca9e213d79012cc30a5d7e975d45c4fef5b3b6331ba183125930e3d6",
+      "size": 738
+    },
+    {
+      "path": "library/data/furina-randompics/bike.json",
+      "sha256": "26e094c440e1183bb0657686e76e2288e007ecf4349c13b3dbb29faca20c7c43",
+      "size": 8744
+    },
+    {
+      "path": "library/data/furina-randompics/blackpink.json",
+      "sha256": "ec0e6460052ad409009c1645772d57c9b79e9e50c9a77f934d4a2353ee91f548",
+      "size": 2525
+    },
+    {
+      "path": "library/data/furina-randompics/boneka.json",
+      "sha256": "fdf0b17cc475da0b5cd0b55881b03cfac4216653f03912e6dd5ce8e7cae2bfd9",
+      "size": 8794
+    },
+    {
+      "path": "library/data/furina-randompics/car.json",
+      "sha256": "5d2badfb12c5134617723d58451e19e8f921b01f1787920cfdcc26414577a6c0",
+      "size": 8705
+    },
+    {
+      "path": "library/data/furina-randompics/cat.json",
+      "sha256": "6457ea986d7264f41d9e0f4000218f460b59f66a5a4d55f0ac22c9435a68fb3f",
+      "size": 8456
+    },
+    {
+      "path": "library/data/furina-randompics/cosplay.json",
+      "sha256": "9b95a31d4b03c2fae8567d5ac13cf0d7439984b142b41465550aa0072e4c96a1",
+      "size": 8520
+    },
+    {
+      "path": "library/data/furina-randompics/doggo.json",
+      "sha256": "a87bb31c5c6ac8ef37cc08ea1834024e0e7128d4eb8e43df5b542ee512b149b6",
+      "size": 8609
+    },
+    {
+      "path": "library/data/furina-randompics/justina.json",
+      "sha256": "d1052342381d32b345cf6a137df12dc3a56aa1cdb826e6a9df6b42ed1cd4673e",
+      "size": 8553
+    },
+    {
+      "path": "library/data/furina-randompics/kayes.json",
+      "sha256": "699fee5d993278db844ae47bb6d587a1ab207ba3c003712f861928be5ba8e427",
+      "size": 8407
+    },
+    {
+      "path": "library/data/furina-randompics/kpop.json",
+      "sha256": "823cd8f78fb500425fa0d2c0402f871ea2b4a04eaa909075c93017054398b5db",
+      "size": 4526
+    },
+    {
+      "path": "library/data/furina-randompics/notnot.json",
+      "sha256": "8ac26c7cacdd9d73b693635f2536f36240e8d9b0c4a3aa3b201efb8ead81931c",
+      "size": 8453
+    },
+    {
+      "path": "library/data/furina-randompics/ppcouple.json",
+      "sha256": "02b1944d9c322c3ac2fe3d04e49a47793ec89b05d5f2dfe191f50e32a1f1b9c6",
+      "size": 8193
+    },
+    {
+      "path": "library/data/furina-randompics/profile.json",
+      "sha256": "3d3cd8a2dcee879947ad44e512262373e3522d8376fbae8d657375561f9b0d02",
+      "size": 8432
+    },
+    {
+      "path": "library/data/furina-randompics/pubg.json",
+      "sha256": "7ef94beb0dad04a5ff24baefd12457de35800bd5dd35ff3ab251bc6fc87bf5fd",
+      "size": 8367
+    },
+    {
+      "path": "library/data/furina-randompics/rose.json",
+      "sha256": "cd01c156dfd845c77fda54b0dbf5850e4248165c12ad2d057b3c6120e6eee272",
+      "size": 8541
+    },
+    {
+      "path": "library/data/furina-randompics/ryujin.json",
+      "sha256": "bf16c281a5715f40bca107ccc920d982382a2e8535b32e52f68b7a615ab18306",
+      "size": 8504
+    },
+    {
+      "path": "library/data/furina-randompics/ulzzangboy.json",
+      "sha256": "be85dee786ecdf952d750086816fcaa0b7ef74f3cc0f4a620ef8ffdc0d338b42",
+      "size": 8443
+    },
+    {
+      "path": "library/data/furina-randompics/ulzzanggirl.json",
+      "sha256": "ea814e7736d0c80beb8158334d1acd2b22b6ce61ab3bf50f007638a1933af785",
+      "size": 8454
+    },
+    {
+      "path": "library/data/furina-randompics/wallhp.json",
+      "sha256": "2131f7dd25a8041f1f0b01350fc3a462de7dcf8c560d8757b7c76ebd84457e01",
+      "size": 8427
+    },
+    {
+      "path": "library/data/furina-randompics/wallml.json",
+      "sha256": "ed28ea4e63971211541b8b8b0f54382e2b02b4ab2763b3ecdca81eb05f821f29",
+      "size": 17072
+    },
+    {
+      "path": "library/data/furina-tiktokpics/random.json",
+      "sha256": "a9f83883f7f5017ca9de3a40c7a8c2556aa5e00a870e6f7922c4baa4295fd219",
+      "size": 7583
+    },
+    {
+      "path": "library/data/furina-tiktokpics/random2.json",
+      "sha256": "be85dee786ecdf952d750086816fcaa0b7ef74f3cc0f4a620ef8ffdc0d338b42",
+      "size": 8443
     },
     {
       "path": "library/database/games/legacy/asahotak.json",
@@ -472,9 +592,14 @@
       "size": 15111
     },
     {
+      "path": "library/xeryuu-v18-addons.js",
+      "sha256": "aabb39a47d39ecd0b49041c9e69dbf9851956060c8fec084d605b99772144ac0",
+      "size": 39213
+    },
+    {
       "path": "library/XeryuuV17.js",
-      "sha256": "fc3fa54d5e0e7938470cce024bbe879a048e1a29dd9418f119ba3374aea6d958",
-      "size": 22218
+      "sha256": "d0280fe3002b083f36fd01d14ada7723dca13f7ed2193e9e1e97c7b08cd9cd66",
+      "size": 24860
     },
     {
       "path": "media/buy.mp3",
@@ -633,8 +758,8 @@
     },
     {
       "path": "xeryuu.js",
-      "sha256": "11bffa7afa44f7ee15551a6550ca0a281f163db3cd3e8d4cddda23f78283d87a",
-      "size": 1502509
+      "sha256": "d3078dcfc1c0312e8adbabd8687fcb8336000ed2a127a525e816ea6c510f39d4",
+      "size": 1509225
     }
   ]
 }
