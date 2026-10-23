@@ -421,7 +421,7 @@ async function buyWithBalance(value, jid, expectedType = '') {
             const debit = economy.applyMoneyTransaction(current.jid, -amountOf(current), `purchase-debit:${current.token}`, `Pembelian ${current.type}`)
             if (debit.insufficient) {
                 saveIntent({ ...current, status: 'AWAITING_METHOD', paymentMethod: '' })
-                throw new Error(`Saldo tidak cukup. Harga Rp${amountOf(current).toLocaleString('id-ID')}, saldo kamu Rp${Number(debit.balance || 0).toLocaleString('id-ID')}. Pilih QRIS atau deposit saldo terlebih dahulu.`)
+                throw new Error(`Saldo tidak cukup. Harga Rp${amountOf(current).toLocaleString('id-ID')}, saldo kamu Rp${Number(debit.balance || 0).toLocaleString('id-ID')}. Lakukan deposit saldo bot melalui menu Deposit terlebih dahulu, lalu ulangi pembayaran dengan saldo bot.`)
             }
             current = saveIntent({ ...current, balanceDebitedAt: Date.now(), status: 'BALANCE_PROCESSING', paymentMethod: 'BALANCE' })
         }
