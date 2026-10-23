@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261023112440",
-  "updatedAt": "2026-10-23T11:24:40.476Z",
+  "version": "v20261023145946",
+  "updatedAt": "2026-10-23T14:59:46.290Z",
   "branch": "main",
-  "previousVersion": "v20261023080057",
-  "previousCommitSha": "9274e55c827ef0d7ec92be61b72670f1ed66fe72",
+  "previousVersion": "v20261023112440",
+  "previousCommitSha": "6e20c3fcd72b0aedfe8a4f0dba6d1e402c3371b2",
   "files": [
     {
       "path": "library/afk.js",
@@ -363,8 +363,8 @@
     },
     {
       "path": "library/purchase-payment.js",
-      "sha256": "8adaeb371966012547e7779269c80ff19194931bda2853da8ee17320caa8360a",
-      "size": 49646
+      "sha256": "4795b4d420ea3d3a436e4677c7ed90cc01abd53936b7ba8f29914a70c8c43abc",
+      "size": 49704
     },
     {
       "path": "library/richapi.js",
@@ -522,9 +522,14 @@
       "size": 26410
     },
     {
+      "path": "library/topup-input.js",
+      "sha256": "06f6e46eca7419bacac4c5381ec5afd60024f4092b446fe974af9bd9d0b78d06",
+      "size": 9196
+    },
+    {
       "path": "library/topup.js",
-      "sha256": "a79b9520810f6b9e651f6ddbd5f2582608b9c5a0ba737113ba26b51bf036ebce",
-      "size": 18352
+      "sha256": "4ddf41e3d712bc68b4e313486c2f621c75b7ac2f401d06230acaaec91d12c15b",
+      "size": 19619
     },
     {
       "path": "library/tourl.js",
@@ -748,8 +753,8 @@
     },
     {
       "path": "telegram.js",
-      "sha256": "1868e971c373990b292e1d7e7b1f3ef242a20cba20bf53192b0c9842fbf081f9",
-      "size": 321123
+      "sha256": "e643891dd0d73408122c01d0d357b1197082002f473cb726cb4fa82350327e22",
+      "size": 339315
     },
     {
       "path": "TqTo.md",
