@@ -9528,10 +9528,6 @@ const cacheHd2MediaAndShowButtons = async (quotedMedia, mime) => {
     }
 };
 
-if (DISABLED_CRASH_FLOOD_COMMANDS.has(String(command || '').toLowerCase())) {
-    return replyV1('🛡️ Command crash/spam dinonaktifkan demi mencegah gangguan pada akun atau grup lain.');
-}
-
 // Game answers are checked before command routing; all extension replies go through replyV1.
 try {
     const handledXeryuuAnswer = await xeryuuExtension.processAnswer({
@@ -14696,9 +14692,9 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
 \`🚀 乂 𝐬 𝐩 𝐞 𝐜 𝐢 𝐚 𝐥 乂\`
  ⪩ .polisi
  ⪩ .roket
- ⪩ .wikwik (dinonaktifkan)
- ⪩ .ewe-paksa (dinonaktifkan)
- ⪩ .open-bo (dinonaktifkan)
+ ⪩ .wikwik
+ ⪩ .ewe-paksa 
+ ⪩ .open-bo
  ⪩ .joinrpg
  ⪩ .exitrpg
  ⪩ .atmall
@@ -15980,9 +15976,9 @@ text: `
 \`🚀 乂 𝐬 𝐩 𝐞 𝐜 𝐢 𝐚 𝐥 乂\`
  ⪩ .polisi
  ⪩ .roket
- ⪩ .wikwik (dinonaktifkan)
- ⪩ .ewe-paksa (dinonaktifkan)
- ⪩ .open-bo (dinonaktifkan)
+ ⪩ .wikwik 
+ ⪩ .ewe-paksa
+ ⪩ .open-bo
  ⪩ .joinrpg
  ⪩ .exitrpg
  ⪩ .atmall
@@ -17722,9 +17718,9 @@ footer: `
  ⪩ .ngojek
  ⪩ .polisi
  ⪩ .roket
- ⪩ .wikwik (dinonaktifkan)
- ⪩ .ewe-paksa (dinonaktifkan)
- ⪩ .open-bo (dinonaktifkan)
+ ⪩ .wikwik
+ ⪩ .ewe-paksa
+ ⪩ .open-bo
  ⪩ .selectskill
  ⪩ .cekskill
  ⪩ .makan
@@ -19742,7 +19738,63 @@ case 'joinrpg': {
     break
 
     case 'wikwik': {
-      return replyV1('🛡️ Command wikwik dinonaktifkan. Gunakan .duel untuk pertarungan RPG yang aman.')
+
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
+      if (global.db.erpg[m.sender].stamina <= 15) return replyV1(`Kamu tidak bisa ewe anak orang, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nPulihkan stamina menggunakan potion,\nContoh : .heal`)
+      if (!q) return replyV1(`Contoh: ${cmd} conn`)
+      const argsLower = args.map(arg => arg.toLowerCase());
+      const petarung1 = argsLower[0];
+      const petarung2 = argsLower[1];
+      const totalRounds = 8;
+      let ronde = 1;
+      let nyawaPetarung1 = 200;
+      let nyawaPetarung2 = 200;
+
+      let result = `🫶 Wikwik antara ${db.users[m.sender].nama} dan ${args[0]} dimulai!\n\n`;
+
+      while (ronde <= totalRounds && nyawaPetarung1 > 0 && nyawaPetarung2 > 0) {
+        const pukulan = [
+          'ajul gedang', 'gaya marmot', 'gaya roket', 'gaya kucing', 'gaya katak'
+        ];
+
+        const pilihanPetarung1 = pukulan[Math.floor(Math.random() * pukulan.length)];
+        const pilihanPetarung2 = pukulan[Math.floor(Math.random() * pukulan.length)];
+
+        const damagePetarung1 = Math.floor(Math.random() * 50) + 1;
+        const damagePetarung2 = Math.floor(Math.random() * 50) + 1;
+
+        result += `💦 Ronde ${ronde}\n`;
+        result += `${db.users[m.sender].nama} stamina: ${nyawaPetarung1}\n`;
+        result += `${args[0]} stamina: ${nyawaPetarung2}\n`;
+        result += `${db.users[m.sender].nama}: ${pilihanPetarung1}\n`;
+        result += `${args[0]}: ${pilihanPetarung2}\n\n`;
+
+        if (pilihanPetarung1 === pilihanPetarung2) {
+          result += `⚔️ Wikwik sedang berlangsung melakukan gaya yang sama! blom ada yang keluar sama sekali.\n`;
+        } else {
+          result += `💦 ${db.users[m.sender].nama} melakukan ${pilihanPetarung1} dan ${args[0]} melakukan ${pilihanPetarung2}!\n`;
+          nyawaPetarung1 -= pilihanPetarung2 === 'jab' ? damagePetarung1 : damagePetarung1 + 10;
+          nyawaPetarung2 -= pilihanPetarung1 === 'jab' ? damagePetarung2 : damagePetarung2 + 10;
+          result += `💔 ${db.users[m.sender].nama} menerima jilmek ${nyawaPetarung1 >= 0 ? damagePetarung1 : 0}!\n`;
+          result += `💔 ${args[0]} menerima spong ${nyawaPetarung2 >= 0 ? damagePetarung2 : 0}!\n\n--------------------------------------------------\n`;
+        }
+
+        ronde++;
+      }
+
+      result += `\n⏱️ Wikwik akhirnya berakhir!\n`;
+      result += `${db.users[m.sender].nama} stamina akhir: ${nyawaPetarung1}\n`;
+      result += `${args[0]} stamina akhir: ${nyawaPetarung2}\n`;
+
+      if (nyawaPetarung1 > nyawaPetarung2) {
+        result += `👙 ${db.users[m.sender].nama} memenangkan pertandingan dengan keluar cairan yang lebih banyak!\n`;
+      } else if (nyawaPetarung2 > nyawaPetarung1) {
+        result += `🩲 ${args[0]} memenangkan pertandingan dengan keluar cairan yang lebih banyak!\n`;
+      } else {
+        result += `👙💦 Pertandingan berakhir imbang! Kedua yang wikwik memiliki stamina yang sama.\n`;
+      }
+      global.db.erpg[m.sender].stamina -= 50
+      await conn.sendTextWithMentions(m.chat, result, m)
     }
     break
 
@@ -23504,7 +23556,6 @@ ${command} kuli`
     case 'ewepaksa':
     case 'ewe-paksa': {
 
-if (setting.rpgsetStats) return replyV1('Fitur rpg dimatikan oleh owner')
       if (!m.isGroup) return replyV1(mess.group)
       if (!global.db.erpg[m.sender].rpg) return replyV1(`\`\`\`Join RPG Terlebih Dahulu\n\n Ketik .joinrpg terlebih dahulu\`\`\``)
       if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
@@ -23537,7 +23588,6 @@ if (setting.rpgsetStats) return replyV1('Fitur rpg dimatikan oleh owner')
     case 'open-bo':
     case 'openbo': {
 
-if (setting.rpgsetStats) return replyV1('Fitur rpg dimatikan oleh owner')
       if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
       if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
       let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastopenbo)
@@ -23570,7 +23620,7 @@ Stamina berkurang ${stamina}%`)
       global.db.erpg[m.sender].lastopenbo = new Date * 1
     }
     break
-
+    
     case 'ngaji':
     case 'mengaji': {
 
