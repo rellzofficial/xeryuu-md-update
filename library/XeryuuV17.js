@@ -4,7 +4,6 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const axios = require('axios');
-const FormData = require('form-data');
 const { UploadFileUgu } = require('./uploader.js');
 
 const FREE_FIRE_TEMPLATES = {
@@ -224,58 +223,165 @@ async function handleGroupMediaAutomation(conn, m, isBotAdmins, isCommand) {
   return false;
 }
 
+function roundedRectPath(ctx, x, y, width, height, radius) {
+  const r = Math.max(0, Math.min(Number(radius) || 0, width / 2, height / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + width - r, y);
+  ctx.arcTo(x + width, y, x + width, y + r, r);
+  ctx.lineTo(x + width, y + height - r);
+  ctx.arcTo(x + width, y + height, x + width - r, y + height, r);
+  ctx.lineTo(x + r, y + height);
+  ctx.arcTo(x, y + height, x, y + height - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
 async function createFakeStory(imageBuffer, username, caption) {
-  if (!Buffer.isBuffer(imageBuffer) || !imageBuffer.length) throw new Error('Gambar tidak ditemukan.');
-  const form = new FormData();
-  form.append('reqtype', 'fileupload');
-  form.append('fileToUpload', imageBuffer, { filename: 'xeryuu-fakestory.jpg', contentType: 'image/jpeg' });
-  const upload = await axios.post('https://catbox.moe/user/api.php', form, {
-    headers: form.getHeaders(), timeout: 45000, maxContentLength: 2 * 1024 * 1024
-  });
-  const avatarUrl = String(upload?.data || '').trim();
-  if (!/^https?:\/\/catbox\.moe\//i.test(avatarUrl) && !/^https?:\/\/files\.catbox\.moe\//i.test(avatarUrl)) {
-    throw new Error('Upload gambar gagal atau URL yang diterima tidak valid.');
+  if (!Buffer.isBuffer(imageBuffer) || !imageBuffer.length) {
+    throw new Error('Gambar tidak ditemukan atau kosong.');
   }
-  const apiUrl = 'https://api.elrayyxml.web.id/api/maker/fakestory?' + new URLSearchParams({
-    username: String(username || 'Anonymous').slice(0, 32),
-    caption: String(caption || '-').slice(0, 300),
-    avatar: avatarUrl
-  }).toString();
-  const response = await axios.get(apiUrl, {
-    responseType: 'arraybuffer', timeout: 60000, maxContentLength: 12 * 1024 * 1024
-  });
-  const contentType = String(response?.headers?.['content-type'] || '').toLowerCase();
-  const output = Buffer.from(response.data || []);
-  if (!output.length || (contentType && !contentType.startsWith('image/'))) {
-    throw new Error('API FakeStory tidak mengembalikan gambar.');
+  const maxInputBytes = 15 * 1024 * 1024;
+  if (imageBuffer.length > maxInputBytes) {
+    throw new Error('Ukuran foto terlalu besar. Maksimal 15 MB untuk FakeStory.');
   }
-  // Watermark ditempel ke gambar agar label simulasi tetap terlihat jika file diteruskan tanpa caption.
+
   const { createCanvas, loadImage } = getCanvas();
-  const source = await loadImage(output);
-  if (!source.width || !source.height) throw new Error('Hasil FakeStory tidak dapat dibaca sebagai gambar.');
-  const scale = Math.min(1, 1800 / source.width, 1800 / source.height);
-  const canvas = createCanvas(Math.max(1, Math.round(source.width * scale)), Math.max(1, Math.round(source.height * scale)));
+  let source;
+  try {
+    source = await loadImage(imageBuffer);
+  } catch {
+    throw new Error('File tidak dapat dibaca sebagai gambar. Kirim foto JPG, PNG, atau WebP yang valid.');
+  }
+  if (!source?.width || !source?.height || source.width > 12000 || source.height > 12000) {
+    throw new Error('Resolusi gambar tidak valid atau terlalu besar.');
+  }
+
+  // Render seluruh mockup secara lokal. Tidak ada upload ke Catbox/API pembuat
+  // story pihak ketiga, sehingga HTTP 412 dari penyedia eksternal tidak terjadi.
+  const width = 1080;
+  const height = 1920;
+  const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+  const cleanUsername = String(username || 'Anonymous').replace(/[\r\n\u0000-\u001f]/g, ' ').trim().slice(0, 32) || 'Anonymous';
+  const cleanCaption = String(caption || '-').replace(/[\r\n\u0000-\u001f]/g, ' ').trim().slice(0, 220) || '-';
+
+  const background = ctx.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, '#182336');
+  background.addColorStop(0.52, '#10131d');
+  background.addColorStop(1, '#24202d');
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, width, height);
+
+  // Story progress indicators.
+  const outer = 42;
+  const gap = 8;
+  const segmentCount = 5;
+  const segmentWidth = (width - outer * 2 - gap * (segmentCount - 1)) / segmentCount;
+  for (let i = 0; i < segmentCount; i++) {
+    const x = outer + i * (segmentWidth + gap);
+    ctx.fillStyle = i === 0 ? '#ffffff' : 'rgba(255,255,255,0.38)';
+    roundedRectPath(ctx, x, 42, segmentWidth, 5, 2.5);
+    ctx.fill();
+  }
+
+  // Profile header.
+  ctx.beginPath();
+  ctx.arc(76, 112, 29, 0, Math.PI * 2);
+  ctx.fillStyle = '#e1a9ff';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(76, 112, 23, 0, Math.PI * 2);
+  ctx.fillStyle = '#6e4a8f';
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.font = '700 27px Arial';
+  ctx.fillText(cleanUsername, 120, 108, 665);
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.font = '20px Arial';
+  ctx.fillText('simulasi · 1 mnt', 120, 137);
+  ctx.font = '42px Arial';
+  ctx.fillText('⋯', 972, 122);
+  ctx.fillText('×', 1022, 122);
+
+  // Image card.
+  const imageX = 48;
+  const imageY = 188;
+  const imageW = width - imageX * 2;
+  const imageH = 1240;
+  const radius = 25;
   ctx.save();
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(-Math.PI / 7);
-  ctx.globalAlpha = 0.34;
-  ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = 'rgba(15,23,42,0.75)';
-  ctx.lineWidth = Math.max(2, Math.round(canvas.width / 500));
+  roundedRectPath(ctx, imageX, imageY, imageW, imageH, radius);
+  ctx.clip();
+  ctx.fillStyle = '#252b38';
+  ctx.fillRect(imageX, imageY, imageW, imageH);
+  const scale = Math.max(imageW / source.width, imageH / source.height);
+  const cropW = imageW / scale;
+  const cropH = imageH / scale;
+  const cropX = Math.max(0, (source.width - cropW) / 2);
+  const cropY = Math.max(0, (source.height - cropH) / 2);
+  ctx.drawImage(source, cropX, cropY, cropW, cropH, imageX, imageY, imageW, imageH);
+
+  // Prominent repeated watermark, baked into the file itself.
+  ctx.save();
+  ctx.translate(width / 2, imageY + imageH / 2);
+  ctx.rotate(-Math.PI / 6);
   ctx.textAlign = 'center';
-  ctx.font = `900 ${Math.max(28, Math.round(canvas.width * 0.07))}px Arial`;
-  ctx.strokeText('SIMULASI • FAKE STORY', 0, 0);
-  ctx.fillText('SIMULASI • FAKE STORY', 0, 0);
+  ctx.font = '900 58px Arial';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(8,12,20,0.72)';
+  ctx.fillStyle = 'rgba(255,255,255,0.66)';
+  for (let y = -700; y <= 700; y += 255) {
+    ctx.strokeText('SIMULASI • FAKE STORY', 0, y);
+    ctx.fillText('SIMULASI • FAKE STORY', 0, y);
+  }
   ctx.restore();
-  const ribbonHeight = Math.max(42, Math.round(canvas.height * 0.07));
-  ctx.fillStyle = 'rgba(8,15,30,0.84)';
-  ctx.fillRect(0, canvas.height - ribbonHeight, canvas.width, ribbonHeight);
+  ctx.restore();
+
+  // Caption area under the image card.
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.font = '600 29px Arial';
+  const words = cleanCaption.split(/\s+/);
+  let line = '';
+  let lineY = 1480;
+  let lineCount = 0;
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (ctx.measureText(candidate).width > width - 105 && line) {
+      ctx.fillText(line, 54, lineY, width - 108);
+      line = word;
+      lineY += 42;
+      lineCount++;
+      if (lineCount >= 3) break;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line && lineCount < 4) ctx.fillText(line, 54, lineY, width - 108);
+
+  // Reply control and unambiguous mockup label.
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  ctx.lineWidth = 2;
+  roundedRectPath(ctx, 45, 1655, 780, 78, 39);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  ctx.font = '22px Arial';
+  ctx.fillText('Balas pesan...', 76, 1703);
+  ctx.font = '36px Arial';
+  ctx.fillText('♡  ➤', 855, 1708);
+  ctx.fillStyle = 'rgba(5,8,15,0.9)';
+  ctx.fillRect(0, 1780, width, 140);
   ctx.fillStyle = '#ffffff';
   ctx.textAlign = 'center';
-  ctx.font = `700 ${Math.max(18, Math.round(ribbonHeight * 0.37))}px Arial`;
-  ctx.fillText('MOCKUP • BUKAN UNGGAHAN ASLI', canvas.width / 2, canvas.height - Math.round(ribbonHeight * 0.35));
+  ctx.font = '900 31px Arial';
+  ctx.fillText('MOCKUP • BUKAN UNGGAHAN ASLI', width / 2, 1834);
+  ctx.font = '22px Arial';
+  ctx.fillStyle = 'rgba(255,255,255,0.84)';
+  ctx.fillText('Gambar simulasi yang dibuat secara lokal oleh Xeryuu-Md', width / 2, 1876);
+
   return canvas.toBuffer('image/png');
 }
 
