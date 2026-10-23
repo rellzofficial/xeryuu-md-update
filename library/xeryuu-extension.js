@@ -678,10 +678,6 @@ async function handle(command, ctx) {
     if (!ctx?.m || !ctx?.conn) return false
     activeConnection = ctx.conn
 
-    if (cmd === 'ewe-paksa' || cmd === 'ewepaksa') {
-        return send(ctx, '🛡️ Command ini dinonaktifkan. Gunakan duel untuk permainan kompetitif yang aman.').then(() => true)
-    }
-
     if (cmd === 'nyerah') {
         const current = activeSession(ctx)
         if (!current) return false
