@@ -186,6 +186,7 @@ const { FajarNews, BBCNews, metroNews, CNNNews, iNews, KumparanNews, TribunNews,
 const { targetChannelData, loadTargetChannel, saveTargetChannel } = require('./library/upch.js');
 const { UploadFileUgu } = require('./library/uploader.js')
 const xeryuuV18Features = require('./library/XeryuuV17.js')
+const xeryuuV18Addons = require('./library/xeryuu-v18-addons.js')
 const gameHub = require('./library/games.js')
 const xeryuuExtension = require('./library/xeryuu-extension.js')
 const tourlService = require('./library/tourl.js')
@@ -5202,8 +5203,18 @@ async function reactChannel(link, emojis) {
       reacts: emojis
     })
   })
-  const result = await res.text()
-  console.log(chalk.red(`Sukses Reatch ch`));
+  const resultText = await res.text().catch(() => '')
+  let parsed = null
+  try { parsed = resultText ? JSON.parse(resultText) : null } catch {}
+  if (!res.ok) {
+    const detail = String(parsed?.message || parsed?.error || resultText || `HTTP ${res.status}`).replace(/[\r\n]+/g, ' ').slice(0, 220)
+    throw new Error(`Provider menolak permintaan (HTTP ${res.status}): ${detail}`)
+  }
+  if (parsed && (parsed.success === false || parsed.ok === false || parsed.status === false)) {
+    throw new Error(String(parsed.message || parsed.error || 'Provider melaporkan reaksi gagal.').slice(0, 220))
+  }
+  console.log(chalk.green(`Permintaan react channel diterima (HTTP ${res.status})`))
+  return { status: res.status, data: parsed || resultText }
  }
        //fungsi w
 function calculateSeconds(jumlah, unit) {
@@ -9573,6 +9584,17 @@ try {
     return replyV1(`❌ Perintah RPG/Fun gagal diproses. Detail: ${String(error?.message || error).slice(0, 220)}`);
 }
 
+try {
+    const handledV18Addon = await xeryuuV18Addons.handle(command, {
+        conn, m, args, text, prefix, reply: replyV1, reactChannel,
+        saveGlobalDb: () => saveDB(global.db)
+    });
+    if (handledV18Addon) return;
+} catch (error) {
+    console.error('[XERYUU V18 ADDON ROUTER]', error?.stack || error);
+    return replyV1(`❌ Fitur tambahan gagal diproses: ${String(error?.message || error).slice(0, 240)}`);
+}
+
 switch (command) {
 case 'gachanomor': {
     // This command intentionally produces a clearly dummy/fictional example.
@@ -10273,9 +10295,10 @@ case 'memorygame':
 case 'speedtype':
 case 'mathbattle':
 case 'gamestats':
+case 'rank':
 case 'gamerank':
 case 'gamehelp': {
-    const normalizedGameCommand = command === 'cepat' ? 'cepattepat' : command === 'f100' ? 'family100' : command === 'tebakbenderav2' ? 'tebakbendera' : command
+    const normalizedGameCommand = command === 'rank' ? 'gamerank' : command === 'cepat' ? 'cepattepat' : command === 'f100' ? 'family100' : command === 'tebakbenderav2' ? 'tebakbendera' : command
     let handled
     const legacyNames = new Set(['asahotak','tebakkata','tebakemoji','siapaaku','cepattepat','susunkata','tebakgambar','tebakbendera','tebakkimia','family100'])
     const commonCtx = {
@@ -13855,6 +13878,48 @@ conn.sendMessage(m.chat, { text: teks }, { quoted: seto })
 
 }
 break
+case 'tomp4': {
+  const quoted = m.quoted
+  if (!quoted) return replyV1('Balas sticker WebP terlebih dahulu dengan .tomp4.')
+  const mime = String((quoted.msg || quoted).mimetype || (quoted.m || quoted).mimetype || '').toLowerCase()
+  if (!mime.includes('webp')) return replyV1('Perintah .tomp4 membutuhkan sticker WebP yang dibalas.')
+  const fs = require('fs')
+  const fsPromises = require('fs/promises')
+  const path = require('path')
+  const os = require('os')
+  const crypto = require('crypto')
+  const { execFile } = require('child_process')
+  const { promisify } = require('util')
+  const runFile = promisify(execFile)
+  const stem = `xeryuu-tomp4-${process.pid}-${crypto.randomBytes(8).toString('hex')}`
+  const inputPath = path.join(os.tmpdir(), `${stem}.webp`)
+  const outputPath = path.join(os.tmpdir(), `${stem}.mp4`)
+  try {
+    let media
+    if (typeof quoted.download === 'function') media = await quoted.download()
+    if (!Buffer.isBuffer(media) || !media.length) {
+      if (typeof conn.downloadMediaMessage === 'function') media = await conn.downloadMediaMessage(quoted)
+    }
+    if (!Buffer.isBuffer(media) || !media.length) return replyV1('Gagal mengunduh sticker dari pesan yang dibalas.')
+    if (media.length > 15 * 1024 * 1024) return replyV1('Ukuran sticker melebihi batas 15 MB.')
+    await fsPromises.writeFile(inputPath, media, { flag: 'wx', mode: 0o600 })
+    await runFile('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error', '-y', '-i', inputPath,
+      '-vf', 'scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=black@0,fps=15',
+      '-an', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-preset', 'fast', '-crf', '28', outputPath
+    ], { timeout: 45000, maxBuffer: 2 * 1024 * 1024 })
+    const output = await fsPromises.readFile(outputPath)
+    if (!output.length || output.length > 20 * 1024 * 1024) throw new Error('Output MP4 kosong atau melebihi 20 MB.')
+    await conn.sendMessage(m.chat, { video: output, mimetype: 'video/mp4', caption: '✅ Sticker dikonversi ke MP4.' }, { quoted: m })
+  } catch (error) {
+    console.error('[TOMP4]', error?.stack || error)
+    await replyV1(`❌ Gagal mengonversi sticker ke MP4: ${String(error?.message || error).slice(0, 180)}`)
+  } finally {
+    await fsPromises.unlink(inputPath).catch(() => {})
+    await fsPromises.unlink(outputPath).catch(() => {})
+  }
+}
+break
 case "toimg": {
 if (!m.quoted) return replyV1("Reply sticker")
 
@@ -14013,6 +14078,11 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .chatgpt *<pertanyaan>*
  ⪩ .xnalz *<pertanyaan>*
  ⪩ .google *<google search>*
+ ⪩ .anime *<judul anime>*
+ ⪩ .loker *<pekerjaan> <kota>*
+ ⪩ .ytsearch *<judul video>*
+ ⪩ .happymod *<nama aplikasi>*
+ ⪩ .weather *<kota>*
 
 \`🎵 乂 𝐭 𝐢 𝐤 𝐭 𝐨 𝐤 乂\`
  ⪩ .tiktokslide *<tiktok photo>*
@@ -14105,7 +14175,17 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .rvo 
  ⪩ .reactspam *<replymsg>*
  ⪩ .tofigure 
+ ⪩ .fakestory *<reply foto> nama|caption*
+ ⪩ .tomaid *<reply foto>*
+ ⪩ .hijabkan *<reply foto>*
+ ⪩ .botak *<reply foto>*
+ ⪩ .edit *<reply foto> <prompt>*
+ ⪩ .paustad *<teks>*
+ ⪩ .react *<emoji> (balas pesan)*
+ ⪩ .reactch *<URL channel/post> <emoji>*
  ⪩ .tovn *<to pesan suara>*
+ ⪩ .tomp3 *<reply video>*
+ ⪩ .tomp4 *<reply sticker WebP>*
  ⪩ .toptv *<to video pendek>*
  ⪩ .hd *<fotohd>*
  ⪩ .hd2 
@@ -14126,6 +14206,17 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .cekidch *<linkch>*
  ⪩ .readmore *<teks>*
  ⪩ .idtolink *<konversi>*
+ ⪩ .ssweb *<URL website>*
+ ⪩ .toqr *<teks/URL>*
+ ⪩ .qr *<teks/URL>*
+ ⪩ .tinyurl *<URL>*
+ ⪩ .fliptext *<teks>*
+ ⪩ .styletext *<teks>*
+ ⪩ .dbinary *<biner>*
+ ⪩ .ebinary *<teks>*
+ ⪩ .getbio *<balas/tag>*
+ ⪩ .ceknik *<16 digit; format saja>*
+ ⪩ .gitclone *<URL repository>*
 
 \`💰 乂 𝐫 𝐩 𝐠 & 𝐞 𝐜 𝐨 𝐧 𝐨 𝐦 𝐲 乂\`
  ⪩ .kerja 
@@ -14602,6 +14693,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
 
 \`🏆 乂 𝐬 𝐭 𝐚 𝐭 𝐢 𝐬 𝐭 𝐢 𝐤 乂\`
  ⪩ .gamestats *<statistikmu>*
+ ⪩ .rank *<ranking>*
  ⪩ .gamerank *<ranking>*
  ⪩ .gamehelp *<panduan>*
  
@@ -14883,6 +14975,7 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
 \`🌌 乂 𝐰 𝐚 𝐥 𝐥 𝐩 𝐚 𝐩 𝐞 𝐫 & 𝐬 𝐩 𝐞 𝐜 𝐢 𝐚 𝐥 乂\`
  ⪩ .summerbeach
  ⪩ .luxurygold
+ ⪩ .multicoloredneon
  ⪩ .multicoloyellowneon
  ⪩ .sandsummer
  ⪩ .galaxywallpaper
@@ -14955,6 +15048,37 @@ Bot WhatsApp ini dibuat oleh *XnalzNotDev* untuk membantu tools, manajemen grup,
  ⪩ .wangy
  ⪩ .rate
  ⪩ .top
+
+\`🖼️ 乂 𝐫 𝐚 𝐧 𝐝 𝐨 𝐦 - 𝐩 𝐡 𝐨 𝐭 𝐨 乂\`
+ ⪩ .aesthetic
+ ⪩ .antiwork
+ ⪩ .bike
+ ⪩ .blackpink
+ ⪩ .boneka
+ ⪩ .couplepic
+ ⪩ .profilepic
+ ⪩ .pubg
+ ⪩ .randomboy
+ ⪩ .randomgirl
+ ⪩ .rose
+ ⪩ .ryujin
+ ⪩ .ulzzangboy
+ ⪩ .ulzzanggirl
+ ⪩ .wallml
+ ⪩ .wallphone
+ ⪩ .coffee
+ ⪩ .cat
+ ⪩ .kpop
+ ⪩ .hacking
+ ⪩ .squirrel
+ ⪩ .8ballpool
+ ⪩ .dogwoof
+ ⪩ .catmeow
+ ⪩ .goose
+ ⪩ .goosebird
+ ⪩ .lizardpic
+ ⪩ .wallpaper *<query>*
+ ⪩ .wikimedia *<query>*
 
 \`💘 乂 𝐫 𝐞 𝐥 𝐚 𝐭 𝐢 𝐨 𝐧 𝐬 𝐡 𝐢 𝐩 乂\`
  ⪩ .cekganteng
@@ -15297,6 +15421,11 @@ text: `
  ⪩ .chatgpt *<pertanyaan>*
  ⪩ .xnalz *<pertanyaan>*
  ⪩ .google *<google search>*
+ ⪩ .anime *<judul anime>*
+ ⪩ .loker *<pekerjaan> <kota>*
+ ⪩ .ytsearch *<judul video>*
+ ⪩ .happymod *<nama aplikasi>*
+ ⪩ .weather *<kota>*
 
 \`🎵 乂 𝐭 𝐢 𝐤 𝐭 𝐨 𝐤 乂\`
  ⪩ .tiktokslide *<tiktok photo>*
@@ -15389,7 +15518,17 @@ text: `
  ⪩ .rvo 
  ⪩ .reactspam *<replymsg>*
  ⪩ .tofigure 
+ ⪩ .fakestory *<reply foto> nama|caption*
+ ⪩ .tomaid *<reply foto>*
+ ⪩ .hijabkan *<reply foto>*
+ ⪩ .botak *<reply foto>*
+ ⪩ .edit *<reply foto> <prompt>*
+ ⪩ .paustad *<teks>*
+ ⪩ .react *<emoji> (balas pesan)*
+ ⪩ .reactch *<URL channel/post> <emoji>*
  ⪩ .tovn *<to pesan suara>*
+ ⪩ .tomp3 *<reply video>*
+ ⪩ .tomp4 *<reply sticker WebP>*
  ⪩ .toptv *<to video pendek>*
  ⪩ .hd *<fotohd>*
  ⪩ .hd2 
@@ -15410,6 +15549,17 @@ text: `
  ⪩ .cekidch *<linkch>*
  ⪩ .readmore *<teks>*
  ⪩ .idtolink *<konversi>*
+ ⪩ .ssweb *<URL website>*
+ ⪩ .toqr *<teks/URL>*
+ ⪩ .qr *<teks/URL>*
+ ⪩ .tinyurl *<URL>*
+ ⪩ .fliptext *<teks>*
+ ⪩ .styletext *<teks>*
+ ⪩ .dbinary *<biner>*
+ ⪩ .ebinary *<teks>*
+ ⪩ .getbio *<balas/tag>*
+ ⪩ .ceknik *<16 digit; format saja>*
+ ⪩ .gitclone *<URL repository>*
 
 \`💰 乂 𝐫 𝐩 𝐠 & 𝐞 𝐜 𝐨 𝐧 𝐨 𝐦 𝐲 乂\`
  ⪩ .kerja 
@@ -15886,6 +16036,7 @@ text: `
 
 \`🏆 乂 𝐬 𝐭 𝐚 𝐭 𝐢 𝐬 𝐭 𝐢 𝐤 乂\`
  ⪩ .gamestats *<statistikmu>*
+ ⪩ .rank *<ranking>*
  ⪩ .gamerank *<ranking>*
  ⪩ .gamehelp *<panduan>*
  
@@ -16167,6 +16318,7 @@ text: `
 \`🌌 乂 𝐰 𝐚 𝐥 𝐥 𝐩 𝐚 𝐩 𝐞 𝐫 & 𝐬 𝐩 𝐞 𝐜 𝐢 𝐚 𝐥 乂\`
  ⪩ .summerbeach
  ⪩ .luxurygold
+ ⪩ .multicoloredneon
  ⪩ .multicoloyellowneon
  ⪩ .sandsummer
  ⪩ .galaxywallpaper
@@ -16239,6 +16391,37 @@ text: `
  ⪩ .wangy
  ⪩ .rate
  ⪩ .top
+
+\`🖼️ 乂 𝐫 𝐚 𝐧 𝐝 𝐨 𝐦 - 𝐩 𝐡 𝐨 𝐭 𝐨 乂\`
+ ⪩ .aesthetic
+ ⪩ .antiwork
+ ⪩ .bike
+ ⪩ .blackpink
+ ⪩ .boneka
+ ⪩ .couplepic
+ ⪩ .profilepic
+ ⪩ .pubg
+ ⪩ .randomboy
+ ⪩ .randomgirl
+ ⪩ .rose
+ ⪩ .ryujin
+ ⪩ .ulzzangboy
+ ⪩ .ulzzanggirl
+ ⪩ .wallml
+ ⪩ .wallphone
+ ⪩ .coffee
+ ⪩ .cat
+ ⪩ .kpop
+ ⪩ .hacking
+ ⪩ .squirrel
+ ⪩ .8ballpool
+ ⪩ .dogwoof
+ ⪩ .catmeow
+ ⪩ .goose
+ ⪩ .goosebird
+ ⪩ .lizardpic
+ ⪩ .wallpaper *<query>*
+ ⪩ .wikimedia *<query>*
 
 \`💘 乂 𝐫 𝐞 𝐥 𝐚 𝐭 𝐢 𝐨 𝐧 𝐬 𝐡 𝐢 𝐩 乂\`
  ⪩ .cekganteng
@@ -16869,6 +17052,7 @@ await replyV1("❌ Error upload bang")
 }
 }
 break
+case "tomp3":
 case "toaudio":
 case "mp4toaudio": {
     try {
@@ -16981,6 +17165,7 @@ await replyV1(`Translate (${lang}) :\n${res.data.responseData.translatedText}`)
 break
 case 'applemusic':
 case 'apple':
+case 'teraboxdl':
 case 'terabox':
 case 'pixiv':
 case 'rednote':
@@ -17004,6 +17189,7 @@ case 'ifunny':
 case 'izlesene':
 case 'reddit':
 case 'youtube':
+case 'twittervid':
 case 'twitter':
 case 'vimeo':
 case 'snapchat':
@@ -17474,6 +17660,9 @@ footer: `
 
 \`📱 乂 𝐬 𝐨 𝐜 𝐢 𝐚 𝐥 - 𝐦 𝐞 𝐝 𝐢 𝐚 乂\`
  ⪩ .capcut
+ ⪩ .capcutdl *<link CapCut>*
+ ⪩ .teraboxdl *<link Terabox>*
+ ⪩ .twittervid *<link Twitter/X>*
  ⪩ .instagram
  ⪩ .tiktok
  ⪩ .douyin
@@ -17632,6 +17821,7 @@ footer: `
  ⪩ .speedtype *<jawaban>*
  ⪩ .mathbattle *<jawaban>*
  ⪩ .gamestats *<statistikmu>*
+ ⪩ .rank *<ranking>*
  ⪩ .gamerank *<ranking>*
  ⪩ .gamehelp *<panduan>*
 `,
@@ -18290,6 +18480,7 @@ footer: `
  ⪩ .gradienttext
  ⪩ .summerbeach
  ⪩ .luxurygold
+ ⪩ .multicoloredneon
  ⪩ .multicoloyellowneon
  ⪩ .sandsummer
  ⪩ .galaxywallpaper
@@ -28570,6 +28761,7 @@ case 'kontol': {
 }
 break
 
+case 'capcutdl':
 case 'capcut': {
   const capcutInput = String(args[0] || text || '').trim().split(/\s+/)[0] || '';
   if (!capcutInput) return replyV1(`Contoh: ${prefix}capcut https://www.capcut.com/tv2/xxxxx`);
@@ -30272,6 +30464,7 @@ case "glitchtext":
       case "gradienttext":
       case "summerbeach":
       case "luxurygold":
+      case "multicoloredneon":
       case "multicoloyellowneon":
       case "sandsummer":
       case "galaxywallpaper":
@@ -30349,6 +30542,9 @@ case "glitchtext":
           }
           if (/luxurygold/.test(command)) {
             link = "https://en.ephoto360.com/create-a-luxury-gold-text-effect-online-594.html";
+          }
+          if (/multicoloredneon/.test(command)) {
+            link = "https://en.ephoto360.com/create-multicolored-neon-light-signatures-591.html";
           }
           if (/multicoloyellowneon/.test(command)) {
             link = "https://en.ephoto360.com/create-multicoloyellow-neon-light-signatures-591.html";
@@ -30782,7 +30978,9 @@ case 'tochibi':
 case 'tobrewok':
 case 'tobabi':
 case 'toblonde':
+case 'botak':
 case 'tobotak':
+case 'hijabkan':
 case 'tohijab':
 case 'tomekah':
 case 'tomirror':
