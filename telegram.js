@@ -12,6 +12,7 @@ const depositService = require('./library/deposit.js')
 const convertPulsaService = require('./library/convert-pulsa.js')
 const nokosService = require('./library/nokos.js')
 const topupService = require('./library/topup.js')
+const topupInput = require('./library/topup-input.js')
 const purchasePayment = require('./library/purchase-payment.js')
 const storeService = require('./library/store.js')
 const providerWallets = require('./library/provider-wallets.js')
@@ -1116,9 +1117,16 @@ function richRowsForStage(stage, details = {}) {
     if (key === 'topup_products') return (details.products || []).map(product => [
         product.name || 'Produk', `Rp${money(product.sellingPrice ?? product.price)}`
     ])
-    if (key === 'topup_confirm') return [
+    if (['topup_confirm', 'topup_input'].includes(key)) return [
         ['Game', details.gameName || details.game || '-'],
         ['Produk', details.productName || '-'],
+        ['Harga', `Rp${money(details.price)}`],
+        ['Saldo', `Rp${money(details.balance)}`]
+    ]
+    if (key === 'topup_target_confirm') return [
+        ['Game', details.gameName || details.game || '-'],
+        ['Produk', details.productName || '-'],
+        ['Tujuan', details.destination || '-'],
         ['Harga', `Rp${money(details.price)}`],
         ['Saldo', `Rp${money(details.balance)}`]
     ]
@@ -2056,6 +2064,8 @@ async function makeTelegramMenuCard(stage, details = {}) {
         topup_games: `${Number(details.total || 0)} game tersedia  •  VIPayment`,
         topup_products: `${String(details.gameName || details.game || 'GAME').toUpperCase()}  •  Halaman ${Number(details.page || 0) + 1}/${Number(details.pages || 1)}`,
         topup_confirm: `${String(details.gameName || details.game || 'GAME').toUpperCase()}  •  Konfirmasi sebelum membeli`,
+        topup_input: `${String(details.gameName || details.game || 'GAME').toUpperCase()}  •  Masukkan ID tujuan`,
+        topup_target_confirm: `${String(details.gameName || details.game || 'GAME').toUpperCase()}  •  Periksa tujuan sebelum bayar`,
         nokos_order: `NOKOS  •  ${String(details.status || 'MENUNGGU OTP').toUpperCase()}`,
         nokos_status: `NOKOS  •  ${String(details.status || 'STATUS ORDER').toUpperCase()}`,
         topup_processing: `TOP UP  •  MEMPROSES TRANSAKSI`,
@@ -2071,7 +2081,9 @@ async function makeTelegramMenuCard(stage, details = {}) {
         nokos_server: 'DETAIL SERVER NOKOS',
         topup_games: 'PILIH GAME TOP UP',
         topup_products: 'PILIH NOMINAL TOP UP',
-        topup_confirm: 'KONFIRMASI TOP UP',
+        topup_confirm: 'KONFIRMASI PRODUK TOP UP',
+        topup_input: 'MASUKKAN ID TUJUAN',
+        topup_target_confirm: 'KONFIRMASI TUJUAN TOP UP',
         nokos_order: 'ORDER NOKOS BERHASIL',
         nokos_status: 'STATUS ORDER NOKOS',
         topup_processing: 'TOP UP SEDANG DIPROSES',
@@ -2158,8 +2170,13 @@ async function makeTelegramMenuCard(stage, details = {}) {
         })
         ctx.fillStyle = '#8daec2'; ctx.font = '500 14px Arial, sans-serif'
         ctx.fillText(`Menampilkan ${Math.min((details.products || []).length, 8)} nominal pada halaman ini`, 58, 605)
-    } else if (key === 'topup_confirm') {
-        const metrics = [
+    } else if (['topup_confirm', 'topup_input', 'topup_target_confirm'].includes(key)) {
+        const metrics = key === 'topup_target_confirm' ? [
+            ['GAME', details.gameName || details.game || '-'],
+            ['PRODUK', details.productName || '-'],
+            ['TUJUAN', details.destination || '-'],
+            ['TOTAL BAYAR', money(details.price)]
+        ] : [
             ['GAME', details.gameName || details.game || '-'],
             ['PRODUK', details.productName || '-'],
             ['TOTAL BAYAR', money(details.price)],
@@ -2172,7 +2189,12 @@ async function makeTelegramMenuCard(stage, details = {}) {
         })
         canvasRoundRect(ctx, 58, 515, 1084, 48, 12, 'rgba(8, 27, 47, 0.94)', 'rgba(55, 174, 205, 0.38)')
         ctx.fillStyle = '#8daec2'; ctx.font = '500 15px Arial, sans-serif'
-        ctx.fillText('Data tujuan akan diminta lewat pesan berikutnya', 80, 545)
+        const footnote = key === 'topup_confirm'
+            ? 'Tekan tombol konfirmasi produk untuk mulai mengisi ID tujuan'
+            : key === 'topup_input'
+                ? 'Kirim data tujuan lewat pesan berikutnya sesuai format provider'
+                : 'Pastikan ID/Zone tepat; order belum dikirim sampai pembayaran dikonfirmasi'
+        ctx.fillText(fitCanvasText(ctx, footnote, 1035, 15, 11, 500), 80, 545)
     } else if (key === 'deposit_menu') {
         const metrics = [
             ['SALDO SEKARANG', money(details.balance)],
@@ -4085,8 +4107,8 @@ async function renderNokosServer(ctx, index) {
 
 function purchaseMethodKeyboard(intent) {
     return Markup.inlineKeyboard([
-        [Markup.button.callback('💰 SALDO DEPOSIT BOT', `tg_purchase_balance:${intent.type}:${intent.token}`)],
-        [Markup.button.callback('📲 QRIS PEMBELIAN LANGSUNG', `tg_purchase_qris:${intent.type}:${intent.token}`)],
+        [Markup.button.callback('💰 BAYAR DENGAN SALDO DEPOSIT BOT', `tg_purchase_balance:${intent.type}:${intent.token}`)],
+        [Markup.button.callback('💳 ISI SALDO BOT', 'tg_home_deposit')],
         [Markup.button.callback('🏠 MENU UTAMA', 'tg_home')]
     ])
 }
@@ -4128,9 +4150,8 @@ async function showPurchaseMethodChoice(ctx, intent, { message = '' } = {}) {
         `${isNokos ? '📱 <b>PEMBELIAN NOKOS</b>' : '🎮 <b>PEMBELIAN TOP UP</b>'}\n\n` +
         `Produk: <b>${escapeHtml(intent.label)}</b>\n` +
         `Total: <b>Rp${escapeHtml(economy.formatMoney(intent.amount))}</b>\n\n` +
-        `Pilih metode pembayaran:\n` +
-        `• <b>Saldo Deposit Bot</b>: saldo wallet dipotong satu kali setelah konfirmasi.\n` +
-        `• <b>QRIS Provider</b>: sementara belum aktif karena API provider yang tersedia belum menyediakan invoice pembelian langsung dengan verifikasi pembayaran. Tombolnya tidak membuat tagihan atau menarik pembayaran.\n\n` +
+        `💰 Pembelian diproses melalui <b>Saldo Deposit Bot</b>. Saldo hanya dipotong satu kali setelah tombol pembayaran ditekan.\n` +
+        `QRIS langsung untuk produk ini belum tersedia melalui API provider yang terpasang. Jika saldo kurang, gunakan tombol <b>Isi Saldo Bot</b> untuk deposit terlebih dahulu. Jangan membayar QRIS dari invoice lain sebagai pengganti order ini.\n\n` +
         `Token: <code>${escapeHtml(intent.token)}</code>` +
         (message ? `\n\n${escapeHtml(message)}` : '')
     return renderTelegramMenuCard(ctx, isNokos ? 'nokos_payment' : 'topup_payment', {
@@ -4192,7 +4213,13 @@ async function handlePurchaseBalanceTelegram(ctx, type, token) {
             ])
             return renderTelegramMenuCard(ctx, 'nokos_order', { ref: item.ref, service: item.service, country: item.country, provider: item.provider, phone: item.phone, price: item.sellingPrice, status: item.status }, text, keyboard)
         }
-        const text = `🎮 <b>ORDER TOP UP</b>\n\nRef: <code>${escapeHtml(item.ref)}</code>\nGame: <b>${escapeHtml(item.game)}</b>\nProduk: <b>${escapeHtml(item.productName)}</b>\nTujuan: <code>${escapeHtml(item.customerNo || '-')}${item.zone ? ` | Zone ${escapeHtml(item.zone)}` : ''}</code>\nHarga: <b>Rp${escapeHtml(topupService.formatMoney(item.sellingPrice))}</b>\nStatus: <b>${escapeHtml(item.status)}</b>\nSN: <code>${escapeHtml(item.sn || '-')}</code>\n\n${escapeHtml(item.message || 'Transaksi diproses.')}`
+        const topupState = String(item.status || '').toLowerCase()
+        const topupWaitHint = ['pending', 'processing'].includes(topupState)
+            ? '\n\n⏳ Provider masih memproses. Tekan Cek Status nanti dan jangan membuat order ulang.'
+            : topupState === 'verifikasi'
+                ? '\n\n⚠️ Status provider belum pasti. Jangan order ulang; hubungi owner untuk pemeriksaan.'
+                : ''
+        const text = `🎮 <b>ORDER TOP UP</b>\n\nRef: <code>${escapeHtml(item.ref)}</code>\nGame: <b>${escapeHtml(item.game)}</b>\nProduk: <b>${escapeHtml(item.productName)}</b>\nTujuan: <code>${escapeHtml(item.customerNo || '-')}${item.zone ? ` | Zone ${escapeHtml(item.zone)}` : ''}</code>\nHarga: <b>Rp${escapeHtml(topupService.formatMoney(item.sellingPrice))}</b>\nStatus: <b>${escapeHtml(item.status)}</b>\nSN: <code>${escapeHtml(item.sn || '-')}</code>\n\n${escapeHtml(item.message || 'Transaksi diproses.')}${topupWaitHint}`
         const keyboard = Markup.inlineKeyboard([[Markup.button.callback('🔄 Cek Status', `tg_topup_status:${item.ref}`)], [Markup.button.callback('🎮 Top Up Lagi', 'tg_home_topup'), Markup.button.callback('🏠 Menu', 'tg_home')]])
         return renderTelegramMenuCard(ctx, 'topup_result', { ref: item.ref, game: item.game, productName: item.productName, destination: item.customerNo, price: item.sellingPrice, status: item.status, sn: item.sn }, text, keyboard)
     } catch (error) {
@@ -4533,7 +4560,8 @@ async function loadTopupCatalog() {
     }
 
     return result.filter(p =>
-        String(p?.status || '').toLowerCase() === 'available' || !p?.status
+        (String(p?.status || '').toLowerCase() === 'available' || !p?.status) &&
+        !topupInput.isUnsupportedTopupProduct(p)
     )
 }
 
@@ -4566,6 +4594,7 @@ async function renderTopupGames(ctx) {
         let text =
             `╭━━〔 🎮 <b>TOP UP GAME</b> 〕━━╮\n` +
             `┃ Pilih game untuk membuka nominal tersedia.\n` +
+            `┃ Baca format ID/Zone dan Catatan Provider sebelum bayar.\n` +
             `┃ ⚡ Harga mengikuti price list provider + markup.\n` +
             `╰━━━━━━━━━━━━━━━━━━━━╯`
         if (!groups.length) text += `\n\n❌ API tersambung, tetapi belum ada layanan game dengan status <b>available</b>.`
@@ -4595,7 +4624,7 @@ async function renderTopupProducts(ctx, game, page = 0) {
         let text =
             `🎮 <b>${escapeHtml(topupGameName(game, products))}</b>\n` +
             `━━━━━━━━━━━━━━━━━━\n` +
-            `Pilih nominal yang ingin dibeli.\n\n`
+            `Pilih nominal yang ingin dibeli. Baca Catatan Provider pada tahap berikutnya karena format tujuan dapat berbeda antar game/produk.\n\n`
         text += shown.length
             ? shown.map((product, i) => `${p.start + i + 1}. <b>${escapeHtml(product.name)}</b> — Rp${escapeHtml(topupService.formatMoney(product.sellingPrice))}`).join('\n')
             : '❌ Tidak ada produk available untuk game ini.'
@@ -4633,37 +4662,99 @@ async function selectTopupProduct(ctx, game, index) {
     const product = products[Number(index)]
     if (!product) return renderTopupProducts(ctx, game, Math.floor(Number(index) / UI_PAGE_SIZE))
 
+    const inputProfile = topupInput.getTopupInputProfile(game, product)
+    if (!inputProfile.supported) {
+        return editTracked(ctx, `⚠️ <b>FORMAT PRODUK BELUM DIDUKUNG</b>\n\n${escapeHtml(inputProfile.prompt)}\n\nPesanan belum dibuat dan saldo belum dipotong.`, Markup.inlineKeyboard([[Markup.button.callback('‹ Kembali ke Produk', `tg_topup_page:${game}:${Math.floor(Number(index) / UI_PAGE_SIZE)}`)], [Markup.button.callback('🏠 Menu Utama', 'tg_home')]]))
+    }
+
     const jid = getTransactionJid(ctx)
     if (!jid) return commandOutput(ctx, '❌ Telegram ID tidak valid.')
     const balance = economy.getBalance(jid)
     const price = Number(product.sellingPrice || 0)
+    const hint =
+        `🧭 <b>CARA MENGISI TUJUAN</b>\n` +
+        `${escapeHtml(inputProfile.prompt)}\n` +
+        (inputProfile.example ? `Contoh: <code>${escapeHtml(inputProfile.example)}</code>\n` : '') +
+        `Setelah konfirmasi, bot akan meminta data tujuan melalui pesan berikutnya.`
+    const providerNote = topupInput.providerDescription(product)
+    const noteBlock = providerNote
+        ? `\n\n📝 <b>CATATAN PROVIDER</b>\n${escapeHtml(providerNote)}`
+        : ''
 
-    const hint = game === 'ml'
-        ? 'Kirim dengan format: <code>ID ZONE</code>\nContoh: <code>12345678 1234</code>'
-        : game === 'roblox'
-            ? 'Kirim <b>username Roblox</b> yang akan menerima top up.'
-            : 'Kirim <b>ID game</b> tujuan top up.'
-
+    const pendingCreatedAt = Date.now()
     setUi(ctx.from.id, {
-        pendingTopup: { game, productIndex: Number(index), product, jid },
-        screen: 'topup_input'
+        pendingTopup: {
+            game, productIndex: Number(index), product, jid, inputProfile,
+            createdAt: pendingCreatedAt,
+            expiresAt: pendingCreatedAt + 10 * 60 * 1000
+        },
+        screen: 'topup_confirm'
     })
 
     const text =
-        `🛒 <b>KONFIRMASI TOP UP</b>\n` +
+        `🛒 <b>DETAIL PEMBELIAN TOP UP</b>\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
         `🎮 Game: <b>${escapeHtml(topupGameName(game, products))}</b>\n` +
         `📦 Produk: <b>${escapeHtml(product.name)}</b>\n` +
         `💰 Harga: <b>Rp${escapeHtml(topupService.formatMoney(price))}</b>\n` +
-        `💳 Saldo Biasa: <b>Rp${escapeHtml(topupService.formatMoney(balance))}</b>\n\n` +
-        `${hint}\n\n` +
-        `Kirim ID sebagai <b>pesan berikutnya</b>.`
+        `💳 Saldo Deposit Bot: <b>Rp${escapeHtml(topupService.formatMoney(balance))}</b>\n\n` +
+        `${hint}${noteBlock}\n\n` +
+        `⚠️ <b>Belum ada order yang dikirim dan belum ada saldo dipotong.</b> Tekan tombol konfirmasi produk di bawah untuk mulai memasukkan ID/UID/Zone. Pastikan datanya benar karena tujuan yang salah belum tentu bisa dibatalkan.`
     const keyboard = Markup.inlineKeyboard([
-        [Markup.button.callback('❌ Batal', `tg_topup_page:${game}:${Math.floor(Number(index) / UI_PAGE_SIZE)}`)],
+        [Markup.button.callback('✅ KONFIRMASI PRODUK & ISI ID', `tg_topup_confirm:${game}:${Number(index)}`)],
+        [Markup.button.callback('❌ Batal / Ganti Produk', `tg_topup_page:${game}:${Math.floor(Number(index) / UI_PAGE_SIZE)}`)],
         [Markup.button.callback('🏠 Menu Utama', 'tg_home')]
     ])
     return renderTelegramMenuCard(ctx, 'topup_confirm', {
-        game, gameName: topupGameName(game, products), productName: product.name, price, balance
+        game, gameName: topupGameName(game, products), productName: product.name, price, balance,
+        inputFormat: inputProfile.formatHint || 'ID', providerNote
+    }, text, keyboard)
+}
+
+async function confirmTopupProduct(ctx, game, index) {
+    const session = getUi(ctx.from.id)
+    const pending = session?.pendingTopup
+    if (!pending || pending.game !== game || Number(pending.productIndex) !== Number(index)) {
+        return editTracked(ctx, '⌛ Konfirmasi ini sudah kedaluwarsa atau bukan sesi top up aktif. Pilih produk lagi untuk memulai dengan aman.', Markup.inlineKeyboard([[Markup.button.callback('🎮 Pilih Produk', 'tg_home_topup')], [Markup.button.callback('🏠 Menu Utama', 'tg_home')]]))
+    }
+    if (Number(pending.expiresAt || 0) > 0 && Date.now() > Number(pending.expiresAt)) {
+        clearPending(ctx.from.id)
+        return editTracked(ctx, '⌛ Sesi top up sudah kedaluwarsa. Tidak ada order yang dikirim dan saldo tidak dipotong. Pilih produk lagi.', Markup.inlineKeyboard([[Markup.button.callback('🎮 Pilih Produk', 'tg_home_topup')], [Markup.button.callback('🏠 Menu Utama', 'tg_home')]]))
+    }
+    if (session.screen !== 'topup_confirm') {
+        if (session.screen === 'topup_input') {
+            const profile = pending.inputProfile || topupInput.getTopupInputProfile(game, pending.product)
+            const text = `✅ <b>PRODUK SUDAH DIKONFIRMASI</b>\n\n${escapeHtml(profile.prompt)}\n${profile.example ? `Contoh: <code>${escapeHtml(profile.example)}</code>\n` : ''}Kirim ID/tujuan dalam satu pesan. Belum ada order atau saldo yang diproses.`
+            return renderTelegramMenuCard(ctx, 'topup_input', { gameName: topupGameName(game, [pending.product]), productName: pending.product.name, price: pending.product.sellingPrice, balance: economy.getBalance(pending.jid) }, text, Markup.inlineKeyboard([[Markup.button.callback('❌ Batal / Ganti Produk', `tg_topup_page:${game}:${Math.floor(Number(index) / UI_PAGE_SIZE)}`)], [Markup.button.callback('🏠 Menu Utama', 'tg_home')]]))
+        }
+        return editTracked(ctx, '⚠️ Sesi ini sudah berada di tahap lain. Gunakan tombol pada pesan terbaru agar tidak membuat transaksi ganda.', backHomeKeyboard())
+    }
+
+    const profile = pending.inputProfile || topupInput.getTopupInputProfile(game, pending.product)
+    const nextPending = { ...pending }
+    delete nextPending.customerNo
+    delete nextPending.zone
+    delete nextPending.rawInput
+    setUi(ctx.from.id, { pendingTopup: nextPending, screen: 'topup_input' })
+    const providerNote = topupInput.providerDescription(pending.product)
+    const noteBlock = providerNote ? `\n\n📝 <b>CATATAN PROVIDER</b>\n${escapeHtml(providerNote)}` : ''
+    const text =
+        `✅ <b>PRODUK DIKONFIRMASI</b>\n\n` +
+        `🎮 Game: <b>${escapeHtml(topupGameName(game, [pending.product]))}</b>\n` +
+        `📦 Produk: <b>${escapeHtml(pending.product.name)}</b>\n` +
+        `💰 Harga: <b>Rp${escapeHtml(topupService.formatMoney(pending.product.sellingPrice))}</b>\n\n` +
+        `🧭 <b>CARA MENGISI TUJUAN</b>\n${escapeHtml(profile.prompt)}\n` +
+        (profile.example ? `Contoh: <code>${escapeHtml(profile.example)}</code>\n` : '') +
+        `${noteBlock}\n\n` +
+        `Kirim data tujuan sebagai <b>satu pesan</b>. Untuk layanan VIPayment, bot akan meneruskan kode layanan sebagai <code>service</code>, ID tujuan sebagai <code>data_no</code>, dan Zone/Server sebagai <code>data_zone</code> jika ada. Jangan kirim password, cookie, atau kode login.\n\n` +
+        `Belum ada order provider dibuat dan saldo belum dipotong.`
+    const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('❌ Batal / Ganti Produk', `tg_topup_page:${game}:${Math.floor(Number(index) / UI_PAGE_SIZE)}`)],
+        [Markup.button.callback('🏠 Menu Utama', 'tg_home')]
+    ])
+    return renderTelegramMenuCard(ctx, 'topup_input', {
+        gameName: topupGameName(game, [pending.product]), productName: pending.product.name,
+        price: pending.product.sellingPrice, balance: economy.getBalance(pending.jid)
     }, text, keyboard)
 }
 
@@ -4671,6 +4762,11 @@ async function processPendingTopup(ctx, rawText) {
     const session = getUi(ctx.from.id)
     const pending = session?.pendingTopup
     if (!pending) return false
+    if (Number(pending.expiresAt || 0) > 0 && Date.now() > Number(pending.expiresAt)) {
+        clearPending(ctx.from.id)
+        await editTracked(ctx, '⌛ Sesi input tujuan sudah kedaluwarsa. Tidak ada order yang dikirim dan saldo tidak dipotong. Pilih produk top up lagi untuk memulai.', Markup.inlineKeyboard([[Markup.button.callback('🎮 Pilih Produk Lagi', 'tg_home_topup')], [Markup.button.callback('🏠 Menu Utama', 'tg_home')]]))
+        return true
+    }
 
     const input = String(rawText || '').trim()
     if (!input || input.startsWith('/')) return false
@@ -4681,16 +4777,16 @@ async function processPendingTopup(ctx, rawText) {
         return false
     }
 
-    let customerNo = input
-    let zone = ''
-    if (pending.game === 'ml') {
-        const parts = input.split(/\s+/)
-        if (parts.length < 2) {
-            await editTracked(ctx, '❌ Format Mobile Legends salah. Kirim: <code>ID ZONE</code>', Markup.inlineKeyboard([[Markup.button.callback('❌ Batal', `tg_topup_page:ml:${Math.floor(Number(pending.productIndex) / UI_PAGE_SIZE)}`)]]))
-            return true
-        }
-        customerNo = parts[0]
-        zone = parts[1]
+    const inputProfile = pending.inputProfile || topupInput.getTopupInputProfile(pending.game, pending.product)
+    const parsed = topupInput.parseTopupTarget(input, inputProfile)
+    if (!parsed.ok) {
+        const text =
+            `❌ <b>FORMAT TUJUAN BELUM BENAR</b>\n\n` +
+            `${escapeHtml(parsed.error)}\n\n` +
+            `${escapeHtml(inputProfile.prompt)}\n` +
+            (inputProfile.example ? `Contoh: <code>${escapeHtml(inputProfile.example)}</code>\n` : '') +
+            `Pesanan belum dikirim ke provider dan saldo belum dipotong. Kirim ulang data dengan format yang benar.`
+        return editTracked(ctx, text, Markup.inlineKeyboard([[Markup.button.callback('❌ Batalkan Input', `tg_topup_page:${pending.game}:${Math.floor(Number(pending.productIndex) / UI_PAGE_SIZE)}`)]]))
     }
 
     const price = Math.floor(Number(pending.product?.sellingPrice || 0))
@@ -4699,19 +4795,132 @@ async function processPendingTopup(ctx, rawText) {
         await editTracked(ctx, '❌ Harga/kode produk tidak valid. Pesanan belum dibuat.', backHomeKeyboard())
         return true
     }
-    const intent = purchasePayment.createIntent({
-        type: 'TOPUP', jid, source: 'telegram', telegramId: String(ctx.from.id),
-        pushname: ctx.from?.first_name || ctx.from?.username || 'Telegram User', amount: price,
-        label: `${topupGameName(pending.game, [pending.product])} • ${pending.product.name} • ${customerNo}${zone ? ` (${zone})` : ''}`,
-        details: {
-            game: pending.game, customerNo, zone,
-            nominal: productNominal(pending.product.name),
-            serviceCode: String(pending.product.code), productName: String(pending.product.name)
-        }
-    })
+
+    const nextPending = {
+        ...pending,
+        customerNo: parsed.customerNo,
+        zone: parsed.zone || '',
+        rawInput: input,
+        targetConfirmedAt: null
+    }
+    setUi(ctx.from.id, { pendingTopup: nextPending, screen: 'topup_target_confirm' })
+    const destination = parsed.zone ? `${parsed.customerNo} | ${inputProfile.zoneLabel || 'Zone/Server'}: ${parsed.zone}` : parsed.customerNo
+    const balance = economy.getBalance(jid)
+    const providerNote = topupInput.providerDescription(pending.product)
+    const noteBlock = providerNote ? `\n\n📝 <b>CATATAN PROVIDER</b>\n${escapeHtml(providerNote)}` : ''
+    const text =
+        `🔎 <b>KONFIRMASI TUJUAN TOP UP</b>\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `🎮 Game: <b>${escapeHtml(topupGameName(pending.game, [pending.product]))}</b>\n` +
+        `📦 Produk: <b>${escapeHtml(pending.product.name)}</b>\n` +
+        `🆔 Tujuan: <code>${escapeHtml(destination)}</code>\n` +
+        `💰 Harga: <b>Rp${escapeHtml(topupService.formatMoney(price))}</b>\n` +
+        `💳 Saldo Deposit Bot: <b>Rp${escapeHtml(topupService.formatMoney(balance))}</b>\n\n` +
+        `Provider menerima kode layanan sebagai <code>service</code>, ID tujuan sebagai <code>data_no</code>${parsed.zone ? `, serta Zone/Server sebagai <code>data_zone</code>` : ''}. Periksa lagi ejaan dan angka tujuan sebelum melanjutkan.` +
+        `${noteBlock}\n\n` +
+        `Belum ada order provider yang dibuat dan belum ada saldo yang dipotong.`
+    const keyboard = Markup.inlineKeyboard([
+        [Markup.button.callback('✅ KONFIRMASI TUJUAN & PEMBAYARAN', `tg_topup_target_confirm:${pending.game}:${Number(pending.productIndex)}`)],
+        [Markup.button.callback('✏️ Ubah ID / Zone', `tg_topup_edit_target:${pending.game}:${Number(pending.productIndex)}`)],
+        [Markup.button.callback('❌ Batal / Ganti Produk', `tg_topup_page:${pending.game}:${Math.floor(Number(pending.productIndex) / UI_PAGE_SIZE)}`)],
+        [Markup.button.callback('🏠 Menu Utama', 'tg_home')]
+    ])
+    return renderTelegramMenuCard(ctx, 'topup_target_confirm', {
+        gameName: topupGameName(pending.game, [pending.product]), productName: pending.product.name,
+        destination, price, balance, providerNote
+    }, text, keyboard)
+}
+
+async function editTopupTarget(ctx, game, index) {
+    const session = getUi(ctx.from.id)
+    const pending = session?.pendingTopup
+    if (!pending || pending.game !== game || Number(pending.productIndex) !== Number(index) || session.screen !== 'topup_target_confirm') {
+        return editTracked(ctx, '⌛ Tidak ada tujuan top up yang bisa diedit pada sesi ini. Pilih produk lagi.', Markup.inlineKeyboard([[Markup.button.callback('🎮 Pilih Produk', 'tg_home_topup')], [Markup.button.callback('🏠 Menu Utama', 'tg_home')]]))
+    }
+    const updated = { ...pending }
+    delete updated.customerNo
+    delete updated.zone
+    delete updated.rawInput
+    delete updated.targetConfirmedAt
+    setUi(ctx.from.id, { pendingTopup: updated, screen: 'topup_input' })
+    const profile = pending.inputProfile || topupInput.getTopupInputProfile(game, pending.product)
+    const text = `✏️ <b>UBAH DATA TUJUAN</b>\n\n${escapeHtml(profile.prompt)}\n${profile.example ? `Contoh: <code>${escapeHtml(profile.example)}</code>\n` : ''}Kirim ulang ID/UID/Zone dalam satu pesan. Belum ada order atau saldo yang diproses.`
+    return renderTelegramMenuCard(ctx, 'topup_input', {
+        gameName: topupGameName(game, [pending.product]), productName: pending.product.name,
+        price: pending.product.sellingPrice, balance: economy.getBalance(pending.jid)
+    }, text, Markup.inlineKeyboard([[Markup.button.callback('❌ Batal / Ganti Produk', `tg_topup_page:${game}:${Math.floor(Number(index) / UI_PAGE_SIZE)}`)], [Markup.button.callback('🏠 Menu Utama', 'tg_home')]]))
+}
+
+async function confirmTopupTarget(ctx, game, index) {
+    const session = getUi(ctx.from.id)
+    const pending = session?.pendingTopup
+    if (!pending || pending.game !== game || Number(pending.productIndex) !== Number(index) || session.screen !== 'topup_target_confirm') {
+        return editTracked(ctx, '⌛ Konfirmasi tujuan sudah kedaluwarsa atau sudah diproses. Periksa pesan terbaru sebelum mencoba lagi.', Markup.inlineKeyboard([[Markup.button.callback('🎮 Pilih Produk', 'tg_home_topup')], [Markup.button.callback('🏠 Menu Utama', 'tg_home')]]))
+    }
+    if (Number(pending.expiresAt || 0) > 0 && Date.now() > Number(pending.expiresAt)) {
+        clearPending(ctx.from.id)
+        return editTracked(ctx, '⌛ Sesi top up kedaluwarsa. Tidak ada order yang dikirim dan saldo belum dipotong.', Markup.inlineKeyboard([[Markup.button.callback('🎮 Pilih Produk', 'tg_home_topup')], [Markup.button.callback('🏠 Menu Utama', 'tg_home')]]))
+    }
+
+    const jid = getTransactionJid(ctx)
+    if (!jid || jid !== pending.jid) return editTracked(ctx, '❌ Akun Telegram tidak cocok dengan sesi pembelian ini.', backHomeKeyboard())
+    const inputProfile = pending.inputProfile || topupInput.getTopupInputProfile(game, pending.product)
+    const parsed = topupInput.parseTopupTarget(pending.rawInput, inputProfile)
+    if (!parsed.ok || parsed.customerNo !== pending.customerNo || (parsed.zone || '') !== (pending.zone || '')) {
+        return editTopupTarget(ctx, game, index)
+    }
+
+    const price = Math.floor(Number(pending.product?.sellingPrice || 0))
+    if (!Number.isSafeInteger(price) || price <= 0 || !pending.product?.code) {
+        clearPending(ctx.from.id)
+        return editTracked(ctx, '❌ Harga/kode produk tidak valid. Pesanan belum dibuat.', backHomeKeyboard())
+    }
+
+    let intent
+    try {
+        intent = purchasePayment.createIntent({
+            type: 'TOPUP', jid, source: 'telegram', telegramId: String(ctx.from.id),
+            pushname: ctx.from?.first_name || ctx.from?.username || 'Telegram User', amount: price,
+            label: `${topupGameName(pending.game, [pending.product])} • ${pending.product.name} • ${pending.customerNo}${pending.zone ? ` (${pending.zone})` : ''}`,
+            details: {
+                game: pending.game, customerNo: pending.customerNo, zone: pending.zone || '',
+                nominal: productNominal(pending.product.name),
+                serviceCode: String(pending.product.code), productName: String(pending.product.name),
+                inputFormat: inputProfile.formatHint || 'ID',
+                providerNote: topupInput.providerDescription(pending.product)
+            }
+        })
+    } catch (error) {
+        console.error('[TELEGRAM TOPUP INTENT]', error?.stack || error)
+        const text = `❌ Data pesanan belum dapat disiapkan: ${escapeHtml(error?.message || error)}\n\nTidak ada order provider yang dikirim dan saldo belum dipotong. Tujuan tetap tersimpan agar kamu bisa mencoba konfirmasi sekali lagi.`
+        const keyboard = Markup.inlineKeyboard([
+            [Markup.button.callback('✅ Coba Konfirmasi Lagi', `tg_topup_target_confirm:${game}:${Number(index)}`)],
+            [Markup.button.callback('✏️ Ubah ID / Zone', `tg_topup_edit_target:${game}:${Number(index)}`)],
+            [Markup.button.callback('❌ Batal / Ganti Produk', `tg_topup_page:${game}:${Math.floor(Number(index) / UI_PAGE_SIZE)}`)]
+        ])
+        return renderTelegramMenuCard(ctx, 'topup_target_confirm', {
+            gameName: topupGameName(game, [pending.product]), productName: pending.product.name,
+            destination: `${pending.customerNo}${pending.zone ? ` | ${pending.zone}` : ''}`,
+            price, balance: economy.getBalance(jid), providerNote: topupInput.providerDescription(pending.product)
+        }, text, keyboard)
+    }
+
     clearPending(ctx.from.id)
-    await showPurchaseMethodChoice(ctx, intent)
-    return true
+    const destination = `${pending.customerNo}${pending.zone ? ` | ${inputProfile.zoneLabel || 'Zone/Server'}: ${pending.zone}` : ''}`
+    try {
+        return await showPurchaseMethodChoice(ctx, intent, {
+            message: `Tujuan yang akan dipesan: ${destination}. Periksa kembali detail ini sebelum membayar.`
+        })
+    } catch (error) {
+        console.error('[TELEGRAM TOPUP PAYMENT MENU]', error?.stack || error)
+        const fallback = `✅ <b>DETAIL TOP UP TERSIMPAN</b>\n\nToken: <code>${escapeHtml(intent.token)}</code>\nProduk: <b>${escapeHtml(intent.label)}</b>\nHarga: <b>Rp${escapeHtml(economy.formatMoney(intent.amount))}</b>\nTujuan: <code>${escapeHtml(destination)}</code>\n\nBelum ada saldo dipotong dan belum ada order provider dibuat. Jangan membuat token/pesanan pembayaran lain untuk transaksi yang sama.`
+        try {
+            return await ctx.reply(fallback, { parse_mode: 'HTML', ...purchaseMethodKeyboard(intent) })
+        } catch (replyError) {
+            console.error('[TELEGRAM TOPUP FALLBACK]', replyError?.message || replyError)
+            return null
+        }
+    }
 }
 
 async function handleTopupStatus(ctx, ref) {
@@ -4728,6 +4937,14 @@ async function handleTopupStatus(ctx, ref) {
             if (refunded?.transaction) Object.assign(tx, refunded.transaction)
         }
 
+        const normalizedStatus = String(tx.status || '').toLowerCase()
+        const statusGuidance = ['pending', 'processing'].includes(normalizedStatus)
+            ? '\n\n⏳ Provider masih memproses transaksi. Tunggu dan tekan Cek Status lagi; jangan membuat order kedua.'
+            : normalizedStatus === 'verifikasi'
+                ? '\n\n⚠️ Status belum dapat dipastikan. Jangan membuat order ulang atau mengulang pembayaran; hubungi owner untuk rekonsiliasi.'
+                : normalizedStatus === 'gagal' || normalizedStatus === 'error'
+                    ? `\n\n${tx.refunded ? '✅ Refund sudah diproses satu kali ke saldo bot.' : '⚠️ Periksa status refund di saldo bot. Jika belum masuk, hubungi owner dengan referensi transaksi ini.'}`
+                    : ''
         const statusText =
             `🎮 <b>STATUS TOP UP</b>\n\n` +
             `🧾 Ref: <b>${escapeHtml(tx.ref)}</b>\n` +
@@ -4735,7 +4952,7 @@ async function handleTopupStatus(ctx, ref) {
             `🔄 Status: <b>${escapeHtml(tx.status)}</b>\n` +
             `💰 Harga: <b>Rp${escapeHtml(topupService.formatMoney(tx.sellingPrice))}</b>\n` +
             `🔐 SN: <b>${escapeHtml(tx.sn || '-')}</b>\n` +
-            `↩️ Refund: <b>${tx.refunded ? 'YA' : 'TIDAK'}</b>`
+            `↩️ Refund: <b>${tx.refunded ? 'YA' : 'TIDAK'}</b>` + statusGuidance
         const statusKeyboard = Markup.inlineKeyboard([
             [Markup.button.callback('🔄 Refresh Status', `tg_topup_status:${tx.ref}`)],
             [Markup.button.callback('🎮 Top Up Lagi', 'tg_home_topup'), Markup.button.callback('🏠 Menu', 'tg_home')]
@@ -5309,7 +5526,7 @@ function start(connection) {
         if (status === null) return editTracked(ctx, `⚠️ <b>Gagal mengecek membership.</b>\n\nPastikan bot adalah admin channel.`, joinChannelKeyboard())
         return showForceJoin(ctx, { edit: true })
     })
-    bot.action('tg_home', async ctx => { await answer(ctx); return showHome(ctx) })
+    bot.action('tg_home', async ctx => { await answer(ctx); clearPending(ctx.from.id); return showHome(ctx) })
     bot.action('tg_home_donasi', async ctx => { await answer(ctx); return showTelegramDonation(ctx) })
     bot.action('tg_home_convertpulsa', async ctx => { await answer(ctx); return showConvertPulsaTelegramMenu(ctx) })
     bot.action(/^tg_cp_page:(\d+)$/, async ctx => { await answer(ctx); return showConvertPulsaTelegramMenu(ctx, Number(ctx.match[1])) })
@@ -5532,16 +5749,31 @@ function start(connection) {
         return withTelegramActionLock(ctx, `purchase-qris-status-${ctx.match[1]}`, () => handlePurchaseQrStatus(ctx, ctx.match[1]))
     })
 
-    bot.action('tg_home_topup', async ctx => { await answer(ctx); return renderTopupGames(ctx) })
+    bot.action('tg_home_topup', async ctx => { await answer(ctx); clearPending(ctx.from.id); return renderTopupGames(ctx) })
     bot.action('tg_topup_refresh', async ctx => {
         await answer(ctx)
+        clearPending(ctx.from.id)
         const s = getUi(ctx.from.id)
         if (!s?.topupGame) return renderTopupGames(ctx)
         return renderTopupProducts(ctx, s.topupGame, s.topupPage || 0)
     })
-    bot.action(/^tg_topup_game:([a-z0-9_-]{1,32})$/, async ctx => { await answer(ctx); return renderTopupProducts(ctx, ctx.match[1], 0) })
-    bot.action(/^tg_topup_page:([a-z0-9_-]{1,32}):(\d+)$/, async ctx => { await answer(ctx); return renderTopupProducts(ctx, ctx.match[1], Number(ctx.match[2])) })
+    bot.action(/^tg_topup_game:([a-z0-9_-]{1,32})$/, async ctx => { await answer(ctx); clearPending(ctx.from.id); return renderTopupProducts(ctx, ctx.match[1], 0) })
+    bot.action(/^tg_topup_page:([a-z0-9_-]{1,32}):(\d+)$/, async ctx => { await answer(ctx); clearPending(ctx.from.id); return renderTopupProducts(ctx, ctx.match[1], Number(ctx.match[2])) })
     bot.action(/^tg_topup_product:([a-z0-9_-]{1,32}):(\d+)$/, async ctx => { await answer(ctx); return selectTopupProduct(ctx, ctx.match[1], Number(ctx.match[2])) })
+    bot.action(/^tg_topup_confirm:([a-z0-9_-]{1,32}):(\d+)$/, async ctx => {
+        await answer(ctx)
+        const game = ctx.match[1], index = Number(ctx.match[2])
+        return withTelegramActionLock(ctx, `topup-confirm-${game}-${index}`, () => confirmTopupProduct(ctx, game, index))
+    })
+    bot.action(/^tg_topup_target_confirm:([a-z0-9_-]{1,32}):(\d+)$/, async ctx => {
+        await answer(ctx)
+        const game = ctx.match[1], index = Number(ctx.match[2])
+        return withTelegramActionLock(ctx, `topup-target-confirm-${game}-${index}`, () => confirmTopupTarget(ctx, game, index))
+    })
+    bot.action(/^tg_topup_edit_target:([a-z0-9_-]{1,32}):(\d+)$/, async ctx => {
+        await answer(ctx)
+        return editTopupTarget(ctx, ctx.match[1], Number(ctx.match[2]))
+    })
     bot.action(/^tg_topup_status:(.+)$/, async ctx => { await answer(ctx); return handleTopupStatus(ctx, ctx.match[1]) })
 
     bot.hears(/^\s*deposit(?:\s+(\d+))?\s*$/i, async ctx => {
@@ -5570,15 +5802,18 @@ function start(connection) {
             console.error('[TELEGRAM CONVERT PULSA TEXT INPUT]', error?.stack || error)
             return sendConvertPulsaRich(ctx, { title: '⚠️ INPUT BELUM BERHASIL DIPROSES', lines: [convertPulsaSafeInstruction(error?.message || error, 500), 'Data transaksi belum dikirim ke provider. Coba ulangi tahap input atau batalkan draft.'], buttonRows: [[{ text: '🔄 Ulangi Menu', callbackData: 'tg_home_convertpulsa' }, { text: '❌ Batal', callbackData: 'tg_cp_cancel' }]], screen: 'convert_pulsa' })
         }
+        // Give the currently active top-up input screen priority over stale store drafts.
+        // Otherwise a previous store session could consume the buyer's game ID first.
+        const topupUi = getUi(ctx.from.id)
+        if (topupUi?.pendingTopup && topupUi.screen === 'topup_input') {
+            return withTelegramActionLock(ctx, 'topup-submit', () => processPendingTopup(ctx, ctx.message.text))
+        }
         const storeJidValue = storeJid(ctx)
         try {
             const handledStoreInput = await storeService.handleCustomerInput(storeJidValue, ctx.message.text)
             if (handledStoreInput) return
         } catch (e) {
             console.error('[TELEGRAM STORE INPUT]', e?.stack || e)
-        }
-        if (getUi(ctx.from.id)?.pendingTopup) {
-            await withTelegramActionLock(ctx, 'topup-submit', () => processPendingTopup(ctx, ctx.message.text))
         }
     })
 
