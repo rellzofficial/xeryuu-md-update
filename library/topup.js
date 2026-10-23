@@ -451,14 +451,38 @@ async function status(ref) {
         // exists for the same destination/service.
         const response = await request('status', { limit: 100 })
         const rows = Array.isArray(response?.data) ? response.data : (response?.data ? [response.data] : [])
-        const since = Number(tx.providerCallStartedAt || tx.createdAt || Date.now()) - 120000
+        const startedAt = Number(tx.providerCallStartedAt || tx.createdAt || 0)
+        const since = startedAt ? startedAt - 120000 : 0
+        const timestampMs = value => {
+            if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+                return value < 1e12 ? value * 1000 : value
+            }
+            const raw = String(value || '').trim()
+            if (!raw) return 0
+            if (/^\d{10,13}$/.test(raw)) {
+                const n = Number(raw)
+                return raw.length <= 10 ? n * 1000 : n
+            }
+            const parsed = Date.parse(raw)
+            return Number.isFinite(parsed) ? parsed : 0
+        }
         const matches = rows.filter(item => {
             const sameTarget = String(item?.data ?? item?.data_no ?? '') === String(tx.customerNo || '')
             const sameZone = String(item?.zone ?? item?.data_zone ?? '') === String(tx.zone || '')
-            const serviceText = normalize(`${item?.service || ''} ${item?.service_code || ''}`)
-            const sameService = serviceText.includes(normalize(tx.serviceCode)) || normalize(tx.serviceCode).includes(serviceText)
-            const stamp = Number(item?.created_at || item?.createdAt || item?.timestamp || 0)
-            return sameTarget && sameZone && sameService && (!stamp || stamp >= since)
+            const returnedCode = normalize(item?.service_code ?? item?.code ?? '')
+            const expectedCode = normalize(tx.serviceCode || '')
+            const returnedName = normalize(item?.service ?? item?.service_name ?? '')
+            const expectedName = normalize(tx.productName || '')
+            // VIPayment's documented status response does not guarantee a timestamp
+            // or a service code. Only reconcile automatically when there is a clear
+            // exact service identity and a recent provider timestamp; otherwise the
+            // transaction remains under review instead of matching an old purchase.
+            const sameService = returnedCode && expectedCode
+                ? returnedCode === expectedCode
+                : Boolean(returnedName && expectedName && returnedName === expectedName)
+            const stamp = timestampMs(item?.created_at || item?.createdAt || item?.timestamp || item?.date || item?.time)
+            const recent = Boolean(stamp && since && stamp >= since)
+            return sameTarget && sameZone && sameService && recent
         })
         if (matches.length !== 1) {
             throw new Error(matches.length
