@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261022141747",
-  "updatedAt": "2026-10-22T14:17:47.448Z",
+  "version": "v20261023062747",
+  "updatedAt": "2026-10-23T06:27:47.773Z",
   "branch": "main",
-  "previousVersion": "v20261022101028",
-  "previousCommitSha": "f19df5d9fe1c8c6712e5df67a07e2d1c727727b6",
+  "previousVersion": "v20261022141747",
+  "previousCommitSha": "4f3d9dfe3cc917284aeaeaa6a8b1d312fa07ee48",
   "files": [
     {
       "path": "library/afk.js",
@@ -598,8 +598,8 @@
     },
     {
       "path": "package.json",
-      "sha256": "37cc41f87061f4632e99e5e405164dd1e7a1988fe76bba03483f5e79c1f74744",
-      "size": 2024
+      "sha256": "dbf50b666efde4d8e84118508294394300a9aa4e3164bbdcc89933d3d1ece6eb",
+      "size": 2012
     },
     {
       "path": "source/database.js",
@@ -633,8 +633,8 @@
     },
     {
       "path": "xeryuu.js",
-      "sha256": "c4327cfc88b1817a7951058eb267af8b54c17f2047f41878e8a84cb6a12c75db",
-      "size": 1498798
+      "sha256": "726c18455cc72f63e8f818f9ca4687b5f81e766a501a910431deb8e5a8dff9e1",
+      "size": 1499980
     }
   ]
 }
