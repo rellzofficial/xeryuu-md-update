@@ -9548,12 +9548,6 @@ try {
     console.error('[XERYUU GAME ANSWER]', error?.stack || error);
 }
 
-// Disable the legacy coercive command before its old switch-case can run.
-if (['ewe-paksa', 'ewepaksa'].includes(String(command || '').toLowerCase())) {
-    return replyV1('🛡️ Command ini dinonaktifkan. Gunakan .duel untuk permainan kompetitif yang aman.');
-}
-
-
 try {
     const handledXeryuuCommand = await xeryuuExtension.handle(command, {
         conn,
@@ -23509,47 +23503,71 @@ ${command} kuli`
 
     case 'ewepaksa':
     case 'ewe-paksa': {
-      return replyV1('🛡️ Command ini dinonaktifkan. Gunakan duel untuk permainan kompetitif yang aman.')
+
+if (setting.rpgsetStats) return replyV1('Fitur rpg dimatikan oleh owner')
+      if (!m.isGroup) return replyV1(mess.group)
+      if (!global.db.erpg[m.sender].rpg) return replyV1(`\`\`\`Join RPG Terlebih Dahulu\n\n Ketik .joinrpg terlebih dahulu\`\`\``)
+      if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
+      let users = m.mentionedJid[0] ? m.mentionedJid[0] : m.quoted ? m.quoted.sender : text.replace(/[^0-9]/g, '') + '@s.whatsapp.net'
+      if (!m.mentionedJid[0] && !m.quoted && !text) return replyV1(`*Tag/Reply Target!*\n\nContoh :\n${cmd} @0`)
+      let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastewe)
+      if (new Date() - global.db.erpg[m.sender].lastewe < 43200000) return replyV1(`Kamu Baru Saja ngwe, ${waktuu} Yang Lalu, ewe Lagi nanti.`)
+      let uang = await randomNomor(3000, 19000)
+      let exp = await randomNomor(3444, 7897)
+      replyV1(`kamu membawa nya ke kamar dan membuka paksa baju nya...`)
+      await sleep(3000)
+      replyV1(`Ehh Mau Ngapainn 😣😣...`)
+      await sleep(3000)
+      replyV1(`Ahhh Pelan Pelann, Sakittt😖😖😖....\nAHHH...AHHHH...Pelan Pelan...😖😖😖`)
+      await sleep(3000)
+      replyV1(`Ahhhh, Sakitttt!! >////<\nPlok...Plokkk...Plokkkk😩😖`)
+      await sleep(3000)
+      replyV1(`😖Ahhhh.... Penuhhh.... Angettt😖`)
+      await sleep(3000)
+      replyV1(`*—[ Hasil Ewe ${db.users[m.sender].nama} ]—* 
+➤ 💰 Uang = [ ${uang} ] 
+➤ ✨ Exp = [ ${exp} ] 
+➤ 🎗️ Tugas Selesai = +1`)
+      db.users[m.sender].saldo += uang
+      db.users[m.sender].exp += exp
+      global.db.erpg[m.sender].lastewe = new Date * 1
     }
     break
 
     case 'open-bo':
     case 'openbo': {
-      return replyV1('🛡️ Command open-bo dinonaktifkan. Untuk aktivitas RPG yang aman, gunakan .kerja, .nguli, atau .petualang.')
-    }
-    break
 
-    case 'daily-misi':
-    case 'dailymisi': {
-
+if (setting.rpgsetStats) return replyV1('Fitur rpg dimatikan oleh owner')
       if (!global.db.erpg[m.sender].rpg) return replyV1(`*Join RPG Terlebih Dahulu*\n\nketik _.joinrpg_`)
       if (global.db.erpg[m.sender].stamina < 1) return replyV1(`Kamu Lemah, stamina kamu ${global.db.erpg[m.sender].stamina}%\n\nKetik _.heal_`)
-      let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastdailymisi)
-      if (new Date() - global.db.erpg[m.sender].lastdailymisi < 86400000) return replyV1(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
-      let misiget = ['Menangkap 30 lalat dalam 30 detik', 'Membantu pedagang pasar', 'Menangkap anomali', 'Menangkap maling dalam simulasi', 'Mengejar buronan dalam simulasi', 'Menolong warga desa', 'Mengantar paket tepat waktu', 'Melindungi gudang desa', 'Menjaga gerbang kota', 'Mencari tanaman langka']
-      let mission = pickRandom(misiget)
+      let waktuu = await clockString(new Date() - global.db.erpg[m.sender].lastopenbo)
+      if (new Date() - global.db.erpg[m.sender].lastopenbo < 54000000) return replyV1(`Kamu Baru Saja ${command}, ${waktuu} Yang Lalu, Tunggu Lagi Setelah selesai.`)
+      let uwong = ['Azril', 'Amba', 'MarkZukbrg', 'Mulyono', 'Andree']
+      let userpname = pickRandom(uwong)
+      let hotel = await randomNomor(3, 6)
       let uang = await randomNomor(7000, 34000)
-      let expget = await randomNomor(8000, 13000)
+      let expusr = await randomNomor(8000, 13000)
       let limit = await randomNomor(20, 80)
       let stamina = await randomNomor(45, 85)
-      await replyV1('Mencari Misi...')
-      await sleep(3000)
-      await replyV1(`Misi ${mission} Berhasil Didapatkan`)
+      replyV1('Sedang Mencari Pelanggan...')
+      await sleep(5000)
+      replyV1(`Kamu Mendapatkan Pelanggan Bernama ${userpname} Dan Pergi Ke Hotel Bintang ${hotel}`)
       await sleep(4000)
-      await replyV1('Mengerjakan misi...')
-      await sleep(10000)
-      await replyV1(`${conn.getName(m.sender)} Berhasil Menyelesaikan Misi
-Dan Kamu Mendapatkan :
+      replyV1('Kamu Pun Mulai Melakukan Nganu Dengannya')
+      await sleep(6000)
+      replyV1('Kamu Di Paksa Untuk Melayaninya 24 Jam')
+      await sleep(4000)
+      replyV1(`Kamu Terbaring Lemas Karna Melakukan\nNgentod 24 Jam Dengan ${userpname},\nTetapi Kamu Mendapatkan : \n
 Uang : ${uang}
-Exp : ${expget}
+Exp : ${expusr}
 Limit : ${limit}
 
-Sramina Berkurang ${stamina}%`)
+Stamina berkurang ${stamina}%`)
       db.users[m.sender].saldo += uang
-      db.users[m.sender].exp += expget
+      db.users[m.sender].exp += expusr
       db.users[m.sender].limit += limit
       global.db.erpg[m.sender].stamina -= stamina
-      global.db.erpg[m.sender].lastdailymisi = new Date * 1
+      global.db.erpg[m.sender].lastopenbo = new Date * 1
     }
     break
 
