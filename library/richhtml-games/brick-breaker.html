@@ -75,7 +75,17 @@ footer{text-align:center;color:#647fa7;font-size:11px;margin-top:20px}
 const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
 const $=id=>document.getElementById(id);
 const W=360,H=560;
-let score=0,level=1,lives=3,best=Number(localStorage.getItem('richBrickBest')||0);
+function readBestScore(){
+ try{
+  const stored=window.localStorage.getItem('richBrickBest');
+  const value=Number(stored||0);
+  return Number.isFinite(value)&&value>=0?value:0;
+ }catch(_){return 0}
+}
+function saveBestScore(value){
+ try{window.localStorage.setItem('richBrickBest',String(value));return true}catch(_){return false}
+}
+let score=0,level=1,lives=3,best=readBestScore();
 let running=false,paused=false,gameOver=false,started=false,raf=0,last=0;
 let paddle={x:145,y:520,w:70,h:10,speed:7};
 let balls=[],bricks=[],particles=[],drops=[],keys={left:false,right:false},wideTimer=0;
@@ -90,7 +100,7 @@ function makeBricks(){
   bricks.push({x:startX+c*(bw+gap),y:startY+r*(bh+gap),w:bw,h:bh,hp:level>=4&&r<2?2:1,color:colors[(r+level-1)%colors.length]});
  }
 }
-function init(){score=0;level=1;lives=3;particles=[];drops=[];wideTimer=0;paddle.w=70;paddle.x=(W-paddle.w)/2;makeBricks();resetBall();updateHUD();draw()}
+function init(){score=0;level=1;lives=3;gameOver=false;paused=false;running=false;particles=[];drops=[];wideTimer=0;paddle.w=70;paddle.x=(W-paddle.w)/2;makeBricks();resetBall();updateHUD();draw()}
 function updateHUD(){$('score').textContent=score;$('level').textContent=level;$('lives').textContent='♥ '.repeat(lives).trim()||'—';$('best').textContent=best}
 function showOverlay(title,text,buttons){$('panelTitle').innerHTML=title;$('panelText').textContent=text;$('overlay').classList.remove('hidden');$('playBtn').textContent=buttons||'▶  LANJUTKAN';}
 function hideOverlay(){$('overlay').classList.add('hidden')}
@@ -101,7 +111,7 @@ function addParticles(x,y,color,n=8){for(let i=0;i<n;i++){let a=Math.random()*Ma
 function spawnDrop(x,y){if(Math.random()>.19)return;let types=['wide','multi','laser'];drops.push({x,y,vy:1.8,type:types[Math.floor(Math.random()*types.length)],r:9})}
 function activate(type){if(type==='wide'){paddle.w=105;wideTimer=600}else if(type==='multi'){let b=balls[0]||newBall();balls.push({x:b.x,y:b.y,r:6,vx:-3.2,vy:-4,stuck:false,trail:[]},{x:b.x,y:b.y,r:6,vx:3.2,vy:-4,stuck:false,trail:[]})}else{score+=100;addParticles(paddle.x+paddle.w/2,paddle.y,'#ff3df2',22)}$('status').textContent=type==='wide'?'POWER-UP: PADDLE LEBAR':type==='multi'?'POWER-UP: MULTI-BALL':'BONUS +100'}
 function loseLife(){lives--;updateHUD();addParticles(paddle.x+paddle.w/2,paddle.y,'#ff3d87',20);if(lives<=0){endGame(false)}else{resetBall();$('status').textContent='BOLA HILANG — LEMPAR LAGI'}}
-function endGame(win){running=false;gameOver=true;cancelAnimationFrame(raf);if(score>best){best=score;localStorage.setItem('richBrickBest',best)}updateHUD();$('status').textContent=win?'LEVEL SELESAI':'GAME OVER';showOverlay(win?'LEVEL<br>SELESAI!':'GAME<br>OVER',`Skor: ${score} • Level: ${level}. ${score>=best?'Rekor terbaik tersimpan!':'Coba lagi dan kalahkan rekor terbaikmu.'}`,'↻  MAIN LAGI')}
+function endGame(win){running=false;gameOver=true;cancelAnimationFrame(raf);if(score>best){best=score;saveBestScore(best)}updateHUD();$('status').textContent=win?'LEVEL SELESAI':'GAME OVER';showOverlay(win?'LEVEL<br>SELESAI!':'GAME<br>OVER',`Skor: ${score} • Level: ${level}. ${score>=best?'Rekor terbaik tersimpan!':'Coba lagi dan kalahkan rekor terbaikmu.'}`,'↻  MAIN LAGI')}
 function nextLevel(){level++;if(level>10){endGame(true);return}makeBricks();paddle.x=(W-paddle.w)/2;resetBall();updateHUD();$('status').textContent='LEVEL '+level+' — LEMPAR BOLA';}
 function circleRect(b,r){let x=Math.max(r.x,Math.min(b.x,r.x+r.w)),y=Math.max(r.y,Math.min(b.y,r.y+r.h));return (b.x-x)**2+(b.y-y)**2<b.r*b.r}
 function loop(t){if(!running)return;const dt=Math.min((t-last)/16.67,2);last=t;update(dt);draw();raf=requestAnimationFrame(loop)}
@@ -139,11 +149,19 @@ function draw(){
  particles.forEach(p=>{ctx.globalAlpha=Math.max(0,p.life/40);ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,p.size,p.size)});ctx.globalAlpha=1;
  if(!started||paused||gameOver){ctx.save();ctx.fillStyle='#b8d9ff';ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillText('RICH GAME • BREAK THE LIMIT',W/2,H-18);ctx.restore()}
 }
-function roundRect(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r)}
+function roundRect(x,y,w,h,r){
+ ctx.beginPath();
+ if(typeof ctx.roundRect==='function'){ctx.roundRect(x,y,w,h,r);return}
+ const radius=Math.max(0,Math.min(Number(r)||0,w/2,h/2));
+ ctx.moveTo(x+radius,y);ctx.lineTo(x+w-radius,y);ctx.arcTo(x+w,y,x+w,y+radius,radius);
+ ctx.lineTo(x+w,y+h-radius);ctx.arcTo(x+w,y+h,x+w-radius,y+h,radius);
+ ctx.lineTo(x+radius,y+h);ctx.arcTo(x,y+h,x,y+h-radius,radius);
+ ctx.lineTo(x,y+radius);ctx.arcTo(x,y,x+radius,y,radius);ctx.closePath();
+}
 function moveTo(clientX){const rect=canvas.getBoundingClientRect();paddle.x=(clientX-rect.left)/rect.width*W-paddle.w/2;paddle.x=Math.max(0,Math.min(W-paddle.w,paddle.x))}
 canvas.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'||e.buttons)moveTo(e.clientX)});
 canvas.addEventListener('pointerdown',e=>{moveTo(e.clientX);if(!started&&!gameOver)start();else if(balls.some(b=>b.stuck))launch()});
-$('playBtn').addEventListener('click',()=>{if(gameOver)init();start()});
+$('playBtn').addEventListener('click',()=>{start()});
 $('pauseBtn').addEventListener('click',pause);
 $('restartBtn').addEventListener('click',()=>{cancelAnimationFrame(raf);init();gameOver=false;started=false;running=false;showOverlay('BRICK<br>BREAKER','Mulai lagi dari awal dan pecahkan rekor skor kamu!','▶  MULAI MAIN');$('status').textContent='SIAP BERMAIN'});
 $('launchBtn').addEventListener('click',()=>{if(!started||gameOver)start();else launch()});
