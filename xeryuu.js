@@ -13,6 +13,7 @@ const path = require('path');
 const projectPath = (...parts) => path.join(__dirname, ...parts);
 const persistentGroupSettings = require('./library/persistent-group-settings.js');
 const scheduledBroadcastService = require('./library/scheduled-broadcast.js');
+const groupStatusStore = require('./library/group-status-store.js');
 const reportedProjectReadErrors = new Set();
 const projectAssetCache = new Map();
 function readProjectJson(filePath, fallback) {
@@ -4547,34 +4548,14 @@ async function addWarning(conn, m, reason, pushname) {
   }
 }
 //
-const GROUP_STATUS_STORE = projectPath('library', 'database', 'group-status.json');
+const GROUP_STATUS_STORE = groupStatusStore.GROUP_STATUS_STORE;
 
 function loadGroupStatusRecords() {
-  const records = readProjectJson(GROUP_STATUS_STORE, []);
-  return Array.isArray(records) ? records : [];
+    return groupStatusStore.loadGroupStatusRecords(GROUP_STATUS_STORE);
 }
 
 function storeGroupStatusRecord(groupJid, key, source = 'groupStatusMessage') {
-  if (!groupJid || !key?.id) return false;
-  try {
-    const records = loadGroupStatusRecords();
-    records.push({
-      groupJid: String(groupJid),
-      remoteJid: String(key.remoteJid || groupJid),
-      id: String(key.id),
-      fromMe: true,
-      participant: String(key.participant || ''),
-      source: String(source),
-      createdAt: Date.now()
-    });
-    // Keep the registry bounded; only recent bot-created group statuses are needed.
-    if (records.length > 50) records.splice(0, records.length - 50);
-    fs.writeFileSync(GROUP_STATUS_STORE, JSON.stringify(records, null, 2));
-    return true;
-  } catch (error) {
-    console.error('[GROUP STATUS STORE]', error?.message || error);
-    return false;
-  }
+    return groupStatusStore.recordGroupStatus(groupJid, key, source, GROUP_STATUS_STORE);
 }
 
 async function groupSatus(conn, jid, content) {
@@ -26296,33 +26277,54 @@ case 'hapusswgc': {
     }
 
     const records = loadGroupStatusRecords();
-    let recordIndex = -1;
-    for (let i = records.length - 1; i >= 0; i--) {
-        if (records[i]?.groupJid === targetGroup && records[i]?.id) {
-            recordIndex = i;
-            break;
-        }
-    }
-    if (recordIndex < 0) {
-        return replyV1('ℹ️ Belum ada status grup yang tercatat untuk grup ini. Status yang dikirim sebelum fitur ini dipasang tidak bisa dihapus oleh bot melalui command ini.');
+    const latest = groupStatusStore.findLatestGroupStatusRecord(records, targetGroup);
+    if (latest.index < 0 || !latest.record) {
+        return replyV1('ℹ️ Belum ada SWGC yang terdeteksi untuk grup ini. Bot hanya dapat menghapus status yang sempat diterima/dicatat saat bot online; status sebelum perbaikan ini atau status yang tidak dikirim ke socket bot tidak bisa ditemukan otomatis.');
     }
 
-    const record = records[recordIndex];
+    const record = latest.record;
     const deleteKey = {
         remoteJid: record.remoteJid || record.groupJid,
         id: record.id,
-        fromMe: true
+        fromMe: Boolean(record.fromMe)
     };
     if (record.participant) deleteKey.participant = record.participant;
 
     try {
+        // Pesan dari orang/bot lain biasanya hanya dapat dihapus oleh admin grup.
+        // Pastikan bot sendiri admin sebelum mengirim permintaan revoke untuk pesan orang lain.
+        if (!record.fromMe) {
+            if (!record.participant) {
+                return replyV1('❌ SWGC terdeteksi, tetapi WhatsApp tidak memberikan ID pembuat status. Bot tidak akan menebak participant karena bisa menghapus item yang salah.');
+            }
+            let metadata;
+            try {
+                metadata = await getGroupMetadata(conn, record.groupJid);
+            } catch (metadataError) {
+                return replyV1(`❌ Tidak bisa memeriksa hak admin bot pada grup tujuan.\nDetail: ${metadataError?.message || metadataError}`);
+            }
+            const participants = Array.isArray(metadata?.participants) ? metadata.participants : [];
+            const botIds = [conn.user?.id, conn.user?.lid, botNumber].filter(Boolean);
+            const botParticipant = participants.find(participant =>
+                getParticipantJids(participant).some(id => botIds.some(botJid => sameParticipantIdentity(id, botJid)))
+            );
+            if (botParticipant?.admin !== 'admin' && botParticipant?.admin !== 'superadmin') {
+                return replyV1('❌ Bot harus menjadi admin grup untuk mencoba menghapus SWGC yang dibuat orang atau bot lain.');
+            }
+        }
+
         await conn.sendMessage(record.groupJid, { delete: deleteKey });
-        records.splice(recordIndex, 1);
-        fs.writeFileSync(GROUP_STATUS_STORE, JSON.stringify(records, null, 2));
-        return replyV1(`✅ Permintaan hapus status grup terakhir berhasil dikirim.\nGrup: ${record.groupJid}\nID status: ${record.id}`);
+        // Pertahankan record untuk percobaan ulang bila WhatsApp menolak revoke
+        // secara server-side; sendMessage yang resolve belum menjamin semua klien
+        // langsung menghilangkan kartu SWGC.
+        record.lastDeleteRequestedAt = Date.now();
+        record.lastDeleteRequestedBy = String(m.sender || m.key?.participant || '');
+        groupStatusStore.saveGroupStatusRecords(records, GROUP_STATUS_STORE);
+        const owner = record.fromMe ? 'dibuat oleh bot ini' : `dibuat oleh ${record.participant || record.authorJid || 'anggota lain'}`;
+        return replyV1(`🗑️ Permintaan hapus SWGC sudah dikirim.\nGrup: ${record.groupJid}\nID status: ${record.id}\nPembuat: ${owner}\n\nJika status masih terlihat, coba perintah lagi untuk mengirim ulang permintaan. Dukungan hapus SWGC dari pembuat lain bergantung pada protokol/versi WhatsApp dan Baileys.`);
     } catch (error) {
         console.error('[HAPUS SW GRUP ERROR]', error?.stack || error);
-        return replyV1(`❌ Gagal menghapus status grup. WhatsApp/Baileys mungkin tidak mengizinkan penghapusan untuk tipe status ini.\nDetail: ${error?.message || error}`);
+        return replyV1(`❌ Permintaan hapus SWGC gagal dikirim. Status tetap disimpan agar bisa dicoba lagi.\nDetail: ${error?.message || error}`);
     }
 }
 break;
