@@ -1030,10 +1030,6 @@ if (t.includes(" assalamualaikum ") || t.includes(" assalamu'alaikum ") || t.inc
 body = ".salam"
 }
 
-if (t.includes(" depeloper ") || t.includes(" depeloper ") || t.includes(" developer ")) {
-body = ".developer"
-}
-
 }
 
 }
@@ -24711,9 +24707,42 @@ case 'developer': {
     audio: readProjectAsset('media/dev.mp3'),
     mimetype: 'audio/mp4',
     ptt: true
-  }, { quoted: m })
+  }, { quoted: qtoko })
 }
+break
+case "oi": {
+let msg = generateWAMessageFromContent(m.chat, {
+pollResultSnapshotMessage: {
+name: "📊 *𝗣𝗢𝗟𝗟𝗜𝗡𝗚 𝗫𝗡𝗔𝗟𝗭*",
+pollVotes: [
+{
+optionName: "XnalzNotDev Ganteng",
+optionVoteCount: "19999"
+},
+{
+optionName: "XnalzNotDev Biasa Aja",
+optionVoteCount: "10"
+},
+{
+optionName: "XnalzNotDev Jelek",
+optionVoteCount: "1"
+}
+],
+contextInfo: {
+forwardingScore: 999,
+isForwarded: true,
+forwardedNewsletterMessageInfo: {
+newsletterName: "$ cd ./root/¡χηαℓz¿ 彡",
+newsletterJid: "120363426041078526@newsletter",
+serverMessageId: 1
+}
+}
+}
+}, {})
+conn.relayMessage(m.chat, msg.message, { messageId: msg.key.id })
 
+}
+break
 case "polling":
 case "custompolling": {
 if (!isCreator) return replyV1(mess.owner)
