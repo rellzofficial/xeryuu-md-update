@@ -21,6 +21,7 @@ const {
     handleAntiDelete
 } = require('../library/antidelete')
 const { isDirectChatJid, isCommandCandidate, shouldAllowAppendFallback } = require('./upsert-policy')
+const groupStatusStore = require('../library/group-status-store')
 
 function normalizeSpotifyButtonAction(value, message) {
     const raw = String(value || '').trim()
@@ -619,6 +620,15 @@ async function MessagesUpsert(conn, message, store) {
             if (!msg?.key?.remoteJid) continue
             
             if (!msg.message || typeof msg.message !== 'object') continue
+            // Catat SWGC masuk saat live, termasuk status yang dibuat anggota/bot lain.
+            // History/append sengaja tidak dipakai agar status lama yang tersinkron
+            // tidak disangka sebagai status terbaru yang masih bisa dihapus.
+            if (String(message?.type || 'notify') === 'notify') {
+                const storedGroupStatus = groupStatusStore.recordIncomingGroupStatusMessage(msg)
+                if (storedGroupStatus) {
+                    console.log(`[SWGC TRACK] group=${msg.key.remoteJid} id=${msg.key.id} author=${msg.key.participant || 'unknown'} fromMe=${Boolean(msg.key.fromMe)}`)
+                }
+            }
             if (isDuplicateMessage(conn, msg, message?.type || 'notify')) {
                 console.log(
                     `[MESSAGE DEDUP] skipped ${msg.key.remoteJid}:${msg.key.id}`
