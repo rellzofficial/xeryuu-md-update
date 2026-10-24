@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "version": "v20261023150344",
-  "updatedAt": "2026-10-23T15:03:44.607Z",
+  "version": "v20261024011223",
+  "updatedAt": "2026-10-24T01:12:23.048Z",
   "branch": "main",
-  "previousVersion": "v20261023145946",
-  "previousCommitSha": "90fe6f1e6c3bb59406013a4343c357274bba24e8",
+  "previousVersion": "v20261023150344",
+  "previousCommitSha": "1a43aac519b24967e09fb5105e04ae24960f4bcb",
   "files": [
     {
       "path": "library/afk.js",
@@ -297,6 +297,11 @@
       "size": 2771
     },
     {
+      "path": "library/group-status-store.js",
+      "sha256": "4de55abe71dd2ce6b43d8c8b89e1fdf79db2e65fb126bf4bc0ba021d97b4eedb",
+      "size": 4867
+    },
+    {
       "path": "library/hd.js",
       "sha256": "d5d2be6e9df746e77748434ab0d6d8b25379ff406e0dd57dada188d834813108",
       "size": 16700
@@ -383,8 +388,8 @@
     },
     {
       "path": "library/richhtml-games/brick-breaker.html",
-      "sha256": "506ddd7fc1d30c448af87f6fe864110140a37c15edc1d105ee3366c147984977",
-      "size": 16442
+      "sha256": "dc6fce4f05b543c92350bb2fe29ae7253cb6eada553b4bf30cd94d09362f9630",
+      "size": 17145
     },
     {
       "path": "library/richhtml-games/chess-ultimate.html",
@@ -738,8 +743,8 @@
     },
     {
       "path": "source/message.js",
-      "sha256": "58dbabe5f3a8b7e1ed45da9e3d652d0647460694c0f441bcb72917a20c963009",
-      "size": 49681
+      "sha256": "5abb003b4285570c0daaaa6b467ef156966984bf6b66990d67d4fef6d0f6682e",
+      "size": 50404
     },
     {
       "path": "source/upsert-policy.js",
@@ -763,8 +768,8 @@
     },
     {
       "path": "xeryuu.js",
-      "sha256": "d3078dcfc1c0312e8adbabd8687fcb8336000ed2a127a525e816ea6c510f39d4",
-      "size": 1509225
+      "sha256": "2a3031364a5a994808c89510f270dd73feaff7dd30b1a608553db33e52d9f799",
+      "size": 1510589
     }
   ]
 }
